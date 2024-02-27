@@ -11,9 +11,7 @@ let getSettings<'T> (config: IConfigurationRoot, section: string) =
     config.GetSection(section).Get<'T>()
 
 let runTask (name: string, task: WorkerTask, cToken: CancellationToken) = async {
-    let schedule = task.Schedule
-    let period = TimeSpan.Parse(schedule.WorkTime)
-    let timer = new PeriodicTimer(period)
+    let timer = new PeriodicTimer(TimeSpan.Parse(task.Schedule.WorkTime))
     
     printfn $"Starting task {name} with work time {task.Schedule.WorkTime}"
     
@@ -23,23 +21,16 @@ let runTask (name: string, task: WorkerTask, cToken: CancellationToken) = async 
 }
 
 let runTasks (config: IConfigurationRoot, cToken: CancellationToken) =
-    async {
-        let workerSettings = (config, "Worker") |> getSettings<WorkerSettings>
-        
-        workerSettings.Tasks
-            |> Seq.map (fun x -> (x.Key, x.Value, cToken) |> runTask)
-            |> Async.Parallel
-            |> Async.RunSynchronously
-            |> ignore
-    }
+    getSettings<WorkerSettings>(config, "Worker").Tasks
+        |> Seq.map (fun x -> runTask(x.Key, x.Value, cToken))
+        |> Async.Parallel
+        |> Async.Ignore
 
 [<EntryPoint>]
 let main _ =
     let cts = new CancellationTokenSource()
     let config = getConfiguration()
     
-    (config, cts.Token)
-        |> runTasks
-        |> Async.RunSynchronously
+    runTasks(config, cts.Token) |> Async.RunSynchronously
 
     0

@@ -1,9 +1,8 @@
 module Domain
-
-open System
-
     module Configurations =
+        open System
         open System.Collections.Generic
+
         [<CLIMutable>]
         type WorkerTaskShchedule = {
             IsEnable: bool
@@ -14,6 +13,7 @@ open System
             WorkTime: string
             WorkDays: string
         }
+
         [<CLIMutable>]
         type WorkerTask = {
             ChunkSize: int
@@ -21,6 +21,7 @@ open System
             Steps: string
             Schedule: WorkerTaskShchedule
         }
+
         [<CLIMutable>]
         type WorkerSettings = {
             Tasks: Dictionary<string, WorkerTask>

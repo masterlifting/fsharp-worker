@@ -16,6 +16,7 @@ let runTask (name: string, task: WorkerTask, cToken: CancellationToken) = async 
     let timer = new PeriodicTimer(period)
     
     printfn $"Starting task {name} with work time {task.Schedule.WorkTime}"
+    
     while not cToken.IsCancellationRequested do
         let! _ = timer.WaitForNextTickAsync(cToken).AsTask() |> Async.AwaitTask
         printfn $"Running task {name}"

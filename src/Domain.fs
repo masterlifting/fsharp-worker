@@ -1,5 +1,5 @@
 module Domain
-    module Configurations =
+    module Settings =
         open System
         open System.Collections.Generic
 

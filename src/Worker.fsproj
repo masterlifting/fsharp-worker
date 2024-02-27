@@ -9,7 +9,11 @@
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Compile Include="Domain.fs;Program.fs" />
+    <Compile Include="
+      Infrastructure.fs;
+      Domain.fs;
+      Core.fs;
+      Program.fs" />
   </ItemGroup>
 
   <ItemGroup />

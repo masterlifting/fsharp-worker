@@ -5,7 +5,7 @@ module Settings =
     open System.Collections.Generic
 
     [<CLIMutable>]
-    type WorkerTaskShchedule =
+    type WorkerTaskShcheduleSettings =
         { IsEnable: bool
           IsOnce: bool
           TimeShift: byte
@@ -15,12 +15,27 @@ module Settings =
           WorkDays: string }
 
     [<CLIMutable>]
-    type WorkerTask =
+    type WorkerTaskSettings =
         { ChunkSize: int
           IsInfinite: bool
           Steps: string
-          Schedule: WorkerTaskShchedule }
+          Schedule: WorkerTaskShcheduleSettings }
 
     [<CLIMutable>]
     type WorkerSettings =
-        { Tasks: Dictionary<string, WorkerTask> }
+        { Tasks: Dictionary<string, WorkerTaskSettings> }
+
+module Infrastructure =
+    type WorkerDbContext = { ConnectionString: string }
+    type Logger = { Level: string }
+
+    type ServiceLocator =
+        { getConfig: unit -> Microsoft.Extensions.Configuration.IConfigurationRoot
+          getDbContext: unit -> WorkerDbContext
+          getLogger: unit -> Logger }
+
+open Settings
+
+type WorkerTask =
+    { Name: string
+      Settings: WorkerTaskSettings }

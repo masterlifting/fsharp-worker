@@ -27,7 +27,11 @@ module Settings =
 
 module Infrastructure =
     type WorkerDbContext = { ConnectionString: string }
-    type Logger = { Level: string }
+
+    type Logger =
+        { logInfo: string -> unit
+          logWarning: string -> unit
+          logError: string -> unit }
 
     type ServiceLocator =
         { getConfig: unit -> Microsoft.Extensions.Configuration.IConfigurationRoot

@@ -8,16 +8,18 @@ open Domain
 open Domain.Infrastructure
 
 let runTask di task ct =
+    let logger = di.getLogger ()
+
     let timer = new PeriodicTimer(TimeSpan.Parse task.Settings.Schedule.WorkTime)
 
-    printfn $"Starting task {task.Name} with work time {task.Settings.Schedule.WorkTime}"
+    logger.logWarning $"Starting task {task.Name} with work time {task.Settings.Schedule.WorkTime}"
 
     let dbContext = di.getDbContext ()
 
     let rec work () =
         async {
             do! timer.WaitForNextTickAsync(ct).AsTask() |> Async.AwaitTask |> Async.Ignore
-            printfn $"Running task {task.Name}"
+            logger.logInfo $"Running task {task.Name}"
             return! work ()
         }
 

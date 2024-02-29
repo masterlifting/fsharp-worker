@@ -20,14 +20,17 @@ let getDurationSec (args: string[]) =
 let main args =
 
     let duration = getDurationSec args
+    let di = configureWorker ()
+
+    let logger = di.getLogger ()
 
     try
-        let di = configureWorker ()
-        let cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
+        logger.logWarning $"The worker will be running for {duration} seconds."
 
+        let cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
         startWorker di cts.Token |> Async.RunSynchronously
     with
-    | :? OperationCanceledException -> printfn $"The worker's time was expired after {duration} seconds."
-    | ex -> printfn $"Error: {ex.Message}."
+    | :? OperationCanceledException -> logger.logWarning $"The worker's time was expired after {duration} seconds."
+    | ex -> logger.logError ex.Message
 
     0

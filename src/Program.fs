@@ -5,7 +5,7 @@ open Infrastructure
 open Helpers.Parsers
 
 let getDurationSec (args: string[]) =
-    let defaultSeconds = Int32.MaxValue
+    let defaultSeconds = int (TimeSpan.FromDays 1).TotalSeconds
 
     match args.Length with
     | 1 ->
@@ -21,16 +21,14 @@ let main args =
 
     let duration = getDurationSec args
     let di = configureWorker ()
-
     let logger = di.getLogger ()
 
     try
-        logger.logWarning $"The worker will be running for {duration} seconds."
-
+        $"The worker will be running for {duration} seconds." |> logger.logInfo
         let cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
         startWorker di cts.Token |> Async.RunSynchronously
     with
-    | :? OperationCanceledException -> logger.logWarning $"The worker's time was expired after {duration} seconds."
-    | ex -> logger.logError ex.Message
+    | :? OperationCanceledException -> $"The worker's time was expired after {duration} seconds." |> logger.logWarning
+    | ex -> ex.Message |> logger.logError
 
     0

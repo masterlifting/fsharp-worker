@@ -12,14 +12,15 @@ let runTask di task ct =
 
     let timer = new PeriodicTimer(TimeSpan.Parse task.Settings.Schedule.WorkTime)
 
-    logger.logWarning $"Starting task {task.Name} with work time {task.Settings.Schedule.WorkTime}"
+    $"Starting task {task.Name} with work time {task.Settings.Schedule.WorkTime}"
+    |> logger.logWarning
 
     let dbContext = di.getDbContext ()
 
     let rec work () =
         async {
             do! timer.WaitForNextTickAsync(ct).AsTask() |> Async.AwaitTask |> Async.Ignore
-            logger.logInfo $"Running task {task.Name}"
+            $"Running task {task.Name}" |> logger.logInfo
             return! work ()
         }
 

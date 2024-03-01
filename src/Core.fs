@@ -27,8 +27,7 @@ let runTask di task ct =
     work ()
 
 let startWorker di ct =
-    let config = di.getConfig ()
-    let settings = getConfigSection<WorkerSettings> config "Worker"
+    let settings = getConfigSection<WorkerSettings> "Worker"
 
     settings.Tasks
     |> Seq.map (fun x -> runTask di { Name = x.Key; Settings = x.Value } ct)

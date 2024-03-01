@@ -3,18 +3,18 @@ module Infrastructure
 open Domain.Infrastructure
 open Microsoft.Extensions.Configuration
 
-let getConfig () =
+let mutable configuration =
     ConfigurationBuilder()
         .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
         .Build()
 
-let getConfigSection<'T> (config: IConfigurationRoot) sectionName =
-    config.GetSection(sectionName).Get<'T>()
+let getConfigSection<'T> sectionName =
+    configuration.GetSection(sectionName).Get<'T>()
 
-let getLogger config =
+let logger =
     let lockLog = obj ()
 
-    let logLevel = getConfigSection<string> config "Logging:LogLevel:Default"
+    let logLevel = getConfigSection<string> "Logging:LogLevel:Default"
 
     let getCurrentTimestamp () =
         System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
@@ -49,13 +49,19 @@ let getLogger config =
 let getDbContext connectionString = { ConnectionString = connectionString }
 
 let configureWorker () =
-    let config = getConfig ()
+
+    let reloadCallback _ =
+        printfn "Configuration was changed. Reloading..."
+        configuration.Reload()
+
+    let a =
+        configuration
+            .GetReloadToken()
+            .RegisterChangeCallback(reloadCallback, configuration)
 
     let dbContext =
-        getConfigSection<string> config "ConnectionStrings:WorkerDb" |> getDbContext
+        "ConnectionStrings:WorkerDb" |> getConfigSection<string> |> getDbContext
 
-    let logger = getLogger config
-
-    { getConfig = fun () -> config
+    { getConfig = fun () -> configuration
       getDbContext = fun () -> dbContext
       getLogger = fun () -> logger }

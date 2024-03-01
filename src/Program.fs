@@ -25,8 +25,8 @@ let main args =
 
     try
         $"The worker will be running for {duration} seconds." |> logger.logInfo
-        let cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
-        startWorker di cts.Token |> Async.RunSynchronously
+        use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
+        Async.RunSynchronously <| startWorker di cts.Token
     with
     | :? OperationCanceledException -> $"The worker's time was expired after {duration} seconds." |> logger.logWarning
     | ex -> ex.Message |> logger.logError

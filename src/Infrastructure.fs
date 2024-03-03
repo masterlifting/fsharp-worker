@@ -3,13 +3,21 @@ module Infrastructure
 open Domain.Infrastructure
 open Microsoft.Extensions.Configuration
 
-let mutable configuration =
+let getConfiguration () =
     ConfigurationBuilder()
         .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
         .Build()
 
+let mutable config = getConfiguration ()
+
+let reloadCallback _ =
+    printfn "Configuration was changed. Reloading..."
+    config.Reload()
+
+config.GetReloadToken().RegisterChangeCallback(reloadCallback, config) |> ignore
+
 let getConfigSection<'T> sectionName =
-    configuration.GetSection(sectionName).Get<'T>()
+    config.GetSection(sectionName).Get<'T>()
 
 let logger =
     let lockLog = obj ()
@@ -50,18 +58,9 @@ let getDbContext connectionString = { ConnectionString = connectionString }
 
 let configureWorker () =
 
-    let reloadCallback _ =
-        printfn "Configuration was changed. Reloading..."
-        configuration.Reload()
-
-    let a =
-        configuration
-            .GetReloadToken()
-            .RegisterChangeCallback(reloadCallback, configuration)
-
     let dbContext =
         "ConnectionStrings:WorkerDb" |> getConfigSection<string> |> getDbContext
 
-    { getConfig = fun () -> configuration
+    { getConfig = fun () -> config
       getDbContext = fun () -> dbContext
       getLogger = fun () -> logger }

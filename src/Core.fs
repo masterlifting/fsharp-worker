@@ -1,7 +1,6 @@
 module Core
 
 open System
-open System.Threading
 open Infrastructure
 open Domain.Settings
 open Domain
@@ -10,17 +9,46 @@ open Domain.Infrastructure
 let runTask di task ct =
     let logger = di.getLogger ()
 
-    let timer = new PeriodicTimer(TimeSpan.Parse task.Settings.Schedule.WorkTime)
+    let period = TimeSpan.Parse <| task.Settings.Schedule.WorkTime
 
-    $"Starting task {task.Name} with work time {task.Settings.Schedule.WorkTime}"
+    $"Task {task.Name} with period {task.Settings.Schedule.WorkTime} started"
     |> logger.logWarning
 
-    let dbContext = di.getDbContext ()
+    let taskSteps = task.Settings.Steps.Split [| ',' |]
+
+    "Task steps: " + String.Join(", ", taskSteps) |> logger.logInfo
+
+    let handle name step di ct =
+        async {
+            $"Task {name} step {step} started" |> logger.logInfo
+            let dbContext = di.GetDbContext()
+            return! Ok()
+        }
+
+
+    let rec hendleStep step =
+        async {
+
+            $"Step {step} started" |> logger.logInfo
+
+            let! result = handle task.Name step di ct
+
+            match result with
+            | Ok _ -> $"Step {step} completed successfully" |> logger.logInfo
+            | Error e -> $"Step {step} failed with error: {e}" |> logger.logError
+        }
 
     let rec work () =
         async {
-            do! timer.WaitForNextTickAsync(ct).AsTask() |> Async.AwaitTask |> Async.Ignore
-            $"Running task {task.Name}" |> logger.logInfo
+            do! Async.Sleep period
+
+            $"Task {task.Name} started" |> logger.logInfo
+
+            for step in taskSteps do
+                do! hendleStep step
+
+            $"Task {task.Name} completed" |> logger.logInfo
+
             return! work ()
         }
 

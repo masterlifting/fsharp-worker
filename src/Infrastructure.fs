@@ -3,23 +3,12 @@ module Infrastructure
 module Configuration =
     open Microsoft.Extensions.Configuration
 
-    let get () =
-        let mutable config =
-            ConfigurationBuilder()
-                .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
-                .Build()
+    let private get () =
+        ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
+            .Build()
 
-        let reloadCallback _ =
-            printfn "Configuration was changed. Reloading..."
-            config.Reload()
-
-        let token = config.GetReloadToken()
-
-        token.RegisterChangeCallback(reloadCallback, config) |> ignore
-
-        config
-
-    let settings = get ()
+    let private settings = get ()
 
     let getSection<'T> name =
         let section = settings.GetSection(name)
@@ -41,27 +30,26 @@ module Logging =
         | Debug
         | Trace
 
+    let private getLevel () =
+        match Configuration.getSection<string> "Logging:LogLevel:Default" with
+        | Some "Error" -> Error
+        | Some "Warning" -> Warning
+        | Some "Debug" -> Debug
+        | Some "Trace" -> Trace
+        | _ -> Information
+
+    let private consoleLog message level =
+        let getCurrentTimestamp () =
+            System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+
+        match level with
+        | Error -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+        | Warning -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+        | Debug -> printfn "\u001b[36mDebug\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+        | Trace -> printfn "\u001b[90mTrace\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+        | _ -> printfn "\u001b[32mInfo\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+
     let Logger =
-
-        let getLevel () =
-            match Configuration.getSection<string> "Logging:LogLevel:Default" with
-            | Some "Error" -> Error
-            | Some "Warning" -> Warning
-            | Some "Debug" -> Debug
-            | Some "Trace" -> Trace
-            | _ -> Information
-
-        let consoleLog message level =
-            let getCurrentTimestamp () =
-                System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
-
-            match level with
-            | Error -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-            | Warning -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-            | Debug -> printfn "\u001b[36mDebug\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-            | Trace -> printfn "\u001b[90mTrace\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-            | _ -> printfn "\u001b[32mInfo\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-
         match getLevel () with
         | Error ->
             { logTrace = fun _ -> ()

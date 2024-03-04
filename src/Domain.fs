@@ -32,4 +32,4 @@ module Worker =
         { Name: string
           Settings: WorkerTaskSettings }
 
-    type WorkerTaskStepHandler = Map<string, Map<string, unit -> Async<Result<string, string>>>>
+    type WorkerTaskStepHandler = Map<string, (unit -> Async<Result<string, string>>)>

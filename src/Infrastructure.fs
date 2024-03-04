@@ -1,66 +1,95 @@
 module Infrastructure
 
-open Domain.Infrastructure
-open Microsoft.Extensions.Configuration
+module Configuration =
+    open Microsoft.Extensions.Configuration
 
-let getConfiguration () =
-    ConfigurationBuilder()
-        .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
-        .Build()
+    let get () =
+        let mutable config =
+            ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
+                .Build()
 
-let mutable config = getConfiguration ()
+        let reloadCallback _ =
+            printfn "Configuration was changed. Reloading..."
+            config.Reload()
 
-let reloadCallback _ =
-    printfn "Configuration was changed. Reloading..."
-    config.Reload()
+        let token = config.GetReloadToken()
 
-config.GetReloadToken().RegisterChangeCallback(reloadCallback, config) |> ignore
+        token.RegisterChangeCallback(reloadCallback, config) |> ignore
 
-let getConfigSection<'T> sectionName =
-    config.GetSection(sectionName).Get<'T>()
+        config
 
-let logger =
-    let lockLog = obj ()
+    let settings = get ()
 
-    let logLevel = getConfigSection<string> "Logging:LogLevel:Default"
+    let getSection<'T> name =
+        let section = settings.GetSection(name)
 
-    let getCurrentTimestamp () =
-        System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+        if section.Exists() then section.Get<'T>() |> Some else None
 
-    match logLevel with
-    | "Error" ->
-        { logInfo = fun _ -> ()
-          logWarning = fun _ -> ()
-          logError =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message) }
-    | "Warning" ->
-        { logInfo = fun _ -> ()
-          logWarning =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message)
-          logError =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message) }
-    | _ ->
-        { logInfo =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[32mInfo\u001b[0m [%s] %s" (getCurrentTimestamp ()) message)
-          logWarning =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message)
-          logError =
-            fun message ->
-                lock lockLog (fun () -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message) }
+module Logging =
+    type Logger =
+        { logTrace: string -> unit
+          logDebug: string -> unit
+          logInfo: string -> unit
+          logWarning: string -> unit
+          logError: string -> unit }
 
-//TODO: Set Database
-let getDbContext connectionString = { ConnectionString = connectionString }
+    type private Level =
+        | Error
+        | Warning
+        | Information
+        | Debug
+        | Trace
 
-let configureWorker () =
+    let Logger =
 
-    let dbContext =
-        "ConnectionStrings:WorkerDb" |> getConfigSection<string> |> getDbContext
+        let getLevel () =
+            match Configuration.getSection<string> "Logging:LogLevel:Default" with
+            | Some "Error" -> Error
+            | Some "Warning" -> Warning
+            | Some "Debug" -> Debug
+            | Some "Trace" -> Trace
+            | _ -> Information
 
-    { getConfig = fun () -> config
-      getDbContext = fun () -> dbContext
-      getLogger = fun () -> logger }
+        let consoleLog message level =
+            let getCurrentTimestamp () =
+                System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+
+            match level with
+            | Error -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+            | Warning -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+            | Debug -> printfn "\u001b[36mDebug\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+            | Trace -> printfn "\u001b[90mTrace\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+            | _ -> printfn "\u001b[32mInfo\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+
+        match getLevel () with
+        | Error ->
+            { logTrace = fun _ -> ()
+              logDebug = fun _ -> ()
+              logInfo = fun _ -> ()
+              logWarning = fun _ -> ()
+              logError = fun m -> consoleLog m Error }
+        | Warning ->
+            { logTrace = fun _ -> ()
+              logDebug = fun _ -> ()
+              logInfo = fun _ -> ()
+              logWarning = fun m -> consoleLog m Warning
+              logError = fun m -> consoleLog m Error }
+        | Information ->
+            { logTrace = fun _ -> ()
+              logDebug = fun _ -> ()
+              logInfo = fun m -> consoleLog m Information
+              logWarning = fun m -> consoleLog m Warning
+              logError = fun m -> consoleLog m Error }
+        | Debug ->
+            { logTrace = fun _ -> ()
+              logDebug = fun m -> consoleLog m Debug
+              logInfo = fun m -> consoleLog m Information
+              logWarning = fun m -> consoleLog m Warning
+              logError = fun m -> consoleLog m Error }
+        | Trace ->
+            { logTrace = fun m -> consoleLog m Trace
+              logDebug = fun m -> consoleLog m Debug
+              logInfo = fun m -> consoleLog m Information
+              logWarning = fun m -> consoleLog m Warning
+              logError = fun m -> consoleLog m Error }

@@ -1,7 +1,7 @@
 ﻿open System
 open System.Threading
 open Core
-open Infrastructure
+open Infrastructure.Logging
 open Helpers.Parsers
 
 let getDurationSec (args: string[]) =
@@ -20,15 +20,13 @@ let getDurationSec (args: string[]) =
 let main args =
 
     let duration = getDurationSec args
-    let di = configureWorker ()
-    let logger = di.getLogger ()
 
     try
-        $"The worker will be running for {duration} seconds." |> logger.logInfo
+        $"The worker will be running for {duration} seconds." |> Logger.logWarning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
-        Async.RunSynchronously <| startWorker di cts.Token
+        Async.RunSynchronously <| startWorker cts.Token
     with
-    | :? OperationCanceledException -> $"The worker's time was expired after {duration} seconds." |> logger.logWarning
-    | ex -> ex.Message |> logger.logError
+    | :? OperationCanceledException -> $"The worker's time was expired after {duration} seconds." |> Logger.logWarning
+    | ex -> ex.Message |> Logger.logError
 
     0

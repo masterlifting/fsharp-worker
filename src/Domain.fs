@@ -25,21 +25,11 @@ module Settings =
     type WorkerSettings =
         { Tasks: Dictionary<string, WorkerTaskSettings> }
 
-module Infrastructure =
-    type WorkerDbContext = { ConnectionString: string }
+module Worker =
+    open Settings
 
-    type Logger =
-        { logInfo: string -> unit
-          logWarning: string -> unit
-          logError: string -> unit }
+    type WorkerTask =
+        { Name: string
+          Settings: WorkerTaskSettings }
 
-    type ServiceLocator =
-        { getConfig: unit -> Microsoft.Extensions.Configuration.IConfigurationRoot
-          getDbContext: unit -> WorkerDbContext
-          getLogger: unit -> Logger }
-
-open Settings
-
-type WorkerTask =
-    { Name: string
-      Settings: WorkerTaskSettings }
+    type WorkerTaskStepHandler = Map<string, Map<string, unit -> Async<Result<string, string>>>>

@@ -2,62 +2,59 @@ module Core
 
 open System
 open Infrastructure
+open Infrastructure.Logging
 open Domain.Settings
-open Domain
-open Domain.Infrastructure
+open Domain.Worker
 
-let runTask di task ct =
-    let logger = di.getLogger ()
+let stepHandler: WorkerTaskStepHandler =
+    Map["Belgrade", Map["CheckAvailableDates", (fun () -> async { return Ok "Belgrade - CheckAvailableDates Info" })]]
 
-    let period = TimeSpan.Parse <| task.Settings.Schedule.WorkTime
+let runTask task ct =
 
-    $"Task {task.Name} with period {task.Settings.Schedule.WorkTime} started"
-    |> logger.logWarning
-
-    let taskSteps = task.Settings.Steps.Split [| ',' |]
-
-    "Task steps: " + String.Join(", ", taskSteps) |> logger.logInfo
-
-    let handle name step di ct =
-        async {
-            $"Task {name} step {step} started" |> logger.logInfo
-            let dbContext = di.GetDbContext()
-            return! Ok()
-        }
-
-
-    let rec hendleStep step =
+    let hendleStep step =
         async {
 
-            $"Step {step} started" |> logger.logInfo
+            $"Task {task.Name} started the step {step}" |> Logger.logTrace
 
-            let! result = handle task.Name step di ct
+            let! result =
+                match stepHandler.TryFind task.Name with
+                | Some t ->
+                    match t.TryFind step with
+                    | Some handle -> handle ()
+                    | None -> async { return Error("Step handler was not found") }
+                | None -> async { return Error("Task handler was not found") }
 
             match result with
-            | Ok _ -> $"Step {step} completed successfully" |> logger.logInfo
-            | Error e -> $"Step {step} failed with error: {e}" |> logger.logError
+            | Ok i -> $"Task {task.Name} completed step {step}. Info: {i}" |> Logger.logDebug
+            | Error e -> $"Task {task.Name} failed step {step}. Reason: {e}" |> Logger.logError
         }
 
-    let rec work () =
+    let steps = task.Settings.Steps.Split ','
+    let period = TimeSpan.Parse task.Settings.Schedule.WorkTime
+
+    let rec innerLoop () =
         async {
             do! Async.Sleep period
 
-            $"Task {task.Name} started" |> logger.logInfo
+            $"Task {task.Name} has been started" |> Logger.logDebug
 
-            for step in taskSteps do
+            for step in steps do
                 do! hendleStep step
 
-            $"Task {task.Name} completed" |> logger.logInfo
+            $"Task {task.Name} has been completed" |> Logger.logInfo
 
-            return! work ()
+            return! innerLoop ()
         }
 
-    work ()
+    innerLoop ()
 
-let startWorker di ct =
-    let settings = getConfigSection<WorkerSettings> "Worker"
+let startWorker ct =
+    let settings = Configuration.getSection<WorkerSettings> "Worker"
 
-    settings.Tasks
-    |> Seq.map (fun x -> runTask di { Name = x.Key; Settings = x.Value } ct)
-    |> Async.Parallel
-    |> Async.Ignore
+    match settings with
+    | Some settings ->
+        settings.Tasks
+        |> Seq.map (fun x -> runTask { Name = x.Key; Settings = x.Value } ct)
+        |> Async.Parallel
+        |> Async.Ignore
+    | None -> failwith "Worker settings was not found"

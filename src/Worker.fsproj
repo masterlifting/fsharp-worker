@@ -12,7 +12,7 @@
     <Compile Include="Domain.fs" />
     <Compile Include="Helpers.fs" />
     <Compile Include="Infrastructure.fs" />
-    <Compile Include="WorkerTasks.fs" />
+    <Compile Include="StepHandlers.fs" />
     <Compile Include="Core.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

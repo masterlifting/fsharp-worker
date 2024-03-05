@@ -2,24 +2,18 @@
 open System.Threading
 open Core
 open Infrastructure.Logging
-open Helpers.Parsers
-
-let getDurationSec (args: string[]) =
-    let defaultSeconds = int (TimeSpan.FromDays 1).TotalSeconds
-
-    match args.Length with
-    | 1 ->
-        match args.[0] with
-        | IntParse arg ->
-            match arg with
-            | Some result -> result
-            | _ -> defaultSeconds
-    | _ -> defaultSeconds
+open Helpers
 
 [<EntryPoint>]
 let main args =
 
-    let duration = getDurationSec args
+    let duration =
+        match args.Length with
+        | 1 ->
+            match args.[0] with
+            | IsInt seconds -> seconds
+            | _ -> int (TimeSpan.FromDays 1).TotalSeconds
+        | _ -> int (TimeSpan.FromDays 1).TotalSeconds
 
     try
         $"The worker will be running for {duration} seconds." |> Logger.logWarning

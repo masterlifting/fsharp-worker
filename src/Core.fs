@@ -62,15 +62,14 @@ let startWorker (ct: CancellationToken) =
                         for step in steps do
                             $"Task '{task.Name}' started step '{step}'" |> Logger.logTrace
 
-                            let! stepResult = runTaskStep task step
-
-                            match stepResult with
+                            match! runTaskStep task step with
                             | Ok i -> $"Task '{task.Name}' completed step '{step}'. Info: {i}" |> Logger.logDebug
                             | Error e -> $"Task '{task.Name}' failed step '{step}'. Reason: {e}" |> Logger.logError
 
                         $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
-                        do! Async.Sequential [ Async.Sleep delay; innerLoop () ] |> Async.Ignore
+                        do! Async.Sleep delay
+                        do! innerLoop ()
                 }
 
             return! innerLoop ()

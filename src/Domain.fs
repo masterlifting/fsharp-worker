@@ -6,13 +6,13 @@ module Settings =
 
     [<CLIMutable>]
     type WorkerTaskShcheduleSettings =
-        { IsEnable: bool
+        { IsEnabled: bool
           IsOnce: bool
-          TimeShift: byte
           StartWork: Nullable<DateTime>
           StopWork: Nullable<DateTime>
-          WorkTime: string
-          WorkDays: string }
+          WorkDays: string
+          Delay: string
+          TimeShift: byte }
 
     [<CLIMutable>]
     type WorkerTaskSettings =

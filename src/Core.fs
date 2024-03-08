@@ -1,41 +1,47 @@
 module Core
 
-open System
-open Infrastructure
-open Infrastructure.Logging
-open Domain.Settings
-open Domain.Worker
-open Helpers
-open System.Threading
+module Task =
+    open System
+    open Infrastructure.Logging
+    open Domain.Settings
+    open Domain.Worker
+    open Helpers
+    open System.Threading
 
-let private taskStepHandler =
-    Map["Belgrade", StepHandlers.Belgrade.Handler
-        "Vena", StepHandlers.Vena.Handler]
+    let private taskStepHandlers =
+        Map["Belgrade", StepHandlers.Belgrade.Handler
+            "Vena", StepHandlers.Vena.Handler]
 
-let startWorker (ct: CancellationToken) =
-
-    let runTaskStep task step =
+    let private handleStep taskName step (ct: CancellationToken) =
         if ct.IsCancellationRequested then
             ct.ThrowIfCancellationRequested()
 
-        match taskStepHandler.TryFind task.Name with
-        | Some steps ->
-            match steps.TryFind step with
-            | Some handle -> handle ()
-            | None -> async { return Error("Step handler was not found") }
-        | None -> async { return Error("Task handler was not found") }
+        $"Task '{taskName}' started step '{step}'" |> Logger.logTrace
 
-    let runTask task =
         async {
-            let now = DateTime.UtcNow.AddHours(float task.Settings.Schedule.TimeShift)
+            match taskStepHandlers.TryFind taskName with
+            | Some stepHandlers ->
+                match stepHandlers.TryFind step with
+                | Some handle ->
+                    match! handle () with
+                    | Ok _ -> $"Task '{taskName}' completed step '{step}'" |> Logger.logTrace
+                    | Error error -> $"Task '{taskName}' failed step '{step}' with error: {error}" |> Logger.logError
+                | None -> "Step handler was not found" |> Logger.logError
+            | None -> "Task handler was not found" |> Logger.logError
+        }
+
+    let private handleSteps taskName (steps: string) ct =
+        steps.Split ','
+        |> Seq.map (fun step -> handleStep taskName step ct)
+        |> Async.Sequential
+        |> Async.Ignore
+
+    let private getExpirationToken settings =
+        async {
+            let now = DateTime.UtcNow.AddHours(float settings.Schedule.TimeShift)
             let cts = new CancellationTokenSource()
 
-            let delay =
-                match task.Settings.Schedule.WorkTime with
-                | IsTimeSpan result -> result
-                | _ -> TimeSpan.Zero
-
-            match task.Settings.Schedule.StopWork with
+            match settings.Schedule.StopWork with
             | HasValue stopWork ->
                 match stopWork - now with
                 | ts when ts > TimeSpan.Zero -> cts.CancelAfter ts
@@ -43,42 +49,49 @@ let startWorker (ct: CancellationToken) =
             | _ -> ()
 
             if not cts.IsCancellationRequested then
-                match task.Settings.Schedule.StartWork with
+                match settings.Schedule.StartWork with
                 | HasValue startWork ->
                     match startWork - now with
                     | ts when ts > TimeSpan.Zero -> do! Async.Sleep ts
                     | _ -> ()
                 | _ -> ()
 
-            let steps = task.Settings.Steps.Split ','
+            return cts.Token
+        }
+
+    let start task ct =
+        async {
+            let delay =
+                match task.Settings.Schedule.WorkTime with
+                | IsTimeSpan result -> result
+                | _ -> TimeSpan.Zero
+
+            let! expToken = getExpirationToken task.Settings
 
             let rec innerLoop () =
                 async {
-                    if cts.Token.IsCancellationRequested then
-                        return! async { $"Task '{task.Name}' has been stopped" |> Logger.logWarning }
-                    else
+                    if not expToken.IsCancellationRequested then
                         $"Task '{task.Name}' has been started" |> Logger.logDebug
-
-                        for step in steps do
-                            $"Task '{task.Name}' started step '{step}'" |> Logger.logTrace
-
-                            match! runTaskStep task step with
-                            | Ok i -> $"Task '{task.Name}' completed step '{step}'. Info: {i}" |> Logger.logDebug
-                            | Error e -> $"Task '{task.Name}' failed step '{step}'. Reason: {e}" |> Logger.logError
-
+                        do! handleSteps task.Name task.Settings.Steps ct
                         $"Task '{task.Name}' has been completed" |> Logger.logInfo
-
                         do! Async.Sleep delay
                         do! innerLoop ()
+                    else
+                        $"Task '{task.Name}' has been stopped" |> Logger.logWarning
                 }
 
             return! innerLoop ()
         }
 
+open Infrastructure
+open Domain.Settings
+
+let startWorker ct =
     match Configuration.getSection<WorkerSettings> "Worker" with
     | Some settings ->
         settings.Tasks
-        |> Seq.map (fun x -> runTask { Name = x.Key; Settings = x.Value })
+        |> Seq.map (fun x -> Task.start { Name = x.Key; Settings = x.Value } ct)
         |> Async.Parallel
         |> Async.Ignore
-    | None -> failwith "Worker settings was not found"
+        |> Ok
+    | None -> Error "Worker settings was not found"

@@ -6,15 +6,11 @@ open Domain.Worker
 let CheckAvailableDates = "CheckAvailableDates"
 
 module Belgrade =
-    let private checkAvailableDates () =
-        async { return Ok "Belgrade - CheckAvailableDates Info" }
+    open Domain.Persistence
 
-    let Handler: WorkerTaskStepHandler =
-        Map [ CheckAvailableDates, checkAvailableDates ]
+    let checkAvailableDates (data: Kdmid[]) = async { return Ok data }
 
 module Vena =
-    let private checkAvailableDates () =
-        async { return Ok "Vena - CheckAvailableDates Info" }
+    open Domain.Persistence
 
-    let Handler: WorkerTaskStepHandler =
-        Map [ CheckAvailableDates, checkAvailableDates ]
+    let checkAvailableDates (data: Kdmud[]) = async { return Ok data }

@@ -7,10 +7,52 @@ module Task =
     open Domain.Worker
     open Helpers
     open System.Threading
+    open Domain.Persistence
+    open StepHandlers
 
-    let private taskStepHandlers =
-        Map["Belgrade", StepHandlers.Belgrade.Handler
-            "Vena", StepHandlers.Vena.Handler]
+    let getData task step =
+        match task with
+        | "Belgrade" ->
+            match step with
+            | "AvailableDates" -> [| new Kdmid(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+            | _ -> [||]
+        | "Vena" ->
+            match step with
+            | "AvailableDates" -> [| new Kdmud(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+            | _ -> [||]
+        | _ -> [||]
+
+    let handleData task step data =
+        async {
+            match task with
+            | "Belgrade" ->
+                match step with
+                | "AvailableDates" ->
+                    let data' = data |> Seq.cast<Kdmid> |> Seq.toArray
+                    let! result = Belgrade.checkAvailableDates data'
+
+                    match result with
+                    | Ok data -> data
+                    | Error error -> failwith error
+                | _ -> failwith "Step was not found"
+            | "Vena" ->
+                match step with
+                | "AvailableDates" ->
+                    let data' = data |> Seq.cast<Kdmud> |> Seq.toArray
+                    let! result = Vena.checkAvailableDates data'
+
+                    match result with
+                    | Ok data -> data
+                    | Error error -> failwith error
+                | _ -> failwith "Step was not found"
+            | _ -> failwith "Task was not found"
+        }
+
+    let saveData task data =
+        match task with
+        | "Belgrade" -> Ok
+        | "Vena" -> Ok
+        | _ -> failwith "Task was not found"
 
     let private handleStep step task (ct: CancellationToken) =
         if ct.IsCancellationRequested then
@@ -19,20 +61,29 @@ module Task =
         $"Task '{task}' started step '{step}'" |> Logger.logTrace
 
         async {
-            match taskStepHandlers.TryFind task with
-            | Some stepHandlers ->
-                match stepHandlers.TryFind step with
-                | Some handle ->
-                    match! handle () with
-                    | Ok _ -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
-                    | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
-                | None -> "Step handler was not found" |> Logger.logError
-            | None -> "Task handler was not found" |> Logger.logError
+            let data = getData task
+            let handledData = handleData task data
+            let result = saveData task handledData
+            $"Task '{task}' completed step '{step}'" |> Logger.logTrace
+        // match taskStepHandlers.TryFind task with
+        // | Some stepHandlers ->
+        //     match stepHandlers.TryFind step with
+        //     | Some handle ->
+        //         match! handle [] with
+        //         | Ok data -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
+        //         | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
+        //     | None -> "Step handler was not found" |> Logger.logError
+        // | None -> "Task handler was not found" |> Logger.logError
         }
 
     let handleSteps steps task ct =
         let handle step = handleStep step task ct
         steps |> Seq.map handle |> Async.Sequential |> Async.Ignore
+
+    let getDelay schedule =
+        match schedule.Delay with
+        | IsTimeSpan value -> value
+        | _ -> TimeSpan.Zero
 
     let private getExpirationToken task schedule (delay: TimeSpan) =
         async {
@@ -72,10 +123,7 @@ module Task =
 
     let start task workerToken =
         async {
-            let delay =
-                match task.Settings.Schedule.Delay with
-                | IsTimeSpan value' -> value'
-                | _ -> TimeSpan.Zero
+            let delay = getDelay task.Settings.Schedule
 
             let! taskToken = getExpirationToken task.Name task.Settings.Schedule delay
 
@@ -122,9 +170,9 @@ module Worker =
             match args.Length with
             | 1 ->
                 match args.[0] with
-                | IsInt seconds -> seconds
-                | _ -> int (TimeSpan.FromDays 1).TotalSeconds
-            | _ -> int (TimeSpan.FromDays 1).TotalSeconds
+                | IsInt seconds -> float seconds
+                | _ -> (TimeSpan.FromDays 1).TotalSeconds
+            | _ -> (TimeSpan.FromDays 1).TotalSeconds
 
         try
             $"The worker will be running for {duration} seconds" |> Logger.logWarning

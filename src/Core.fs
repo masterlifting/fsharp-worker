@@ -31,10 +31,8 @@ module Task =
         }
 
     let handleSteps steps task ct =
-        steps
-        |> Seq.map (fun step -> handleStep step task ct)
-        |> Async.Sequential
-        |> Async.Ignore
+        let handle step = handleStep step task ct
+        steps |> Seq.map handle |> Async.Sequential |> Async.Ignore
 
     let private getExpirationToken task schedule (delay: TimeSpan) =
         async {

@@ -30,6 +30,12 @@ module Task =
             | None -> "Task handler was not found" |> Logger.logError
         }
 
+    let handleSteps steps task ct =
+        steps
+        |> Seq.map (fun step -> handleStep step task ct)
+        |> Async.Sequential
+        |> Async.Ignore
+
     let private getExpirationToken task schedule (delay: TimeSpan) =
         async {
             let now = DateTime.UtcNow.AddHours(float schedule.TimeShift)
@@ -77,26 +83,23 @@ module Task =
 
             let steps = task.Settings.Steps.Split ','
 
-            let rec innerLoop () =
+            let rec handleTask () =
                 async {
                     if not taskToken.IsCancellationRequested then
+
                         $"Task '{task.Name}' has been started" |> Logger.logDebug
-
-                        do!
-                            steps
-                            |> Seq.map (fun step -> handleStep step task.Name workerToken)
-                            |> Async.Sequential
-                            |> Async.Ignore
-
+                        do! handleSteps steps task.Name workerToken
                         $"Task '{task.Name}' has been completed" |> Logger.logInfo
+
                         $"Next run of task '{task.Name}' will be in {delay}" |> Logger.logTrace
                         do! Async.Sleep delay
-                        do! innerLoop ()
+
+                        do! handleTask ()
                     else
                         $"Task '{task.Name}' has been stopped" |> Logger.logWarning
                 }
 
-            return! innerLoop ()
+            return! handleTask ()
         }
 
 module Worker =

@@ -1,16 +1,14 @@
 module StepHandlers
 
-open Domain.Worker
-
 [<Literal>]
 let CheckAvailableDates = "CheckAvailableDates"
 
 module Belgrade =
     open Domain.Persistence
 
-    let checkAvailableDates (data: Kdmid[]) = async { return Ok data }
+    let checkAvailableDates (data: Kdmid[]) = Ok data
 
 module Vena =
     open Domain.Persistence
 
-    let checkAvailableDates (data: Kdmud[]) = async { return Ok data }
+    let checkAvailableDates (data: Kdmud[]) = Ok data

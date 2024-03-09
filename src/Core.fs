@@ -11,47 +11,33 @@ module Task =
     open StepHandlers
 
     let getData task step =
-        match task with
-        | "Belgrade" ->
-            match step with
-            | "AvailableDates" -> [| new Kdmid(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
-            | _ -> [||]
-        | "Vena" ->
-            match step with
-            | "AvailableDates" -> [| new Kdmud(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
-            | _ -> [||]
+        match task, step with
+        | "Belgrade", CheckAvailableDates -> [| new Kdmid(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+        | "Vena", CheckAvailableDates -> [| new Kdmud(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
         | _ -> [||]
 
     let handleData task step data =
-        async {
-            match task with
-            | "Belgrade" ->
-                match step with
-                | "AvailableDates" ->
-                    let data' = data |> Seq.cast<Kdmid> |> Seq.toArray
-                    let! result = Belgrade.checkAvailableDates data'
+        match task, step with
+        | "Belgrade", CheckAvailableDates ->
+            let data' = data |> Seq.cast<Kdmid> |> Seq.toArray
+            let result = Belgrade.checkAvailableDates data'
 
-                    match result with
-                    | Ok data -> data
-                    | Error error -> failwith error
-                | _ -> failwith "Step was not found"
-            | "Vena" ->
-                match step with
-                | "AvailableDates" ->
-                    let data' = data |> Seq.cast<Kdmud> |> Seq.toArray
-                    let! result = Vena.checkAvailableDates data'
+            match result with
+            | Ok result -> result |> Array.map (fun x -> x :> IWorkerData)
+            | Error error -> [||]
+        | "Vena", CheckAvailableDates ->
+            let data' = data |> Seq.cast<Kdmud> |> Seq.toArray
+            let result = Vena.checkAvailableDates data'
 
-                    match result with
-                    | Ok data -> data
-                    | Error error -> failwith error
-                | _ -> failwith "Step was not found"
-            | _ -> failwith "Task was not found"
-        }
+            match result with
+            | Ok result -> result |> Array.map (fun x -> x :> IWorkerData)
+            | Error error -> [||]
+        | _ -> failwith "Task was not found"
 
-    let saveData task data =
-        match task with
-        | "Belgrade" -> Ok
-        | "Vena" -> Ok
+    let saveData task step data =
+        match task, step with
+        | "Belgrade", CheckAvailableDates -> Ok
+        | "Vena", CheckAvailableDates -> Ok
         | _ -> failwith "Task was not found"
 
     let private handleStep step task (ct: CancellationToken) =
@@ -60,20 +46,14 @@ module Task =
 
         $"Task '{task}' started step '{step}'" |> Logger.logTrace
 
+        let proccess = getData task step |> handleData task step |> saveData task step
+
         async {
-            let data = getData task
-            let handledData = handleData task data
-            let result = saveData task handledData
+            match proccess () with
+            | Ok _ -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
+            | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
+
             $"Task '{task}' completed step '{step}'" |> Logger.logTrace
-        // match taskStepHandlers.TryFind task with
-        // | Some stepHandlers ->
-        //     match stepHandlers.TryFind step with
-        //     | Some handle ->
-        //         match! handle [] with
-        //         | Ok data -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
-        //         | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
-        //     | None -> "Step handler was not found" |> Logger.logError
-        // | None -> "Task handler was not found" |> Logger.logError
         }
 
     let handleSteps steps task ct =

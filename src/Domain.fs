@@ -29,7 +29,7 @@ module Persistence =
     open System
 
     type IWorkerData =
-        abstract CorellationId: Nullable<Guid>
+        abstract CorellationId: Guid option
         abstract StatusId: int
         abstract StepId: int
         abstract Attempts: int
@@ -56,8 +56,9 @@ module Persistence =
 
 
 module Worker =
-    open Persistence
     open Settings
+
+    type Step = Step of string
 
     type Task =
         { Name: string

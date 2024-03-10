@@ -10,35 +10,41 @@ module Task =
     open Domain.Persistence
     open StepHandlers
 
-    let getData task step =
+    let getProcessableData task step =
         match task, step with
-        | "Belgrade", CheckAvailableDates -> [| new Kdmid(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
-        | "Vena", CheckAvailableDates -> [| new Kdmud(Guid.NewGuid(), 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData ()
+        | "Vena", Step CheckAvailableDates -> Vena.getData ()
         | _ -> [||]
 
-    let handleData task step data =
+    let processData task step data =
         match task, step with
-        | "Belgrade", CheckAvailableDates ->
-            let data' = data |> Seq.cast<Kdmid> |> Seq.toArray
-            let result = Belgrade.checkAvailableDates data'
-
-            match result with
-            | Ok result -> result |> Array.map (fun x -> x :> IWorkerData)
-            | Error error -> [||]
-        | "Vena", CheckAvailableDates ->
-            let data' = data |> Seq.cast<Kdmud> |> Seq.toArray
-            let result = Vena.checkAvailableDates data'
-
-            match result with
-            | Ok result -> result |> Array.map (fun x -> x :> IWorkerData)
-            | Error error -> [||]
+        | "Belgrade", Step CheckAvailableDates ->
+            data
+            |> Seq.cast<Kdmid>
+            |> Belgrade.processData
+            |> Seq.cast<Result<IWorkerData, string>>
+        | "Vena", Step CheckAvailableDates ->
+            data
+            |> Seq.cast<Kdmud>
+            |> Vena.checkAvailableDates
+            |> Seq.cast<Result<IWorkerData, string>>
         | _ -> failwith "Task was not found"
 
     let saveData task step data =
         match task, step with
-        | "Belgrade", CheckAvailableDates -> Ok
-        | "Vena", CheckAvailableDates -> Ok
-        | _ -> failwith "Task was not found"
+        | "Belgrade", Step CheckAvailableDates -> data |> Seq.cast<Kdmid> |> Belgrade.saveData
+        | "Vena", Step CheckAvailableDates -> data |> Seq.cast<Kdmud> |> Vena.saveData
+        | _ -> Error "Task was not found"
+
+    let proccessStepData step task =
+
+        let data = getProcessableData task step
+
+        let processedData = processData task step data
+
+        let processResult = saveData task step processedData
+
+        Error "Not implemented"
 
     let private handleStep step task (ct: CancellationToken) =
         if ct.IsCancellationRequested then
@@ -46,21 +52,19 @@ module Task =
 
         $"Task '{task}' started step '{step}'" |> Logger.logTrace
 
-        let proccess = getData task step |> handleData task step |> saveData task step
-
         async {
-            match proccess () with
+            match proccessStepData step task with
             | Ok _ -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
             | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
 
             $"Task '{task}' completed step '{step}'" |> Logger.logTrace
         }
 
-    let handleSteps steps task ct =
+    let private handleSteps steps task ct =
         let handle step = handleStep step task ct
         steps |> Seq.map handle |> Async.Sequential |> Async.Ignore
 
-    let getDelay schedule =
+    let private getDelay schedule =
         match schedule.Delay with
         | IsTimeSpan value -> value
         | _ -> TimeSpan.Zero
@@ -107,7 +111,7 @@ module Task =
 
             let! taskToken = getExpirationToken task.Name task.Settings.Schedule delay
 
-            let steps = task.Settings.Steps.Split ','
+            let steps = task.Settings.Steps.Split ',' |> Seq.map Step
 
             let rec handleTask () =
                 async {

@@ -12,28 +12,20 @@ module Task =
 
     let getProcessableData task step =
         match task, step with
-        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData ()
-        | "Vena", Step CheckAvailableDates -> Vena.getData ()
-        | _ -> [||]
+        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> seq |> Kdmid |> Some
+        | "Vena", Step CheckAvailableDates -> Vena.getData () |> seq |> Kdmud |> Some
+        | _ -> None
 
     let processData task step data =
-        match task, step with
-        | "Belgrade", Step CheckAvailableDates ->
-            data
-            |> Seq.cast<Kdmid>
-            |> Belgrade.processData
-            |> Seq.cast<Result<IWorkerData, string>>
-        | "Vena", Step CheckAvailableDates ->
-            data
-            |> Seq.cast<Kdmud>
-            |> Vena.checkAvailableDates
-            |> Seq.cast<Result<IWorkerData, string>>
+        match task, step, data with
+        | "Belgrade", Step CheckAvailableDates, Some(Kdmid data') -> Belgrade.processData data'
+        | "Vena", Step CheckAvailableDates, Some(Kdmud data') -> Vena.processData data'
         | _ -> failwith "Task was not found"
 
     let saveData task step data =
-        match task, step with
-        | "Belgrade", Step CheckAvailableDates -> data |> Seq.cast<Kdmid> |> Belgrade.saveData
-        | "Vena", Step CheckAvailableDates -> data |> Seq.cast<Kdmud> |> Vena.saveData
+        match task, step, data with
+        | "Belgrade", Step CheckAvailableDates, Kdmid data' -> Belgrade.saveData data'
+        | "Vena", Step CheckAvailableDates, Kdmud data' -> Vena.saveData data'
         | _ -> Error "Task was not found"
 
     let proccessStepData step task =
@@ -42,9 +34,7 @@ module Task =
 
         let processedData = processData task step data
 
-        let processResult = saveData task step processedData
-
-        Error "Not implemented"
+        saveData task step processedData
 
     let private handleStep step task (ct: CancellationToken) =
         if ct.IsCancellationRequested then

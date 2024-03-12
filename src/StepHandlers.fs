@@ -4,13 +4,14 @@ module StepHandlers
 let CheckAvailableDates = "CheckAvailableDates"
 
 module Belgrade =
-    open Domain.Persistence
     open System
+    open Domain.Persistence
 
     let getData () =
-        [| new Kdmid(None, 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+        [| new Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
 
     let processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
+
     let saveData (data: Kdmid seq) = Error "Not implemented"
 
 module Vena =
@@ -18,7 +19,9 @@ module Vena =
     open System
 
     let getData () =
-        [| new Kdmud(None, 1, 1, 0, None, DateTime.Now) :> IWorkerData |]
+        [| new Kdmud(None, 1, 1, 0, None, DateTime.Now) |]
 
-    let checkAvailableDates (data: Kdmud seq) = data |> Seq.map (fun x -> Ok x)
-    let saveData (data: Kdmud seq) = Error "Not implemented"
+    let processData (data: Kdmud seq) =
+        data |> Seq.map (fun x -> Error "Not implemented")
+
+    let saveData (data: Kdmud seq) = Ok "Not implemented"

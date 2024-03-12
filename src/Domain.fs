@@ -55,6 +55,11 @@ module Persistence =
             member _.UpdatedAt = updatedAt
 
 
+    type KdmidType =
+        | Kdmid of Kdmid seq
+        | Kdmud of Kdmud seq
+
+
 module Worker =
     open Settings
 

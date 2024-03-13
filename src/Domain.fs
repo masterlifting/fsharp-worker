@@ -54,16 +54,16 @@ module Persistence =
             member _.Error = error
             member _.UpdatedAt = updatedAt
 
-
-    type KdmidType =
-        | Kdmid of Kdmid seq
-        | Kdmud of Kdmud seq
-
+open Persistence
 
 module Worker =
     open Settings
 
     type Step = Step of string
+
+    type DataTypes =
+        | Kdmid of Kdmid
+        | Kdmud of Kdmud
 
     type Task =
         { Name: string

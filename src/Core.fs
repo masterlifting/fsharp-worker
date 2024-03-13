@@ -7,19 +7,35 @@ module Task =
     open Domain.Worker
     open Helpers
     open System.Threading
-    open Domain.Persistence
     open StepHandlers
+    open Domain.Persistence
 
     let getProcessableData task step =
         match task, step with
-        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> seq |> Kdmid |> Some
-        | "Vena", Step CheckAvailableDates -> Vena.getData () |> seq |> Kdmud |> Some
-        | _ -> None
+        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> Seq.map DataTypes.Kdmid
+        | "Vena", Step CheckAvailableDates -> Vena.getData () |> Seq.map DataTypes.Kdmud
+        | _ -> Seq.empty
+
+    let convert<'a when 'a :> IWorkerData> data =
+        data
+        |> Seq.choose (function
+            | Ok item -> Some item
+            | _ -> None)
+
+    let process' data processData =
+        data
+        |> Seq.map (fun item ->
+            match item with
+            | Kdmid x -> Some x
+            | Kdmud y -> Some y
+            | _ -> None)
+        |> processData
+        |> convert
 
     let processData task step data =
-        match task, step, data with
-        | "Belgrade", Step CheckAvailableDates, Some(Kdmid data') -> Belgrade.processData data'
-        | "Vena", Step CheckAvailableDates, Some(Kdmud data') -> Vena.processData data'
+        match task, step with
+        | "Belgrade", Step CheckAvailableDates -> process' data Belgrade.processData
+        | "Vena", Step CheckAvailableDates -> process' data |> Vena.processData
         | _ -> failwith "Task was not found"
 
     let saveData task step data =
@@ -30,11 +46,12 @@ module Task =
 
     let proccessStepData step task =
 
-        let data = getProcessableData task step
+        let result =
+            getProcessableData task step |> processData task step |> saveData task step
 
-        let processedData = processData task step data
+        let run = getProcessableData >> processData >> saveData
 
-        saveData task step processedData
+        run task step
 
     let private handleStep step task (ct: CancellationToken) =
         if ct.IsCancellationRequested then

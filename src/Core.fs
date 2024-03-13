@@ -10,48 +10,11 @@ module Task =
     open StepHandlers
     open Domain.Persistence
 
-    let getProcessableData task step =
+    let handle task step =
         match task, step with
-        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> Seq.map DataTypes.Kdmid
-        | "Vena", Step CheckAvailableDates -> Vena.getData () |> Seq.map DataTypes.Kdmud
-        | _ -> Seq.empty
-
-    let convert<'a when 'a :> IWorkerData> data =
-        data
-        |> Seq.choose (function
-            | Ok item -> Some item
-            | _ -> None)
-
-    let process' data processData =
-        data
-        |> Seq.map (fun item ->
-            match item with
-            | Kdmid x -> Some x
-            | Kdmud y -> Some y
-            | _ -> None)
-        |> processData
-        |> convert
-
-    let processData task step data =
-        match task, step with
-        | "Belgrade", Step CheckAvailableDates -> process' data Belgrade.processData
-        | "Vena", Step CheckAvailableDates -> process' data |> Vena.processData
-        | _ -> failwith "Task was not found"
-
-    let saveData task step data =
-        match task, step, data with
-        | "Belgrade", Step CheckAvailableDates, Kdmid data' -> Belgrade.saveData data'
-        | "Vena", Step CheckAvailableDates, Kdmud data' -> Vena.saveData data'
+        | "Belgrade", Step CheckAvailableDates -> Belgrade.getData >> Belgrade.processData >> Belgrade.saveData |> Ok
+        | "Vena", Step CheckAvailableDates -> Vena.getData >> Vena.processData >> Vena.saveData |> Ok
         | _ -> Error "Task was not found"
-
-    let proccessStepData step task =
-
-        let result =
-            getProcessableData task step |> processData task step |> saveData task step
-
-        let run = getProcessableData >> processData >> saveData
-
-        run task step
 
     let private handleStep step task (ct: CancellationToken) =
         if ct.IsCancellationRequested then
@@ -60,7 +23,7 @@ module Task =
         $"Task '{task}' started step '{step}'" |> Logger.logTrace
 
         async {
-            match proccessStepData step task with
+            match handle step task with
             | Ok _ -> $"Task '{task}' completed step '{step}'" |> Logger.logTrace
             | Error error -> $"Task '{task}' failed step '{step}' with error: {error}" |> Logger.logError
 

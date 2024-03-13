@@ -12,7 +12,7 @@ module Belgrade =
 
     let processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
 
-    let saveData (data: Kdmid seq) = Error "Not implemented"
+    let saveData data = Error "Not implemented"
 
 module Vena =
     open Domain.Persistence
@@ -24,4 +24,4 @@ module Vena =
     let processData (data: Kdmud seq) =
         data |> Seq.map (fun x -> Error "Not implemented")
 
-    let saveData (data: Kdmud seq) = Ok "Not implemented"
+    let saveData data = Ok "Not implemented"

@@ -1,57 +1,75 @@
 module Core
 
 open System
-open Infrastructure.Logging
-open Domain.Settings
-open Domain.Worker
-open Helpers
 open System.Threading
+
+open Domain.Worker
+open Infrastructure.Logging
+open Helpers
 open StepHandlers
 open Infrastructure
 open System.Collections.Generic
 
 module TaskScheduler =
-
-    let getTaskDelay schedule =
-        match schedule.Delay with
-        | IsTimeSpan value -> value
-        | _ -> TimeSpan.Zero
-
-    let getTaskExpirationToken task (delay: TimeSpan) schedule =
+    let getTaskExpirationToken taskName scheduler =
         async {
-            let now = DateTime.UtcNow.AddHours(float schedule.TimeShift)
+            let now = DateTime.UtcNow.AddHours(scheduler.TimeShift)
             let cts = new CancellationTokenSource()
 
-            if not schedule.IsEnabled then
-                $"Task '{task}' is disabled" |> Logger.logWarning
+            if not scheduler.IsEnabled then
+                $"Task '{taskName}' is disabled" |> Logger.logWarning
                 do! cts.CancelAsync() |> Async.AwaitTask
 
             if not cts.IsCancellationRequested then
-                match schedule.StopWork with
-                | HasValue stopWork ->
+                match scheduler.StopWork with
+                | Some stopWork ->
                     match stopWork - now with
                     | ts when ts > TimeSpan.Zero ->
-                        $"Task '{task}' will be stopped at {stopWork}" |> Logger.logWarning
+                        $"Task '{taskName}' will be stopped at {stopWork}" |> Logger.logWarning
                         cts.CancelAfter ts
                     | _ -> do! cts.CancelAsync() |> Async.AwaitTask
                 | _ -> ()
 
             if not cts.IsCancellationRequested then
-                match schedule.StartWork with
-                | HasValue startWork ->
+                match scheduler.StartWork with
+                | Some startWork ->
                     match startWork - now with
                     | ts when ts > TimeSpan.Zero ->
-                        $"Task '{task}' will start at {startWork}" |> Logger.logWarning
+                        $"Task '{taskName}' will start at {startWork}" |> Logger.logWarning
                         do! Async.Sleep ts
                     | _ -> ()
                 | _ -> ()
 
-                if schedule.IsOnce then
-                    $"Task '{task}' will be run once" |> Logger.logWarning
-                    cts.CancelAfter(delay.Subtract(TimeSpan.FromSeconds 1.0))
+                if scheduler.IsOnce then
+                    $"Task '{taskName}' will be run once" |> Logger.logWarning
+                    cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
 
             return cts.Token
         }
+
+let doBfsSteps (steps: TaskStep[]) handle =
+    let queue = Queue<TaskStep>(steps)
+
+    while queue.Count > 0 do
+        let step = queue.Dequeue()
+        handle step
+
+        match step.Steps with
+        | [||] -> ()
+        | _ -> step.Steps |> Seq.iter queue.Enqueue
+
+let rec doDfsSteps (steps: TaskStep[]) handle =
+    match steps with
+    | [||] -> ()
+    | _ ->
+        let step = steps.[0]
+        handle step
+
+        match step.Steps with
+        | [||] -> ()
+        | _ -> doDfsSteps step.Steps handle
+
+        doDfsSteps steps.[1..] handle
 
 let private handleTaskStep taskName stepName =
     match taskName, stepName with
@@ -61,7 +79,7 @@ let private handleTaskStep taskName stepName =
 
 let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-    let handle (step: WorkerTaskStepSettings) =
+    let handle (step: TaskStep) =
         if ct.IsCancellationRequested then
             ct.ThrowIfCancellationRequested()
 
@@ -71,24 +89,26 @@ let private handleTaskSteps taskName steps (ct: CancellationToken) =
         | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
         | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
 
-    dfsSteps steps handle
+    doDfsSteps steps handle
 
 let private startTask task workerCt =
     async {
-        let delay = TaskScheduler.getTaskDelay task.Settings.Schedule
-
-        let! taskCt = TaskScheduler.getTaskExpirationToken task.Name delay task.Settings.Schedule
+        let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 
         let rec innerLoop () =
             async {
                 if not taskCt.IsCancellationRequested then
 
                     $"Task '{task.Name}' has been started" |> Logger.logDebug
-                    do handleTaskSteps task.Name task.Settings.Steps workerCt
+
+                    do handleTaskSteps task.Name task.Steps workerCt
+
                     $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
-                    $"Next run of task '{task.Name}' will be in {delay}" |> Logger.logTrace
-                    do! Async.Sleep delay
+                    $"Next run of task '{task.Name}' will be in {task.Scheduler.Delay}"
+                    |> Logger.logTrace
+
+                    do! Async.Sleep task.Scheduler.Delay
 
                     do! innerLoop ()
                 else
@@ -111,10 +131,11 @@ let startWorker (args: string[]) =
         $"The worker will be running for {duration} seconds" |> Logger.logWarning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
 
-        match Configuration.getSection<WorkerSettings> "Worker" with
+        match Configuration.getSection<Settings.Section> "Worker" with
         | Some settings ->
-            settings.Tasks
-            |> Seq.map (fun x -> startTask { Name = x.Key; Settings = x.Value } cts.Token)
+            settings
+            |> convertToTasks
+            |> Seq.map (fun task -> startTask task cts.Token)
             |> Async.Parallel
             |> Async.RunSynchronously
             |> ignore

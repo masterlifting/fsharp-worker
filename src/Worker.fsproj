@@ -7,8 +7,8 @@
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Compile Include="Domain.fs" />
     <Compile Include="Helpers.fs" />
+    <Compile Include="Domain.fs" />
     <Compile Include="Infrastructure.fs" />
     <Compile Include="StepHandlers.fs" />
     <Compile Include="Core.fs" />

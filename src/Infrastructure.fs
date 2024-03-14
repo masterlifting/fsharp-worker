@@ -40,15 +40,15 @@ module Logging =
 
     let consoleLogProcessor =
         MailboxProcessor.Start(fun inbox ->
-            let rec loop () =
+            let rec innerLoop () =
                 async {
                     let! getMessage = inbox.Receive()
                     let message = getMessage <| System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
                     printfn $"{message}"
-                    return! loop ()
+                    return! innerLoop ()
                 }
 
-            loop ())
+            innerLoop ())
 
 
     let private consoleLog message level =

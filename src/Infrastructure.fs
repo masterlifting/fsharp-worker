@@ -42,7 +42,7 @@ module Logging =
         let timeStamp = System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
 
         match level with
-        | Error -> printfn $"\u001b[31mError\u001b[0m [{timeStamp}] {message}"
+        | Error -> printfn $"\u001b[31mError [{timeStamp}] {message}\u001b[0m"
         | Warning -> printfn $"\u001b[33mWarning\u001b[0m [{timeStamp}] {message}"
         | Debug -> printfn $"\u001b[36mDebug\u001b[0m [{timeStamp}] {message}"
         | Trace -> printfn $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}"

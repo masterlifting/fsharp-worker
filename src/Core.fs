@@ -58,13 +58,15 @@ let private handleTaskStep taskName stepName =
     | "Vena", CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
     | _ -> Error "Task was not found"
 
-let rec private handleTaskSteps taskName steps (ct: CancellationToken) =
+let rec private handleTaskSteps taskName (steps: WorkerTaskStepSettings[]) (ct: CancellationToken) =
     async {
         match steps with
-        | [] -> ()
-        | step :: tail ->
+        | [||] -> ()
+        | _ ->
             if ct.IsCancellationRequested then
                 ct.ThrowIfCancellationRequested()
+
+            let step = steps.[0]
 
             $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
@@ -72,7 +74,13 @@ let rec private handleTaskSteps taskName steps (ct: CancellationToken) =
             | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
             | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
 
-            do! handleTaskSteps taskName tail ct
+            let nextSteps =
+                match step.Steps with
+                | [||] -> steps.[1..]
+                | value when value.Length > 0 -> value
+                | _ -> [||]
+
+            do! handleTaskSteps taskName nextSteps ct
     }
 
 let private startTask task workerCt =
@@ -81,14 +89,12 @@ let private startTask task workerCt =
 
         let! taskCt = TaskScheduler.getTaskExpirationToken task.Name delay task.Settings.Schedule
 
-        let steps = task.Settings.Steps |> Array.toList
-
         let rec innerLoop () =
             async {
                 if not taskCt.IsCancellationRequested then
 
                     $"Task '{task.Name}' has been started" |> Logger.logDebug
-                    do! handleTaskSteps task.Name steps workerCt
+                    do! handleTaskSteps task.Name task.Settings.Steps workerCt
                     $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
                     $"Next run of task '{task.Name}' will be in {delay}" |> Logger.logTrace

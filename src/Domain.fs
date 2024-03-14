@@ -16,7 +16,7 @@ module Settings =
 
     [<CLIMutable>]
     type WorkerTaskStepSettings =
-        { Nane: string
+        { Name: string
           Steps: WorkerTaskStepSettings[] }
 
 

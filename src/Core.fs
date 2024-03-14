@@ -52,27 +52,28 @@ module TaskScheduler =
             return cts.Token
         }
 
-let private handleTaskStep taskName step =
-    match taskName, step with
-    | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
-    | "Vena", Step CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
+let private handleTaskStep taskName stepName =
+    match taskName, stepName with
+    | "Belgrade", CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
+    | "Vena", CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
     | _ -> Error "Task was not found"
 
-let private handleTaskSteps taskName steps (ct: CancellationToken) =
-    steps
-    |> Seq.map (fun step ->
-        if ct.IsCancellationRequested then
-            ct.ThrowIfCancellationRequested()
+let rec private handleTaskSteps taskName steps (ct: CancellationToken) =
+    async {
+        match steps with
+        | [] -> ()
+        | step :: tail ->
+            if ct.IsCancellationRequested then
+                ct.ThrowIfCancellationRequested()
 
-        $"Task '{taskName}' started {step}" |> Logger.logTrace
+            $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
-        async {
-            match handleTaskStep taskName step with
-            | Ok _ -> $"Task '{taskName}' completed {step}" |> Logger.logTrace
-            | Error error -> $"Task '{taskName}' failed {step}. {error}" |> Logger.logError
-        })
-    |> Async.Sequential
-    |> Async.Ignore
+            match handleTaskStep taskName step.Name with
+            | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
+            | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+
+            do! handleTaskSteps taskName tail ct
+    }
 
 let private startTask task workerCt =
     async {
@@ -80,7 +81,7 @@ let private startTask task workerCt =
 
         let! taskCt = TaskScheduler.getTaskExpirationToken task.Name delay task.Settings.Schedule
 
-        let steps = task.Settings.Steps.Split ',' |> Seq.map Step
+        let steps = task.Settings.Steps |> Array.toList
 
         let rec innerLoop () =
             async {

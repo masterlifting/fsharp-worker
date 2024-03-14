@@ -15,10 +15,16 @@ module Settings =
           TimeShift: byte }
 
     [<CLIMutable>]
+    type WorkerTaskStepSettings =
+        { Nane: string
+          Steps: WorkerTaskStepSettings[] }
+
+
+    [<CLIMutable>]
     type WorkerTaskSettings =
         { ChunkSize: int
           IsInfinite: bool
-          Steps: string
+          Steps: WorkerTaskStepSettings[]
           Schedule: WorkerTaskShcheduleSettings }
 
     [<CLIMutable>]
@@ -56,8 +62,6 @@ module Persistence =
 
 module Worker =
     open Settings
-
-    type Step = Step of string
 
     type Task =
         { Name: string

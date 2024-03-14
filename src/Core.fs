@@ -69,9 +69,7 @@ let private handleTaskSteps taskName steps (ct: CancellationToken) =
         async {
             match handleTaskStep taskName step with
             | Ok _ -> $"Task '{taskName}' completed {step}" |> Logger.logTrace
-            | Error error -> $"Task '{taskName}' failed {step} with error: {error}" |> Logger.logError
-
-            $"Task '{taskName}' completed {step}" |> Logger.logTrace
+            | Error error -> $"Task '{taskName}' failed {step}. {error}" |> Logger.logError
         })
     |> Async.Sequential
     |> Async.Ignore

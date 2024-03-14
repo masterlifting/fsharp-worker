@@ -24,4 +24,4 @@ module Vena =
     let processData (data: Kdmud seq) =
         data |> Seq.map (fun x -> Error "Not implemented")
 
-    let saveData data = Ok "Not implemented"
+    let saveData data = Ok ""

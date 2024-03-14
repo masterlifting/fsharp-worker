@@ -39,15 +39,14 @@ module Logging =
         | _ -> Information
 
     let private consoleLog message level =
-        let getCurrentTimestamp () =
-            System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+        let timeStamp = System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
 
         match level with
-        | Error -> printfn "\u001b[31mError\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-        | Warning -> printfn "\u001b[33mWarning\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-        | Debug -> printfn "\u001b[36mDebug\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-        | Trace -> printfn "\u001b[90mTrace\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
-        | _ -> printfn "\u001b[32mInfo\u001b[0m [%s] %s" (getCurrentTimestamp ()) message
+        | Error -> printfn $"\u001b[31mError\u001b[0m [{timeStamp}] {message}"
+        | Warning -> printfn $"\u001b[33mWarning\u001b[0m [{timeStamp}] {message}"
+        | Debug -> printfn $"\u001b[36mDebug\u001b[0m [{timeStamp}] {message}"
+        | Trace -> printfn $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}"
+        | _ -> printfn $"\u001b[32mInfo\u001b[0m [{timeStamp}] {message}"
 
     let Logger =
         match getLevel () with

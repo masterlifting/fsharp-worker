@@ -1,4 +1,4 @@
 ﻿open Core
 
 [<EntryPoint>]
-let main args = args |> start
+let main args = args |> startWorker

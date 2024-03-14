@@ -10,34 +10,32 @@ open StepHandlers
 open Infrastructure
 open Scheduler
 
-let private startWorker (args: string[]) startTask =
-    let duration =
-        match args.Length with
-        | 1 ->
-            match args.[0] with
-            | IsInt seconds -> float seconds
-            | _ -> (TimeSpan.FromDays 1).TotalSeconds
-        | _ -> (TimeSpan.FromDays 1).TotalSeconds
+let private handleTaskStep taskName step =
+    match taskName, step with
+    | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
+    | "Vena", Step CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
+    | _ -> Error "Task was not found"
 
-    try
-        $"The worker will be running for {duration} seconds" |> Logger.logWarning
-        use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
+let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-        match Configuration.getSection<WorkerSettings> "Worker" with
-        | Some settings ->
-            settings.Tasks
-            |> Seq.map (fun x -> startTask { Name = x.Key; Settings = x.Value } cts.Token)
-            |> Async.Parallel
-            |> Async.RunSynchronously
-            |> ignore
-        | None -> failwith "Worker settings was not found"
-    with
-    | :? OperationCanceledException -> $"The worker has been cancelled" |> Logger.logWarning
-    | ex -> ex.Message |> Logger.logError
+    steps
+    |> Seq.map (fun step ->
+        if ct.IsCancellationRequested then
+            ct.ThrowIfCancellationRequested()
 
-    0
+        $"Task '{taskName}' started {step}" |> Logger.logTrace
 
-let private startTask task handleTaskSteps workerCt =
+        async {
+            match handleTaskStep taskName step with
+            | Ok _ -> $"Task '{taskName}' completed {step}" |> Logger.logTrace
+            | Error error -> $"Task '{taskName}' failed {step} with error: {error}" |> Logger.logError
+
+            $"Task '{taskName}' completed {step}" |> Logger.logTrace
+        })
+    |> Async.Sequential
+    |> Async.Ignore
+
+let private startTask task workerCt =
     async {
         let delay = getTaskDelay task.Settings.Schedule
 
@@ -64,29 +62,29 @@ let private startTask task handleTaskSteps workerCt =
         return! innerLoop ()
     }
 
-let private handleTaskSteps taskName steps handleTaskStep (ct: CancellationToken) =
+let startWorker (args: string[]) =
+    let duration =
+        match args.Length with
+        | 1 ->
+            match args.[0] with
+            | IsInt seconds -> float seconds
+            | _ -> (TimeSpan.FromDays 1).TotalSeconds
+        | _ -> (TimeSpan.FromDays 1).TotalSeconds
 
-    steps
-    |> Seq.map (fun step ->
-        if ct.IsCancellationRequested then
-            ct.ThrowIfCancellationRequested()
+    try
+        $"The worker will be running for {duration} seconds" |> Logger.logWarning
+        use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
 
-        $"Task '{taskName}' started step '{step}'" |> Logger.logTrace
+        match Configuration.getSection<WorkerSettings> "Worker" with
+        | Some settings ->
+            settings.Tasks
+            |> Seq.map (fun x -> startTask { Name = x.Key; Settings = x.Value } cts.Token)
+            |> Async.Parallel
+            |> Async.RunSynchronously
+            |> ignore
+        | None -> failwith "Worker settings was not found"
+    with
+    | :? OperationCanceledException -> $"The worker has been cancelled" |> Logger.logWarning
+    | ex -> ex.Message |> Logger.logError
 
-        async {
-            match handleTaskStep taskName step with
-            | Ok _ -> $"Task '{taskName}' completed step '{step}'" |> Logger.logTrace
-            | Error error -> $"Task '{taskName}' failed step '{step}' with error: {error}" |> Logger.logError
-
-            $"Task '{taskName}' completed step '{step}'" |> Logger.logTrace
-        })
-    |> Async.Sequential
-    |> Async.Ignore
-
-let private handleTaskStep taskName step =
-    match taskName, step with
-    | "Belgrade", Step CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
-    | "Vena", Step CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
-    | _ -> Error "Task was not found"
-
-let start args = 1
+    0

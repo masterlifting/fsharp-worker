@@ -8,6 +8,7 @@ open Helpers
 open System.Threading
 open StepHandlers
 open Infrastructure
+open System.Collections.Generic
 
 module TaskScheduler =
 
@@ -58,30 +59,19 @@ let private handleTaskStep taskName stepName =
     | "Vena", CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
     | _ -> Error "Task was not found"
 
-let rec private handleTaskSteps taskName (steps: WorkerTaskStepSettings[]) (ct: CancellationToken) =
-    async {
-        match steps with
-        | [||] -> ()
-        | _ ->
-            if ct.IsCancellationRequested then
-                ct.ThrowIfCancellationRequested()
+let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-            let step = steps.[0]
+    let handle (step: WorkerTaskStepSettings) =
+        if ct.IsCancellationRequested then
+            ct.ThrowIfCancellationRequested()
 
-            $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
+        $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
-            match handleTaskStep taskName step.Name with
-            | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
-            | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+        match handleTaskStep taskName step.Name with
+        | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
+        | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
 
-            let nextSteps =
-                match step.Steps with
-                | [||] -> steps.[1..]
-                | value when value.Length > 0 -> value
-                | _ -> [||]
-
-            do! handleTaskSteps taskName nextSteps ct
-    }
+    dfsSteps steps handle
 
 let private startTask task workerCt =
     async {
@@ -94,7 +84,7 @@ let private startTask task workerCt =
                 if not taskCt.IsCancellationRequested then
 
                     $"Task '{task.Name}' has been started" |> Logger.logDebug
-                    do! handleTaskSteps task.Name task.Settings.Steps workerCt
+                    do handleTaskSteps task.Name task.Settings.Steps workerCt
                     $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
                     $"Next run of task '{task.Name}' will be in {delay}" |> Logger.logTrace

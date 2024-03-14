@@ -59,7 +59,6 @@ let private handleTaskStep taskName step =
     | _ -> Error "Task was not found"
 
 let private handleTaskSteps taskName steps (ct: CancellationToken) =
-
     steps
     |> Seq.map (fun step ->
         if ct.IsCancellationRequested then

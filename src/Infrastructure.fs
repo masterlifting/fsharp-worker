@@ -38,15 +38,27 @@ module Logging =
         | Some "Trace" -> Trace
         | _ -> Information
 
+    let consoleLogProcessor =
+        MailboxProcessor.Start(fun inbox ->
+            let rec loop () =
+                async {
+                    let! getMessage = inbox.Receive()
+                    let message = getMessage <| System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                    printfn $"{message}"
+                    return! loop ()
+                }
+
+            loop ())
+
+
     let private consoleLog message level =
-        let timeStamp = System.DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
 
         match level with
-        | Error -> printfn $"\u001b[31mError [{timeStamp}] {message}\u001b[0m"
-        | Warning -> printfn $"\u001b[33mWarning\u001b[0m [{timeStamp}] {message}"
-        | Debug -> printfn $"\u001b[36mDebug\u001b[0m [{timeStamp}] {message}"
-        | Trace -> printfn $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}"
-        | _ -> printfn $"\u001b[32mInfo\u001b[0m [{timeStamp}] {message}"
+        | Error -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[31mError [{timeStamp}] {message}\u001b[0m")
+        | Warning -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[33mWarning\u001b[0m [{timeStamp}] {message}")
+        | Debug -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[36mDebug\u001b[0m [{timeStamp}] {message}")
+        | Trace -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}")
+        | _ -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[32mInfo\u001b[0m [{timeStamp}] {message}")
 
     let Logger =
         match getLevel () with

@@ -10,43 +10,6 @@ open StepHandlers
 open Infrastructure
 open System.Collections.Generic
 
-module TaskScheduler =
-    let getTaskExpirationToken taskName scheduler =
-        async {
-            let now = DateTime.UtcNow.AddHours(scheduler.TimeShift)
-            let cts = new CancellationTokenSource()
-
-            if not scheduler.IsEnabled then
-                $"Task '{taskName}' is disabled" |> Logger.logWarning
-                do! cts.CancelAsync() |> Async.AwaitTask
-
-            if not cts.IsCancellationRequested then
-                match scheduler.StopWork with
-                | Some stopWork ->
-                    match stopWork - now with
-                    | ts when ts > TimeSpan.Zero ->
-                        $"Task '{taskName}' will be stopped at {stopWork}" |> Logger.logWarning
-                        cts.CancelAfter ts
-                    | _ -> do! cts.CancelAsync() |> Async.AwaitTask
-                | _ -> ()
-
-            if not cts.IsCancellationRequested then
-                match scheduler.StartWork with
-                | Some startWork ->
-                    match startWork - now with
-                    | ts when ts > TimeSpan.Zero ->
-                        $"Task '{taskName}' will start at {startWork}" |> Logger.logWarning
-                        do! Async.Sleep ts
-                    | _ -> ()
-                | _ -> ()
-
-                if scheduler.IsOnce then
-                    $"Task '{taskName}' will be run once" |> Logger.logWarning
-                    cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
-
-            return cts.Token
-        }
-
 let doBfsSteps (steps: TaskStep[]) handle =
     let queue = Queue<TaskStep>(steps)
 
@@ -72,10 +35,16 @@ let rec doDfsSteps (steps: TaskStep[]) handle =
         doDfsSteps steps.[1..] handle
 
 let private handleTaskStep taskName stepName =
-    match taskName, stepName with
-    | "Belgrade", CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
-    | "Vena", CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
-    | _ -> Error "Task was not found"
+    match taskName with
+    | "Task_1" ->
+        match stepName with
+        | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
+        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+    | "Task_2" ->
+        match stepName with
+        | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
+        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+    | _ -> Error $"'{taskName}' was not found"
 
 let private handleTaskSteps taskName steps (ct: CancellationToken) =
 

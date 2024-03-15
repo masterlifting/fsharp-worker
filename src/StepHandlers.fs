@@ -3,10 +3,7 @@ module StepHandlers
 open System
 open Domain.Worker
 
-[<Literal>]
-let CheckAvailableDates = "CheckAvailableDates"
-
-module Belgrade =
+module Task1 =
 
     let getData () =
         [| new Persistence.Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
@@ -15,7 +12,7 @@ module Belgrade =
 
     let saveData data = Error "Not implemented"
 
-module Vena =
+module Task2 =
 
     let getData () =
         [| new Persistence.Kdmud(None, 1, 1, 0, None, DateTime.Now) |]

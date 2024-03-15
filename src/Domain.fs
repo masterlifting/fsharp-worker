@@ -60,21 +60,12 @@ module Worker =
                 member _.Error = error
                 member _.UpdatedAt = updatedAt
 
-    type WorkDays =
-        | Mon
-        | Tue
-        | Wed
-        | Thu
-        | Fri
-        | Sat
-        | Sun
-
     type TaskScheduler =
         { IsEnabled: bool
           IsOnce: bool
           StartWork: DateTime option
           StopWork: DateTime option
-          WorkDays: WorkDays seq
+          WorkDays: DayOfWeek seq
           Delay: TimeSpan
           TimeShift: float }
 
@@ -112,25 +103,25 @@ module Worker =
                     match x.Value.Scheduler.WorkDays.Split(',') with
                     | [||] ->
                         seq {
-                            Mon
-                            Tue
-                            Wed
-                            Thu
-                            Fri
-                            Sat
-                            Sun
+                            DayOfWeek.Monday
+                            DayOfWeek.Tuesday
+                            DayOfWeek.Wednesday
+                            DayOfWeek.Thursday
+                            DayOfWeek.Friday
+                            DayOfWeek.Saturday
+                            DayOfWeek.Sunday
                         }
                     | workDays ->
                         workDays
                         |> Array.map (function
-                            | "mon" -> Mon
-                            | "tue" -> Tue
-                            | "wed" -> Wed
-                            | "thu" -> Thu
-                            | "fri" -> Fri
-                            | "sat" -> Sat
-                            | "sun" -> Sun
-                            | _ -> Mon)
+                            | "mon" -> DayOfWeek.Monday
+                            | "tue" -> DayOfWeek.Tuesday
+                            | "wed" -> DayOfWeek.Wednesday
+                            | "thu" -> DayOfWeek.Thursday
+                            | "fri" -> DayOfWeek.Friday
+                            | "sat" -> DayOfWeek.Saturday
+                            | "sun" -> DayOfWeek.Sunday
+                            | _ -> DayOfWeek.Monday)
                         |> Seq.distinct
                   Delay =
                     match x.Value.Scheduler.Delay with

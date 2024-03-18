@@ -67,28 +67,28 @@ module Logging =
               logDebug = fun _ -> ()
               logInfo = fun _ -> ()
               logWarning = fun _ -> ()
-              logError = fun m -> consoleLog m Error }
+              logError = fun message -> consoleLog message Error }
         | Warning ->
             { logTrace = fun _ -> ()
               logDebug = fun _ -> ()
               logInfo = fun _ -> ()
-              logWarning = fun m -> consoleLog m Warning
-              logError = fun m -> consoleLog m Error }
+              logWarning = fun message -> consoleLog message Warning
+              logError = fun message -> consoleLog message Error }
         | Information ->
             { logTrace = fun _ -> ()
               logDebug = fun _ -> ()
-              logInfo = fun m -> consoleLog m Information
-              logWarning = fun m -> consoleLog m Warning
-              logError = fun m -> consoleLog m Error }
+              logInfo = fun message -> consoleLog message Information
+              logWarning = fun message -> consoleLog message Warning
+              logError = fun message -> consoleLog message Error }
         | Debug ->
             { logTrace = fun _ -> ()
-              logDebug = fun m -> consoleLog m Debug
-              logInfo = fun m -> consoleLog m Information
-              logWarning = fun m -> consoleLog m Warning
-              logError = fun m -> consoleLog m Error }
+              logDebug = fun message -> consoleLog message Debug
+              logInfo = fun message -> consoleLog message Information
+              logWarning = fun message -> consoleLog message Warning
+              logError = fun message -> consoleLog message Error }
         | Trace ->
-            { logTrace = fun m -> consoleLog m Trace
-              logDebug = fun m -> consoleLog m Debug
-              logInfo = fun m -> consoleLog m Information
-              logWarning = fun m -> consoleLog m Warning
-              logError = fun m -> consoleLog m Error }
+            { logTrace = fun message -> consoleLog message Trace
+              logDebug = fun message -> consoleLog message Debug
+              logInfo = fun message -> consoleLog message Information
+              logWarning = fun message -> consoleLog message Warning
+              logError = fun message -> consoleLog message Error }

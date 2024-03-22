@@ -45,7 +45,7 @@ module TaskScheduler =
             return cts.Token
         }
 
-let doBfsSteps (steps: Core.TaskStep array) handle =
+let doBfsSteps (steps: Core.TaskStep list) handle =
     let queue = Queue<Core.TaskStep>(steps)
 
     while queue.Count > 0 do

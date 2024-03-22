@@ -4,16 +4,17 @@ open System
 open System.Threading
 
 open Domain.Worker
-open Infrastructure.Logging
-open Helpers
+open DSL
 open StepHandlers
-open Infrastructure
+open Logging
 open System.Collections.Generic
 
 module TaskScheduler =
+    open Domain.Worker.Core
+
     let getTaskExpirationToken taskName scheduler =
         async {
-            let now = DateTime.UtcNow.AddHours(scheduler.TimeShift)
+            let now = DateTime.UtcNow.AddHours(scheduler.TimeShift |> float)
             let cts = new CancellationTokenSource()
 
             if not scheduler.IsEnabled then
@@ -24,20 +25,17 @@ module TaskScheduler =
                 match scheduler.StopWork with
                 | Some stopWork ->
                     match stopWork - now with
-                    | ts when ts > TimeSpan.Zero ->
+                    | delay when delay > TimeSpan.Zero ->
                         $"Task '{taskName}' will be stopped at {stopWork}" |> Logger.logWarning
-                        cts.CancelAfter ts
+                        cts.CancelAfter delay
                     | _ -> do! cts.CancelAsync() |> Async.AwaitTask
                 | _ -> ()
 
             if not cts.IsCancellationRequested then
-                match scheduler.StartWork with
-                | Some startWork ->
-                    match startWork - now with
-                    | ts when ts > TimeSpan.Zero ->
-                        $"Task '{taskName}' will start at {startWork}" |> Logger.logWarning
-                        do! Async.Sleep ts
-                    | _ -> ()
+                match scheduler.StartWork - now with
+                | delay when delay > TimeSpan.Zero ->
+                    $"Task '{taskName}' will start at {scheduler.StartWork}" |> Logger.logWarning
+                    do! Async.Sleep delay
                 | _ -> ()
 
                 if scheduler.IsOnce then
@@ -47,29 +45,29 @@ module TaskScheduler =
             return cts.Token
         }
 
-let doBfsSteps (steps: TaskStep[]) handle =
-    let queue = Queue<TaskStep>(steps)
+let doBfsSteps (steps: Core.TaskStep array) handle =
+    let queue = Queue<Core.TaskStep>(steps)
 
     while queue.Count > 0 do
         let step = queue.Dequeue()
         handle step
 
         match step.Steps with
-        | [||] -> ()
+        | [] -> ()
         | _ -> step.Steps |> Seq.iter queue.Enqueue
 
-let rec doDfsSteps (steps: TaskStep[]) handle =
+let rec doDfsSteps (steps: Core.TaskStep list) handle =
     match steps with
-    | [||] -> ()
+    | [] -> ()
     | _ ->
-        let step = steps.[0]
+        let step = steps.Head
         handle step
 
         match step.Steps with
-        | [||] -> ()
+        | [] -> ()
         | _ -> doDfsSteps step.Steps handle
 
-        doDfsSteps steps.[1..] handle
+        doDfsSteps steps.Tail handle
 
 let private handleTaskStep taskName stepName =
     match taskName, stepName with
@@ -79,7 +77,7 @@ let private handleTaskStep taskName stepName =
 
 let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-    let handle (step: TaskStep) =
+    let handle (step: Core.TaskStep) =
         if ct.IsCancellationRequested then
             ct.ThrowIfCancellationRequested()
 
@@ -91,7 +89,7 @@ let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
     doDfsSteps steps handle
 
-let private startTask task workerCt =
+let private startTask (task: Core.Task) workerCt =
     async {
         let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 
@@ -134,7 +132,7 @@ let startWorker (args: string[]) =
         match Configuration.getSection<Settings.Section> "Worker" with
         | Some settings ->
             settings
-            |> convertToTasks
+            |> Core.convertToTasks
             |> Seq.map (fun task -> startTask task cts.Token)
             |> Async.Parallel
             |> Async.RunSynchronously

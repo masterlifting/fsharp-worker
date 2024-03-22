@@ -2,7 +2,6 @@ module Domain
 
 module Worker =
     open System
-    open Helpers
 
     module Settings =
         open System.Collections.Generic
@@ -60,80 +59,78 @@ module Worker =
                 member _.Error = error
                 member _.UpdatedAt = updatedAt
 
-    type WorkDays =
-        | Mon
-        | Tue
-        | Wed
-        | Thu
-        | Fri
-        | Sat
-        | Sun
+    module Core =
+        open DSL
 
-    type TaskScheduler =
-        { IsEnabled: bool
-          IsOnce: bool
-          StartWork: DateTime option
-          StopWork: DateTime option
-          WorkDays: WorkDays seq
-          Delay: TimeSpan
-          TimeShift: float }
+        type TaskScheduler =
+            { IsEnabled: bool
+              IsOnce: bool
+              TimeShift: byte
+              StartWork: DateTime
+              StopWork: DateTime option
+              WorkDays: DayOfWeek Set
+              Delay: TimeSpan }
 
-    type TaskStep = { Name: string; Steps: TaskStep[] }
+        type TaskStep = { Name: string; Steps: TaskStep list }
 
-    type Task =
-        { Name: string
-          ChunkSize: int
-          IsInfinite: bool
-          Steps: TaskStep[]
-          Scheduler: TaskScheduler }
+        type Task =
+            { Name: string
+              ChunkSize: int
+              IsInfinite: bool
+              Steps: TaskStep list
+              Scheduler: TaskScheduler }
 
-    let rec convertSteps (steps: Settings.TaskStepSettings[]) : TaskStep[] =
-        match steps with
-        | [||] -> [||]
-        | null -> [||]
-        | _ -> steps
-        |> Array.map (fun x ->
-            { Name = x.Name
-              Steps = convertSteps x.Steps })
+        let rec convertSteps (steps: Settings.TaskStepSettings array) : TaskStep list =
+            match steps with
+            | [||] -> []
+            | null -> []
+            | _ ->
+                steps
+                |> Array.map (fun x ->
+                    { Name = x.Name
+                      Steps = convertSteps x.Steps })
+                |> List.ofArray
 
-    let convertToTasks (setting: Settings.Section) : Task seq =
-        setting.Tasks
-        |> Seq.map (fun x ->
-            { Name = x.Key
-              ChunkSize = x.Value.ChunkSize
-              IsInfinite = x.Value.IsInfinite
-              Steps = x.Value.Steps |> convertSteps
-              Scheduler =
-                { IsEnabled = x.Value.Scheduler.IsEnabled
-                  IsOnce = x.Value.Scheduler.IsOnce
-                  StartWork = Option.ofNullable x.Value.Scheduler.StartWork
-                  StopWork = Option.ofNullable x.Value.Scheduler.StopWork
-                  WorkDays =
-                    match x.Value.Scheduler.WorkDays.Split(',') with
-                    | [||] ->
-                        seq {
-                            Mon
-                            Tue
-                            Wed
-                            Thu
-                            Fri
-                            Sat
-                            Sun
-                        }
-                    | workDays ->
-                        workDays
-                        |> Array.map (function
-                            | "mon" -> Mon
-                            | "tue" -> Tue
-                            | "wed" -> Wed
-                            | "thu" -> Thu
-                            | "fri" -> Fri
-                            | "sat" -> Sat
-                            | "sun" -> Sun
-                            | _ -> Mon)
-                        |> Seq.distinct
-                  Delay =
-                    match x.Value.Scheduler.Delay with
-                    | IsTimeSpan value -> value
-                    | _ -> TimeSpan.Zero
-                  TimeShift = float x.Value.Scheduler.TimeShift } })
+        let convertToTasks (setting: Settings.Section) : Task seq =
+            setting.Tasks
+            |> Seq.map (fun x ->
+                { Name = x.Key
+                  ChunkSize = x.Value.ChunkSize
+                  IsInfinite = x.Value.IsInfinite
+                  Steps = x.Value.Steps |> convertSteps
+                  Scheduler =
+                    { IsEnabled = x.Value.Scheduler.IsEnabled
+                      IsOnce = x.Value.Scheduler.IsOnce
+                      StartWork =
+                        x.Value.Scheduler.StartWork
+                        |> Option.ofNullable
+                        |> Option.defaultValue DateTime.UtcNow
+                      StopWork = Option.ofNullable x.Value.Scheduler.StopWork
+                      WorkDays =
+                        match x.Value.Scheduler.WorkDays.Split(',') with
+                        | [||] ->
+                            set
+                                [ DayOfWeek.Friday
+                                  DayOfWeek.Monday
+                                  DayOfWeek.Saturday
+                                  DayOfWeek.Sunday
+                                  DayOfWeek.Thursday
+                                  DayOfWeek.Tuesday
+                                  DayOfWeek.Wednesday ]
+                        | workDays ->
+                            workDays
+                            |> Array.map (function
+                                | "mon" -> DayOfWeek.Monday
+                                | "tue" -> DayOfWeek.Tuesday
+                                | "wed" -> DayOfWeek.Wednesday
+                                | "thu" -> DayOfWeek.Thursday
+                                | "fri" -> DayOfWeek.Friday
+                                | "sat" -> DayOfWeek.Saturday
+                                | "sun" -> DayOfWeek.Sunday
+                                | _ -> DayOfWeek.Sunday)
+                            |> Set.ofArray
+                      Delay =
+                        match x.Value.Scheduler.Delay with
+                        | IsTimeSpan value -> value
+                        | _ -> TimeSpan.Zero
+                      TimeShift = x.Value.Scheduler.TimeShift } })

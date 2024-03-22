@@ -12,6 +12,7 @@
     <Compile Include="./infrastructure/Configuration.fs" />
     <Compile Include="./infrastructure/Logging.fs" />
     <Compile Include="StepHandlers.fs" />
+    <Compile Include="Scheduler.fs" />
     <Compile Include="Core.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

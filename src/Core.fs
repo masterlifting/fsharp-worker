@@ -70,10 +70,16 @@ let rec doDfsSteps (steps: Core.TaskStep list) handle =
         doDfsSteps steps.Tail handle
 
 let private handleTaskStep taskName stepName =
-    match taskName, stepName with
-    | "Belgrade", CheckAvailableDates -> Belgrade.getData () |> Belgrade.processData |> Belgrade.saveData
-    | "Vena", CheckAvailableDates -> Vena.getData () |> Vena.processData |> Vena.saveData
-    | _ -> Error "Task was not found"
+    match taskName with
+    | "Task_1" ->
+        match stepName with
+        | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
+        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+    | "Task_2" ->
+        match stepName with
+        | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
+        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+    | _ -> Error $"'{taskName}' was not found"
 
 let private handleTaskSteps taskName steps (ct: CancellationToken) =
 

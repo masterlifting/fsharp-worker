@@ -1,23 +1,23 @@
 module StepHandlers
 
 open System
-open Domain.Worker
+open Domain.Persistence
 
 module Task1 =
 
     let getData () =
-        [| new Persistence.Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
+        [| new Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
 
-    let processData (data: Persistence.Kdmid seq) = data |> Seq.map (fun x -> Ok x)
+    let processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
 
     let saveData data = Error "Not implemented"
 
 module Task2 =
 
     let getData () =
-        [| new Persistence.Kdmud(None, 1, 1, 0, None, DateTime.Now) |]
+        [| new Kdmud(None, 1, 1, 0, None, DateTime.Now) |]
 
-    let processData (data: Persistence.Kdmud seq) =
+    let processData (data: Kdmud seq) =
         data |> Seq.map (fun x -> Error "Not implemented")
 
     let saveData data = Ok ""

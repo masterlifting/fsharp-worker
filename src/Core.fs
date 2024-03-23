@@ -2,15 +2,14 @@ module Core
 
 open System
 open System.Threading
-
-open Domain.Worker
 open DSL
-open StepHandlers
 open Logging
 open System.Collections.Generic
 
+open Domain.Settings
+
 module TaskScheduler =
-    open Domain.Worker.Core
+    open Domain.Core
 
     let getTaskExpirationToken taskName scheduler =
         async {
@@ -45,84 +44,86 @@ module TaskScheduler =
             return cts.Token
         }
 
-let doBfsSteps (steps: Core.TaskStep list) handle =
-    let queue = Queue<Core.TaskStep>(steps)
+module TaskHandler =
 
-    while queue.Count > 0 do
-        let step = queue.Dequeue()
-        handle step
+    open Domain.Core
 
-        match step.Steps with
+    open StepHandlers
+
+    let handleStepsBfs (steps: TaskStep list) handleStep =
+        let queue = Queue<TaskStep>(steps)
+
+        while queue.Count > 0 do
+            let step = queue.Dequeue()
+            handleStep step
+
+            match step.Steps with
+            | [] -> ()
+            | _ -> step.Steps |> Seq.iter queue.Enqueue
+
+    let rec handleStepsDfs (steps: TaskStep list) handleStep =
+        match steps with
         | [] -> ()
-        | _ -> step.Steps |> Seq.iter queue.Enqueue
+        | step :: tail ->
+            handleStep step
+            handleStepsDfs step.Steps handleStep
+            handleStepsDfs tail handleStep
 
-let rec doDfsSteps (steps: Core.TaskStep list) handle =
-    match steps with
-    | [] -> ()
-    | _ ->
-        let step = steps.Head
-        handle step
+    let private handleTaskStep taskName stepName =
+        match taskName with
+        | "Task_1" ->
+            match stepName with
+            | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
+            | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+        | "Task_2" ->
+            match stepName with
+            | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
+            | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+        | _ -> Error $"'{taskName}' was not found"
 
-        match step.Steps with
-        | [] -> ()
-        | _ -> doDfsSteps step.Steps handle
+    let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-        doDfsSteps steps.Tail handle
+        let handleStep (step: TaskStep) =
+            if ct.IsCancellationRequested then
+                ct.ThrowIfCancellationRequested()
 
-let private handleTaskStep taskName stepName =
-    match taskName with
-    | "Task_1" ->
-        match stepName with
-        | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
-        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
-    | "Task_2" ->
-        match stepName with
-        | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
-        | _ -> Error $"'{stepName}' was not found in '{taskName}'"
-    | _ -> Error $"'{taskName}' was not found"
+            $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
-let private handleTaskSteps taskName steps (ct: CancellationToken) =
+            match handleTaskStep taskName step.Name with
+            | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
+            | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
 
-    let handle (step: Core.TaskStep) =
-        if ct.IsCancellationRequested then
-            ct.ThrowIfCancellationRequested()
+        handleStepsDfs steps handleStep
 
-        $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
+    let internal startTask task workerCt =
+        async {
+            let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 
-        match handleTaskStep taskName step.Name with
-        | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
-        | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+            let rec innerLoop () =
+                async {
+                    if not taskCt.IsCancellationRequested then
 
-    doDfsSteps steps handle
+                        $"Task '{task.Name}' has been started" |> Logger.logDebug
 
-let private startTask (task: Core.Task) workerCt =
-    async {
-        let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
+                        do handleTaskSteps task.Name task.Steps workerCt
 
-        let rec innerLoop () =
-            async {
-                if not taskCt.IsCancellationRequested then
+                        $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
-                    $"Task '{task.Name}' has been started" |> Logger.logDebug
+                        $"Next run of task '{task.Name}' will be in {task.Scheduler.Delay}"
+                        |> Logger.logTrace
 
-                    do handleTaskSteps task.Name task.Steps workerCt
+                        do! Async.Sleep task.Scheduler.Delay
 
-                    $"Task '{task.Name}' has been completed" |> Logger.logInfo
+                        do! innerLoop ()
+                    else
+                        $"Task '{task.Name}' has been stopped" |> Logger.logWarning
+                }
 
-                    $"Next run of task '{task.Name}' will be in {task.Scheduler.Delay}"
-                    |> Logger.logTrace
+            return! innerLoop ()
+        }
 
-                    do! Async.Sleep task.Scheduler.Delay
 
-                    do! innerLoop ()
-                else
-                    $"Task '{task.Name}' has been stopped" |> Logger.logWarning
-            }
-
-        return! innerLoop ()
-    }
-
-let startWorker (args: string[]) =
+let startWorker (args: string array) =
     let duration =
         match args.Length with
         | 1 ->
@@ -135,11 +136,11 @@ let startWorker (args: string[]) =
         $"The worker will be running for {duration} seconds" |> Logger.logWarning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
 
-        match Configuration.getSection<Settings.Section> "Worker" with
+        match Configuration.getSection<Domain.Settings.Section> "Worker" with
         | Some settings ->
-            settings
-            |> Core.convertToTasks
-            |> Seq.map (fun task -> startTask task cts.Token)
+            settings.Tasks
+            |> Seq.map (fun taskSettings -> Domain.Core.toTask taskSettings.Key taskSettings.Value)
+            |> Seq.map (fun task -> TaskHandler.startTask task cts.Token)
             |> Async.Parallel
             |> Async.RunSynchronously
             |> ignore

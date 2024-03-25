@@ -45,53 +45,80 @@ module TaskScheduler =
         }
 
 module TaskHandler =
+    open Domain.Core
+    open StepHandlers
+
+    let private taskHandlers: Map<string, TaskStep> = Map [
+        "Task_1", {
+            Name = "Step_1"
+            Steps = [
+                { Name = "Step_1.1"; Steps = [
+                    { Name = "Step_1.1.1"; Steps = [] }
+                    { Name = "Step_1.1.2"; Steps = [] }
+                ] }
+                { Name = "Step_1.2"; Steps = [] }
+                { Name = "Step_1.3"; Steps = [] }
+            ]
+        }
+    ]
 
     open Domain.Core
 
     open StepHandlers
 
-    let handleStepsBfs (steps: TaskStep list) handleStep =
+    let handleStepsBfs (steps: TaskStep list) handleStep = async {
         let queue = Queue<TaskStep>(steps)
 
         while queue.Count > 0 do
             let step = queue.Dequeue()
-            handleStep step
+            
+            do! handleStep step
 
             match step.Steps with
             | [] -> ()
             | _ -> step.Steps |> Seq.iter queue.Enqueue
+    }
 
-    let rec handleStepsDfs (steps: TaskStep list) handleStep =
+    let rec handleStepsDfs (steps: TaskStep list) handleStep = async {
         match steps with
         | [] -> ()
         | step :: tail ->
-            handleStep step
-            handleStepsDfs step.Steps handleStep
-            handleStepsDfs tail handleStep
+            
+            do! handleStep step
+            
+            return! handleStepsDfs step.Steps handleStep
+            return! handleStepsDfs tail handleStep
+    }
 
-    let private handleTaskStep taskName stepName =
-        match taskName with
-        | "Task_1" ->
-            match stepName with
-            | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
-            | _ -> Error $"'{stepName}' was not found in '{taskName}'"
-        | "Task_2" ->
-            match stepName with
-            | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
-            | _ -> Error $"'{stepName}' was not found in '{taskName}'"
-        | _ -> Error $"'{taskName}' was not found"
+    let private handleTaskStep taskName stepName = 
+        let result = 
+            match taskName with
+            | "Task_1" ->
+                match stepName with
+                | "Step_1.2" -> Task1.getData () |> Task1.processData |> Task1.saveData
+                | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+            | "Task_2" ->
+                match stepName with
+                | "Step_1" -> Task2.getData () |> Task2.processData |> Task2.saveData
+                | _ -> Error $"'{stepName}' was not found in '{taskName}'"
+            | _ -> Error $"'{taskName}' was not found"
+
+        async {
+            return result 
+        }
 
     let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-        let handleStep (step: TaskStep) =
+        let handleStep (step: TaskStep) = async {
             if ct.IsCancellationRequested then
                 ct.ThrowIfCancellationRequested()
 
             $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
-            match handleTaskStep taskName step.Name with
+            match! handleTaskStep taskName step.Name with
             | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
             | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+        }
 
         handleStepsDfs steps handleStep
 
@@ -105,7 +132,7 @@ module TaskHandler =
 
                         $"Task '{task.Name}' has been started" |> Logger.logDebug
 
-                        do handleTaskSteps task.Name task.Steps workerCt
+                        do! handleTaskSteps task.Name task.Steps workerCt
 
                         $"Task '{task.Name}' has been completed" |> Logger.logInfo
 
@@ -121,7 +148,6 @@ module TaskHandler =
 
             return! innerLoop ()
         }
-
 
 let startWorker (args: string array) =
     let duration =

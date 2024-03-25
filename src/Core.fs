@@ -48,50 +48,66 @@ module TaskHandler =
     open Domain.Core
     open StepHandlers
 
-    let private taskHandlers: Map<string, TaskStep> = Map [
-        "Task_1", {
-            Name = "Step_1"
-            Steps = [
-                { Name = "Step_1.1"; Steps = [
-                    { Name = "Step_1.1.1"; Steps = [] }
-                    { Name = "Step_1.1.2"; Steps = [] }
-                ] }
-                { Name = "Step_1.2"; Steps = [] }
-                { Name = "Step_1.3"; Steps = [] }
-            ]
-        }
-    ]
+    type TaskStepHandler =
+        { Name: string
+          Handler: unit -> Result<string, string>
+          Steps: TaskStepHandler list }
+
+    let private taskHandlers =
+        [ { Name = "Task_1"
+            Handler = fun () -> Task1.getData () |> Task1.processData |> Task1.saveData
+            Steps =
+              [ { Name = "Step_1"
+                  Handler = fun () -> Task1.getData () |> Task1.processData |> Task1.saveData
+                  Steps =
+                    [ { Name = "Step_1.1"
+                        Handler = fun () -> Task1.getData () |> Task1.processData |> Task1.saveData
+                        Steps = [] }
+                      { Name = "Step_1.2"
+                        Handler = fun () -> Task1.getData () |> Task1.processData |> Task1.saveData
+                        Steps = [] } ] }
+                { Name = "Step_1"
+                  Handler = fun () -> Task1.getData () |> Task1.processData |> Task1.saveData
+                  Steps = [] } ] }
+          { Name = "Task_2"
+            Handler = fun () -> Task2.getData () |> Task2.processData |> Task2.saveData
+            Steps =
+              [ { Name = "Step_1"
+                  Handler = fun () -> Task2.getData () |> Task2.processData |> Task2.saveData
+                  Steps = [] } ] } ]
 
     open Domain.Core
 
     open StepHandlers
 
-    let handleStepsBfs (steps: TaskStep list) handleStep = async {
-        let queue = Queue<TaskStep>(steps)
+    let handleStepsBfs (steps: TaskStep list) handleStep =
+        async {
+            let queue = Queue<TaskStep>(steps)
 
-        while queue.Count > 0 do
-            let step = queue.Dequeue()
-            
-            do! handleStep step
+            while queue.Count > 0 do
+                let step = queue.Dequeue()
 
-            match step.Steps with
+                do! handleStep step
+
+                match step.Steps with
+                | [] -> ()
+                | _ -> step.Steps |> Seq.iter queue.Enqueue
+        }
+
+    let rec handleStepsDfs (steps: TaskStep list) handleStep =
+        async {
+            match steps with
             | [] -> ()
-            | _ -> step.Steps |> Seq.iter queue.Enqueue
-    }
+            | step :: tail ->
 
-    let rec handleStepsDfs (steps: TaskStep list) handleStep = async {
-        match steps with
-        | [] -> ()
-        | step :: tail ->
-            
-            do! handleStep step
-            
-            return! handleStepsDfs step.Steps handleStep
-            return! handleStepsDfs tail handleStep
-    }
+                do! handleStep step
 
-    let private handleTaskStep taskName stepName = 
-        let result = 
+                return! handleStepsDfs step.Steps handleStep
+                return! handleStepsDfs tail handleStep
+        }
+
+    let private handleTaskStep taskName stepName =
+        let result =
             match taskName with
             | "Task_1" ->
                 match stepName with
@@ -103,22 +119,21 @@ module TaskHandler =
                 | _ -> Error $"'{stepName}' was not found in '{taskName}'"
             | _ -> Error $"'{taskName}' was not found"
 
-        async {
-            return result 
-        }
+        async { return result }
 
     let private handleTaskSteps taskName steps (ct: CancellationToken) =
 
-        let handleStep (step: TaskStep) = async {
-            if ct.IsCancellationRequested then
-                ct.ThrowIfCancellationRequested()
+        let handleStep (step: TaskStep) =
+            async {
+                if ct.IsCancellationRequested then
+                    ct.ThrowIfCancellationRequested()
 
-            $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
+                $"Task '{taskName}' started Step '{step.Name}'" |> Logger.logTrace
 
-            match! handleTaskStep taskName step.Name with
-            | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
-            | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
-        }
+                match! handleTaskStep taskName step.Name with
+                | Ok _ -> $"Task '{taskName}' completed Step '{step.Name}'" |> Logger.logTrace
+                | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+            }
 
         handleStepsDfs steps handleStep
 

@@ -73,6 +73,11 @@ module Core =
 
     type TaskStep = { Name: string; Steps: TaskStep list }
 
+    type TaskStepHandler =
+        { Name: string
+          Handler: unit -> Async<Result<string, string>>
+          Steps: TaskStepHandler list }
+
     type Task =
         { Name: string
           ChunkSize: int

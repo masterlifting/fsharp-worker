@@ -97,10 +97,10 @@ module TaskHandler =
 
         handleStepsDfs taskName steps stepHandlers handleStep
 
-    let internal startTask task (taskHandlers: Map<string, Domain.Core.TaskStepHandler list>) workerCt =
+    let internal startTask task (taskHandlers: Map<string, TaskStepHandler list>) workerCt =
         async {
             match taskHandlers.TryFind task.Name with
-            | None -> $"Task handler of Task '{task.Name}' was not found" |> Logger.logError
+            | None -> $"Step handlers of Task '{task.Name}' were not found" |> Logger.logError
             | Some stepHandlers ->
                 let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 

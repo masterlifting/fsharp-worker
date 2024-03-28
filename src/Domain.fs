@@ -23,7 +23,6 @@ module Settings =
     [<CLIMutable>]
     type TaskSettings =
         { ChunkSize: int
-          IsInfinite: bool
           Steps: TaskStepSettings[]
           Scheduler: TaskShchedulerSettings }
 
@@ -71,19 +70,27 @@ module Core =
           WorkDays: DayOfWeek Set
           Delay: TimeSpan }
 
-    type TaskStep = { Name: string; Steps: TaskStep list }
+    type TaskName = TaskName of string
+    type StepName = StepName of string
+
+    type TaskStep = { Name: StepName; Steps: TaskStep list }
+
+    /// The main item of the domain
+    type Task =
+      { Name: TaskName
+        ChunkSize: int
+        Steps: TaskStep list
+        Scheduler: TaskScheduler }
+    
 
     type TaskStepHandler =
-        { Name: string
-          Handler: unit -> Async<Result<string, string>>
+        { 
+          /// The name of the step
+          Name: StepName
+          /// The handler of the step
+          Handle: TaskName -> StepName -> Async<Result<string, string>>
+          /// The steps of the step
           Steps: TaskStepHandler list }
-
-    type Task =
-        { Name: string
-          ChunkSize: int
-          IsInfinite: bool
-          Steps: TaskStep list
-          Scheduler: TaskScheduler }
 
     let rec private toList (steps: TaskStepSettings array) =
         match steps with
@@ -92,14 +99,13 @@ module Core =
         | _ ->
             steps
             |> Array.map (fun x ->
-                { Name = x.Name
+                { Name = x.Name |> StepName
                   Steps = toList x.Steps })
             |> List.ofArray
 
-    let toTask name (task: Settings.TaskSettings) =
-        { Name = name
+    let toTask name (task: TaskSettings) =
+        { Name = name |> TaskName
           ChunkSize = task.ChunkSize
-          IsInfinite = task.IsInfinite
           Steps = task.Steps |> toList
           Scheduler =
             { IsEnabled = task.Scheduler.IsEnabled

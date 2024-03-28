@@ -5,19 +5,22 @@ open Domain.Persistence
 
 module Task1 =
 
-    let getData () =
+    let private getData () =
         [| new Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
-
-    let processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
-
-    let saveData data = Error "Not implemented"
-
+        
+    let private processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
+        
+    let private saveData data = Error "Not implemented"
+        
+    let handleStep taskName stepName = async { return getData () |> processData |> saveData }
 module Task2 =
 
-    let getData () =
+    let private getData () =
         [| new Kdmud(None, 1, 1, 0, None, DateTime.Now) |]
 
-    let processData (data: Kdmud seq) =
+    let private processData (data: Kdmud seq) =
         data |> Seq.map (fun x -> Error "Not implemented")
 
-    let saveData data = Ok ""
+    let private saveData data = Ok ""
+
+    let handleStep taskName stepName = async { return getData () |> processData |> saveData }

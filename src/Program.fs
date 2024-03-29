@@ -6,20 +6,19 @@ open Core
 let main args =
 
     let handlers =
-        Map
-            [ "Task_1" |> TaskName,
+        [ { Name = "Task_1" |> TaskName
+            Steps =
               [ { Name = "Step_1" |> StepName
                   Handle = Task1.handleStep
-                  Steps =
-                    [ { Name = "Step_1.1" |> StepName
-                        Handle = Task1.handleStep
-                        Steps = [] }
-                      { Name = "Step_1.2" |> StepName
-                        Handle = Task1.handleStep
-                        Steps = [] } ] } ]
-              "Task_2" |> TaskName,
+                  Steps = [] }
+                { Name = "Step_2" |> StepName
+                  Handle = Task1.handleStep
+                  Steps = [] } ] }
+          { Name = "Task_2" |> TaskName
+            Steps =
               [ { Name = "Step_1" |> StepName
                   Handle = Task2.handleStep
-                  Steps = [] } ] ]
+                  Steps = [] } ] } ]
+
 
     startWorker args handlers

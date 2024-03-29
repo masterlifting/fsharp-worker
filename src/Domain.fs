@@ -73,24 +73,15 @@ module Core =
     type TaskName = TaskName of string
     type StepName = StepName of string
 
-    type TaskStep = { Name: StepName; Steps: TaskStep list }
+    type TaskStep =
+        { Name: StepName
+          Steps: TaskStep list }
 
-    /// The main item of the domain
     type Task =
-      { Name: TaskName
-        ChunkSize: int
-        Steps: TaskStep list
-        Scheduler: TaskScheduler }
-    
-
-    type TaskStepHandler =
-        { 
-          /// The name of the step
-          Name: StepName
-          /// The handler of the step
-          Handle: TaskName -> StepName -> Async<Result<string, string>>
-          /// The steps of the step
-          Steps: TaskStepHandler list }
+        { Name: TaskName
+          ChunkSize: int
+          Steps: TaskStep list
+          Scheduler: TaskScheduler }
 
     let rec private toList (steps: TaskStepSettings array) =
         match steps with
@@ -100,8 +91,17 @@ module Core =
             steps
             |> Array.map (fun x ->
                 { Name = x.Name |> StepName
-                  Steps = toList x.Steps })
+                  Steps = x.Steps |> toList })
             |> List.ofArray
+
+    type TaskStepHandler =
+        { Name: StepName
+          Handle: TaskName -> StepName -> Async<Result<string, string>>
+          Steps: TaskStepHandler list }
+
+    type TaskHandler =
+        { Name: TaskName
+          Steps: TaskStepHandler list }
 
     let toTask name (task: TaskSettings) =
         { Name = name |> TaskName

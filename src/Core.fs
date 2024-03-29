@@ -47,6 +47,9 @@ module TaskScheduler =
 module TaskHandler =
     open Domain.Core
 
+    let inline private geTasktName (TaskName name) = name
+    let inline private getStepName (StepName name) = name
+
     let handleStepsBfs (steps: TaskStep list) handleStep =
         async {
             let queue = Queue<TaskStep>(steps)
@@ -61,7 +64,7 @@ module TaskHandler =
                 | _ -> step.Steps |> Seq.iter queue.Enqueue
         }
 
-    let rec handleStepsDfs taskName (steps: TaskStep list) (stepHandlers: TaskStepHandler list) handleStep =
+    let rec handleStepsDfs (taskName: string) (steps: TaskStep list) (stepHandlers: TaskStepHandler list) handleStep =
         async {
             match steps with
             | [] -> ()
@@ -77,8 +80,9 @@ module TaskHandler =
                     return! handleStepsDfs taskName stepsTail stepHandlerTail handleStep
         }
 
-    let private handleTaskSteps taskName steps stepHandlers (ct: CancellationToken) =
-        let taskNameStr = match taskName with TaskName name -> name
+    let private handleTaskSteps (taskName: TaskName) steps stepHandlers (ct: CancellationToken) =
+        
+        let taskNameStr = taskName |> fun (TaskName name) -> name
 
         let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
             async {
@@ -98,13 +102,13 @@ module TaskHandler =
 
         handleStepsDfs taskNameStr steps stepHandlers handleStep
 
-    let internal startTask (task: Task) (taskStepHandlers: Map<TaskName, TaskStepHandler list>) workerCt =
+    let internal startTask (task: Task) (taskHandlers: TaskHandler list) workerCt =
         async {
-            let taskName = match task.Name with TaskName name -> name
+            let taskName = task.getName task.Name
 
-            match taskStepHandlers.TryFind task.Name with
-            | None -> $"Step handlers of Task '{taskName}' were not found" |> Logger.logError
-            | Some stepHandlers ->
+            match taskHandlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
+            | None -> $"Handler of Task '{taskName}' was not found" |> Logger.logError
+            | Some taskHandler ->
                 let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 
                 let rec innerLoop () =
@@ -113,7 +117,7 @@ module TaskHandler =
                         | true -> $"Task '{taskName}' has been stopped" |> Logger.logWarning
                         | false ->
                             $"Task '{taskName}' has been started" |> Logger.logDebug
-                            do! handleTaskSteps task.Name task.Steps stepHandlers workerCt
+                            do! handleTaskSteps task.Name task.Steps taskHandler.Steps workerCt
                             $"Task '{taskName}' has been completed" |> Logger.logInfo
                             $"Next run of task '{taskName}' will be in {task.Scheduler.Delay}"
                             |> Logger.logTrace

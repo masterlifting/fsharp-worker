@@ -12,8 +12,12 @@ module Task1 =
 
     let private saveData data = Error "Not implemented"
 
-    let handleStep () =
+    let handleStep1 () =
         async { return getData () |> processData |> saveData }
+
+    let handleStep2 () =
+        async { return getData () |> processData |> saveData }
+
 
 module Task2 =
 
@@ -25,5 +29,5 @@ module Task2 =
 
     let private saveData data = Ok ""
 
-    let handleStep () =
+    let handleStep1 () =
         async { return getData () |> processData |> saveData }

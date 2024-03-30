@@ -60,23 +60,24 @@ module TaskHandler =
                     $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
 
                     match! stepHandler.Handle() with
-                    | Ok msg -> $"Task '{taskName}'. Step '{step.Name}'. Compleated. {msg}" |> Logger.logTrace
+                    | Ok msg -> $"Task '{taskName}'. Step '{step.Name}'. Compleated. {msg}" |> Logger.logInfo
                     | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
             }
 
         let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
             async {
-                match steps with
-                | [] -> ()
-                | step :: stepsTail ->
-                    match stepHandlers with
-                    | [] ->
+                match steps, stepHandlers with
+                | [], _ -> ()
+                | _, [] ->
+                    steps
+                    |> List.iter (fun step ->
                         $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
-                        |> Logger.logError
-                    | stepHandler :: stepHandlerTail ->
-                        do! handleStep step stepHandler
-                        return! innerLoop step.Steps stepHandler.Steps
-                        return! innerLoop stepsTail stepHandlerTail
+                        |> Logger.logError)
+
+                    return! innerLoop [] stepHandlers
+                | step :: stepsTail, stepHandler :: stepHandlerTail ->
+                    do! handleStep step stepHandler
+                    return! innerLoop (step.Steps @ stepsTail) (stepHandler.Steps @ stepHandlerTail)
             }
 
         innerLoop steps stepHandlers
@@ -95,7 +96,7 @@ module TaskHandler =
                         | false ->
                             $"Task '{task.Name}'. Started" |> Logger.logDebug
                             do! handleSteps task.Name task.Steps taskHandler.Steps workerCt
-                            $"Task '{task.Name}'. Completed" |> Logger.logInfo
+                            $"Task '{task.Name}'. Completed" |> Logger.logDebug
 
                             $"Task '{task.Name}'. Next run will be in {task.Scheduler.Delay}"
                             |> Logger.logTrace

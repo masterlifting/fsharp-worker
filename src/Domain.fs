@@ -31,7 +31,7 @@ module Settings =
         { Tasks: Dictionary<string, TaskSettings> }
 
 module Persistence =
-    type IWorkerData =
+    type TaskStepState =
         abstract CorellationId: Guid option
         abstract StatusId: int
         abstract StepId: int
@@ -40,7 +40,7 @@ module Persistence =
         abstract UpdatedAt: DateTime
 
     type Kdmid(corellationId, statusId, stepId, attempts, error, updatedAt) =
-        interface IWorkerData with
+        interface TaskStepState with
             member _.CorellationId = corellationId
             member _.StatusId = statusId
             member _.StepId = stepId
@@ -49,7 +49,7 @@ module Persistence =
             member _.UpdatedAt = updatedAt
 
     type Kdmud(corellationId, statusId, stepId, attempts, error, updatedAt) =
-        interface IWorkerData with
+        interface TaskStepState with
             member _.CorellationId = corellationId
             member _.StatusId = statusId
             member _.StepId = stepId
@@ -77,6 +77,19 @@ module Core =
           ChunkSize: int
           Steps: TaskStep list
           Scheduler: TaskScheduler }
+
+    type TaskStepStatus =
+        | Pending
+        | Running
+        | Completed
+        | Failed
+
+    type TaskStepState =
+        { Id: string
+          Status: TaskStepStatus
+          Attempts: int
+          Message: string
+          UpdatedAt: DateTime }
 
     let rec private toList (steps: TaskStepSettings array) =
         match steps with

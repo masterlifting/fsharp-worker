@@ -3,20 +3,12 @@ module StepHandlers
 open System
 open Domain.Persistence
 
-module Task1 =
+module AskBelgrade =
 
-    let private getData () =
-        [| new Kdmid(None, 1, 1, 0, None, DateTime.Now) |]
-
-    let private processData (data: Kdmid seq) = data |> Seq.map (fun x -> Ok x)
-
-    let private saveData data = Error "Not implemented"
-
-    let handleStep1 () =
-        async { return getData () |> processData |> saveData }
-
-    let handleStep2 () =
-        async { return getData () |> processData |> saveData }
+    let getAvaliableDates () = async { return Ok "" }
+    let requestToKdmid () = async { return Error "What" }
+    let requestToExternal () = async { return Ok "" }
+    let sendAvaliableDates () = async { return Ok "" }
 
 
 module Task2 =

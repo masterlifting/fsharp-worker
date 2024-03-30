@@ -45,6 +45,29 @@ module TaskScheduler =
 
 module TaskHandler =
     open Domain.Core
+    open System.IO
+
+    let saveStep (step: TaskStepState) =
+        async {
+            let file = $"{Environment.CurrentDirectory}/steps/{step.Id}.json"
+
+            if not (Directory.Exists(Path.GetDirectoryName(file))) then
+                ignore (Directory.CreateDirectory(Path.GetDirectoryName(file)))
+
+            let state =
+                $"{{\"status\":\"{step.Status}\",\"attempts\":{step.Attempts},\"message\":\"{step.Message}\",\"updated_at\":\"{step.UpdatedAt}\"}};"
+
+            do! File.AppendAllLinesAsync(file, [ state ]) |> Async.AwaitTask
+        }
+
+    let loadSteps fileName =
+        async {
+            if File.Exists fileName then
+                let! content = File.ReadAllTextAsync fileName |> Async.AwaitTask
+                return content.Split(';')
+            else
+                return [||]
+        }
 
     let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
 
@@ -54,30 +77,51 @@ module TaskHandler =
                     ct.ThrowIfCancellationRequested()
 
                 if stepHandler.Name <> step.Name then
-                    $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match step "
+                    $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
                     |> Logger.logError
                 else
                     $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
 
+                    let! previousSteps = loadSteps $"{Environment.CurrentDirectory}/steps/{taskName}_{step.Name}.json"
+
                     match! stepHandler.Handle() with
-                    | Ok msg -> $"Task '{taskName}'. Step '{step.Name}'. Compleated. {msg}" |> Logger.logInfo
-                    | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
+                    | Ok msg ->
+                        let state =
+                            { Id = $"{taskName}_{step.Name}"
+                              Status = Completed
+                              Attempts = previousSteps.Length + 1
+                              Message = msg
+                              UpdatedAt = DateTime.UtcNow }
+
+                        do! saveStep state
+                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
+
+                    | Error error ->
+                        let state =
+                            { Id = $"{taskName}_{step.Name}"
+                              Status = Failed
+                              Attempts = previousSteps.Length + 1
+                              Message = error
+                              UpdatedAt = DateTime.UtcNow }
+
+                        do! saveStep state
+                        $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
             }
 
         let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
             async {
                 match steps, stepHandlers with
                 | [], _ -> ()
-                | _, [] ->
-                    steps
-                    |> List.iter (fun step ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
-                        |> Logger.logError)
+                | step :: stepsTail, [] ->
+                    $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
+                    |> Logger.logError
 
-                    return! innerLoop [] stepHandlers
+                    return! innerLoop step.Steps []
+                    return! innerLoop stepsTail []
                 | step :: stepsTail, stepHandler :: stepHandlerTail ->
                     do! handleStep step stepHandler
-                    return! innerLoop (step.Steps @ stepsTail) (stepHandler.Steps @ stepHandlerTail)
+                    return! innerLoop step.Steps stepHandler.Steps
+                    return! innerLoop stepsTail stepHandlerTail
             }
 
         innerLoop steps stepHandlers
@@ -108,15 +152,7 @@ module TaskHandler =
                 return! innerLoop ()
         }
 
-let startWorker (args: string array) handlers =
-    let duration =
-        match args.Length with
-        | 1 ->
-            match args.[0] with
-            | IsInt seconds -> float seconds
-            | _ -> (TimeSpan.FromDays 1).TotalSeconds
-        | _ -> (TimeSpan.FromDays 1).TotalSeconds
-
+let startWorker duration handlers =
     try
         $"The worker will be running for {duration} seconds" |> Logger.logWarning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
@@ -133,5 +169,3 @@ let startWorker (args: string array) handlers =
     with
     | :? OperationCanceledException -> $"The worker has been cancelled" |> Logger.logWarning
     | ex -> ex.Message |> Logger.logError
-
-    0

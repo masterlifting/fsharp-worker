@@ -70,15 +70,10 @@ module Core =
           WorkDays: DayOfWeek Set
           Delay: TimeSpan }
 
-    type TaskName = TaskName of string
-    type StepName = StepName of string
-
-    type TaskStep =
-        { Name: StepName
-          Steps: TaskStep list }
+    type TaskStep = { Name: string; Steps: TaskStep list }
 
     type Task =
-        { Name: TaskName
+        { Name: string
           ChunkSize: int
           Steps: TaskStep list
           Scheduler: TaskScheduler }
@@ -90,21 +85,21 @@ module Core =
         | _ ->
             steps
             |> Array.map (fun x ->
-                { Name = x.Name |> StepName
+                { Name = x.Name
                   Steps = x.Steps |> toList })
             |> List.ofArray
 
     type TaskStepHandler =
-        { Name: StepName
-          Handle: TaskName -> StepName -> Async<Result<string, string>>
+        { Name: string
+          Handle: unit -> Async<Result<string, string>>
           Steps: TaskStepHandler list }
 
     type TaskHandler =
-        { Name: TaskName
+        { Name: string
           Steps: TaskStepHandler list }
 
     let toTask name (task: TaskSettings) =
-        { Name = name |> TaskName
+        { Name = name
           ChunkSize = task.ChunkSize
           Steps = task.Steps |> toList
           Scheduler =

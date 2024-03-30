@@ -4,7 +4,6 @@ open System
 open System.Threading
 open DSL
 open Logging
-open System.Collections.Generic
 
 open Domain.Settings
 
@@ -47,42 +46,7 @@ module TaskScheduler =
 module TaskHandler =
     open Domain.Core
 
-    let inline private geTasktName (TaskName name) = name
-    let inline private getStepName (StepName name) = name
-
-    let handleStepsBfs (steps: TaskStep list) handleStep =
-        async {
-            let queue = Queue<TaskStep>(steps)
-
-            while queue.Count > 0 do
-                let step = queue.Dequeue()
-
-                do! handleStep step
-
-                match step.Steps with
-                | [] -> ()
-                | _ -> step.Steps |> Seq.iter queue.Enqueue
-        }
-
-    let rec handleStepsDfs (taskName: string) (steps: TaskStep list) (stepHandlers: TaskStepHandler list) handleStep =
-        async {
-            match steps with
-            | [] -> ()
-            | step :: stepsTail ->
-
-                match stepHandlers with
-                | [] ->
-                    $"Step handler of Task '{taskName}' for Step '{step.Name}' was not found"
-                    |> Logger.logError
-                | stepHandler :: stepHandlerTail ->
-                    do! handleStep step stepHandler
-                    return! handleStepsDfs taskName step.Steps stepHandler.Steps handleStep
-                    return! handleStepsDfs taskName stepsTail stepHandlerTail handleStep
-        }
-
-    let private handleTaskSteps (taskName: TaskName) steps stepHandlers (ct: CancellationToken) =
-        
-        let taskNameStr = taskName |> fun (TaskName name) -> name
+    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
 
         let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
             async {
@@ -90,36 +54,50 @@ module TaskHandler =
                     ct.ThrowIfCancellationRequested()
 
                 if stepHandler.Name <> step.Name then
-                    $"Step handler '{stepHandler.Name}' of Task '{taskName}' does not match Setting Step '{step.Name}'"
+                    $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match step "
                     |> Logger.logError
                 else
-                    $"Task '{taskNameStr}' started Step '{step.Name}'" |> Logger.logTrace
+                    $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
 
-                    match! stepHandler.Handle taskName step.Name with
-                    | Ok msg -> $"Task '{taskName}' completed Step '{step.Name}'. {msg}" |> Logger.logTrace
-                    | Error error -> $"Task '{taskName}' failed Step '{step.Name}'. {error}" |> Logger.logError
+                    match! stepHandler.Handle() with
+                    | Ok msg -> $"Task '{taskName}'. Step '{step.Name}'. Compleated. {msg}" |> Logger.logTrace
+                    | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
             }
 
-        handleStepsDfs taskNameStr steps stepHandlers handleStep
+        let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
+            async {
+                match steps with
+                | [] -> ()
+                | step :: stepsTail ->
+                    match stepHandlers with
+                    | [] ->
+                        $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
+                        |> Logger.logError
+                    | stepHandler :: stepHandlerTail ->
+                        do! handleStep step stepHandler
+                        return! innerLoop step.Steps stepHandler.Steps
+                        return! innerLoop stepsTail stepHandlerTail
+            }
+
+        innerLoop steps stepHandlers
 
     let internal startTask (task: Task) (taskHandlers: TaskHandler list) workerCt =
         async {
-            let taskName = task.getName task.Name
-
             match taskHandlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
-            | None -> $"Handler of Task '{taskName}' was not found" |> Logger.logError
+            | None -> $"Task '{task.Name}'. Handler was not found" |> Logger.logError
             | Some taskHandler ->
                 let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
 
                 let rec innerLoop () =
                     async {
                         match taskCt.IsCancellationRequested with
-                        | true -> $"Task '{taskName}' has been stopped" |> Logger.logWarning
+                        | true -> $"Task '{task.Name}'. Stopped" |> Logger.logWarning
                         | false ->
-                            $"Task '{taskName}' has been started" |> Logger.logDebug
-                            do! handleTaskSteps task.Name task.Steps taskHandler.Steps workerCt
-                            $"Task '{taskName}' has been completed" |> Logger.logInfo
-                            $"Next run of task '{taskName}' will be in {task.Scheduler.Delay}"
+                            $"Task '{task.Name}'. Started" |> Logger.logDebug
+                            do! handleSteps task.Name task.Steps taskHandler.Steps workerCt
+                            $"Task '{task.Name}'. Completed" |> Logger.logInfo
+
+                            $"Task '{task.Name}'. Next run will be in {task.Scheduler.Delay}"
                             |> Logger.logTrace
 
                             do! Async.Sleep task.Scheduler.Delay

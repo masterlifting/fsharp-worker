@@ -2,7 +2,6 @@ module Core
 
 open System
 open System.Threading
-open DSL
 open Logging
 
 open Domain.Settings
@@ -45,31 +44,18 @@ module TaskScheduler =
 
 module TaskHandler =
     open Domain.Core
-    open System.IO
+    open Persistence
 
-    let saveStep (step: TaskStepState) =
-        async {
-            let file = $"{Environment.CurrentDirectory}/steps/{step.Id}.json"
+    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) = async {
 
-            if not (Directory.Exists(Path.GetDirectoryName(file))) then
-                ignore (Directory.CreateDirectory(Path.GetDirectoryName(file)))
+        let! lastSteps = Repository.loadLastSteps taskName
 
-            let state =
-                $"{{\"status\":\"{step.Status}\",\"attempts\":{step.Attempts},\"message\":\"{step.Message}\",\"updated_at\":\"{step.UpdatedAt}\"}};"
+        let lastUnhandledStep = lastSteps |> Seq.tryFind (fun x -> x.Status <> Completed)
 
-            do! File.AppendAllLinesAsync(file, [ state ]) |> Async.AwaitTask
-        }
-
-    let loadSteps fileName =
-        async {
-            if File.Exists fileName then
-                let! content = File.ReadAllTextAsync fileName |> Async.AwaitTask
-                return content.Split(';')
-            else
-                return [||]
-        }
-
-    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
+        let lastStep =
+            match lastUnhandledStep with
+            | Some step -> step
+            | None -> lastSteps |> Seq.last
 
         let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
             async {
@@ -82,30 +68,26 @@ module TaskHandler =
                 else
                     $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
 
-                    let! previousSteps = loadSteps $"{Environment.CurrentDirectory}/steps/{taskName}_{step.Name}.json"
-
-                    match! stepHandler.Handle() with
-                    | Ok msg ->
-                        let state =
-                            { Id = $"{taskName}_{step.Name}"
-                              Status = Completed
-                              Attempts = previousSteps.Length + 1
-                              Message = msg
-                              UpdatedAt = DateTime.UtcNow }
-
-                        do! saveStep state
-                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
-
-                    | Error error ->
-                        let state =
-                            { Id = $"{taskName}_{step.Name}"
-                              Status = Failed
-                              Attempts = previousSteps.Length + 1
-                              Message = error
-                              UpdatedAt = DateTime.UtcNow }
-
-                        do! saveStep state
-                        $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
+                    let! handledResult = stepHandler.Handle()
+                    
+                    let state =
+                        match handledResult with
+                        | Ok msg ->
+                            $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
+                            {   Id = step.Name
+                                Status = Completed
+                                Attempts = lastStep.Attempts + 1
+                                Message = msg
+                                UpdatedAt = DateTime.UtcNow }
+                        | Error error ->
+                            $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
+                            {   Id = step.Name
+                                Status = Failed
+                                Attempts = lastStep.Attempts + 1
+                                Message = error
+                                UpdatedAt = DateTime.UtcNow }
+                            
+                    do! Repository.saveStep taskName state
             }
 
         let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
@@ -124,7 +106,8 @@ module TaskHandler =
                     return! innerLoop stepsTail stepHandlerTail
             }
 
-        innerLoop steps stepHandlers
+        do! innerLoop steps stepHandlers
+    }
 
     let internal startTask (task: Task) (taskHandlers: TaskHandler list) workerCt =
         async {

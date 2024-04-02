@@ -89,7 +89,7 @@ module Core =
           Status: TaskStepStatus
           Attempts: int
           Message: string
-          UpdatedAt: DateTime }
+          UpdatedAt: DateTime}
 
     let rec private toList (steps: TaskStepSettings array) =
         match steps with

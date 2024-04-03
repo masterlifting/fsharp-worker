@@ -31,6 +31,12 @@ module Settings =
         { Tasks: Dictionary<string, TaskSettings> }
 
 module Persistence =
+    type StepState =
+        { Id: string
+          Status: string
+          Attempts: int
+          Message: string
+          UpdatedAt: DateTime }
     type TaskStepState =
         abstract CorellationId: Guid option
         abstract StatusId: int

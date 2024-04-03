@@ -1,54 +1,62 @@
 module Persistence
+
 open Domain.Core
 open System.IO
 open System
+open System.Text.Json
 
-type RepositoryType = {
-    saveStep: string -> TaskStepState -> Async<unit>
-    loadLastSteps: string -> Async<TaskStepState list>
-}
+type RepositoryType =
+    { setStepState: string -> TaskStepState -> Async<unit>
+      getLastStepState: string -> Async<TaskStepState option> }
 
-let private saveStep taskName step =
-   async {
-            let path = $"{Environment.CurrentDirectory}/tasks"
-            let file = $"{path}/{taskName}.json"
-
-            if not (Directory.Exists(path)) then
-                Directory.CreateDirectory(path) |> ignore
-
-            let state =
-                $"{{\"status\":\"{step.Status}\",\"attempts\":{step.Attempts},\"message\":\"{step.Message}\",\"updated_at\":\"{step.UpdatedAt}\"}};"
-
-            do! File.AppendAllLinesAsync(file, [ state ]) |> Async.AwaitTask
-        }
-
-let private taskStepStateFromString (str: string) =
-    let parts = str.Split(':')
-    let id = parts.[0]
-    let status = parts.[1]
-    let attempts = parts.[2]
-    let message = parts.[3]
-    let updatedAt = parts.[4]
-    
-    {   Id = id
-        Status = status |> Option.ofObj |> Option.defaultValue Pending
-        Attempts = int attempts
-        Message = message
-        UpdatedAt = DateTime.Parse(updatedAt) }
-
-let private loadLastSteps taskName =
-     async {
+let private saveStep taskName stepState =
+    async {
         let path = $"{Environment.CurrentDirectory}/tasks"
         let file = $"{path}/{taskName}.json"
-    
-        if File.Exists file then
-            let! content = File.ReadAllTextAsync file |> Async.AwaitTask
-            return content.Split(';') |> Seq.map (fun x -> x |> taskStepStateFromString) |> Seq.toList
-        else
-            return []
-}
 
-let Repository = {
-    saveStep = saveStep
-    loadLastSteps = loadLastSteps
-}
+        if not (Directory.Exists(path)) then
+            Directory.CreateDirectory(path) |> ignore
+
+        let state: Domain.Persistence.StepState =
+            { Id = stepState.Id
+              Status =
+                match stepState.Status with
+                | Pending -> "Pending"
+                | Running -> "Running"
+                | Completed -> "Completed"
+                | Failed -> "Failed"
+              Attempts = stepState.Attempts
+              Message = stepState.Message
+              UpdatedAt = stepState.UpdatedAt }
+
+        do!
+            File.AppendAllLinesAsync(file, [ JsonSerializer.Serialize state ])
+            |> Async.AwaitTask
+    }
+
+let private getLastStep taskName =
+    async {
+        let path = $"{Environment.CurrentDirectory}/tasks"
+        let file = $"{path}/{taskName}.json"
+
+        if File.Exists file then
+            let! content = File.ReadAllLinesAsync file |> Async.AwaitTask
+            return content |> Seq.tryLast |> Option.map (fun x -> JsonSerializer.Deserialize<Domain.Persistence.StepState>(x)) |> Option.map (fun x ->
+                { Id = x.Id
+                  Status =
+                    match x.Status with
+                    | "Pending" -> Pending
+                    | "Running" -> Running
+                    | "Completed" -> Completed
+                    | "Failed" -> Failed
+                    | _ -> Failed
+                  Attempts = x.Attempts
+                  Message = x.Message
+                  UpdatedAt = x.UpdatedAt })
+        else
+            return None
+    }
+
+let Repository =
+    { setStepState = saveStep
+      getLastStepState = getLastStep }

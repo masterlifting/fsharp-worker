@@ -46,68 +46,64 @@ module TaskHandler =
     open Domain.Core
     open Persistence
 
-    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) = async {
+    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
+        async {
 
-        let! lastSteps = Repository.loadLastSteps taskName
+            let! lastStepState = Repository.getLastStepState taskName
 
-        let lastUnhandledStep = lastSteps |> Seq.tryFind (fun x -> x.Status <> Completed)
+            let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
+                async {
+                    if ct.IsCancellationRequested then
+                        ct.ThrowIfCancellationRequested()
 
-        let lastStep =
-            match lastUnhandledStep with
-            | Some step -> step
-            | None -> lastSteps |> Seq.last
+                    if stepHandler.Name <> step.Name then
+                        $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
+                        |> Logger.logError
+                    else
+                        $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
 
-        let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
-            async {
-                if ct.IsCancellationRequested then
-                    ct.ThrowIfCancellationRequested()
+                        let! handledResult = stepHandler.Handle()
 
-                if stepHandler.Name <> step.Name then
-                    $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
-                    |> Logger.logError
-                else
-                    $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
+                        let result =
+                            match handledResult with
+                            | Ok msg ->
+                                $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
+                                {| Status = Completed; Message = msg |}
+                            | Error error ->
+                                $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
+                                {| Status = Failed; Message = error |}
 
-                    let! handledResult = stepHandler.Handle()
-                    
-                    let state =
-                        match handledResult with
-                        | Ok msg ->
-                            $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
-                            {   Id = step.Name
-                                Status = Completed
-                                Attempts = lastStep.Attempts + 1
-                                Message = msg
-                                UpdatedAt = DateTime.UtcNow }
-                        | Error error ->
-                            $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
-                            {   Id = step.Name
-                                Status = Failed
-                                Attempts = lastStep.Attempts + 1
-                                Message = error
-                                UpdatedAt = DateTime.UtcNow }
-                            
-                    do! Repository.saveStep taskName state
-            }
+                        let state =
+                            { Id = step.Name
+                              Status = result.Status
+                              Attempts =
+                                match lastStepState with
+                                | Some x -> x.Attempts + 1
+                                | None -> 1
+                              Message = result.Message
+                              UpdatedAt = DateTime.UtcNow }
 
-        let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
-            async {
-                match steps, stepHandlers with
-                | [], _ -> ()
-                | step :: stepsTail, [] ->
-                    $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
-                    |> Logger.logError
+                        do! Repository.setStepState taskName state
+                }
 
-                    return! innerLoop step.Steps []
-                    return! innerLoop stepsTail []
-                | step :: stepsTail, stepHandler :: stepHandlerTail ->
-                    do! handleStep step stepHandler
-                    return! innerLoop step.Steps stepHandler.Steps
-                    return! innerLoop stepsTail stepHandlerTail
-            }
+            let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
+                async {
+                    match steps, stepHandlers with
+                    | [], _ -> ()
+                    | step :: stepsTail, [] ->
+                        $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
+                        |> Logger.logError
 
-        do! innerLoop steps stepHandlers
-    }
+                        return! innerLoop step.Steps []
+                        return! innerLoop stepsTail []
+                    | step :: stepsTail, stepHandler :: stepHandlerTail ->
+                        do! handleStep step stepHandler
+                        return! innerLoop step.Steps stepHandler.Steps
+                        return! innerLoop stepsTail stepHandlerTail
+                }
+
+            do! innerLoop steps stepHandlers
+        }
 
     let internal startTask (task: Task) (taskHandlers: TaskHandler list) workerCt =
         async {

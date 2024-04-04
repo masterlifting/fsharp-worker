@@ -1,6 +1,6 @@
-module Logging
+module Log
 
-type Logger =
+type private Logger =
     { logTrace: string -> unit
       logDebug: string -> unit
       logInfo: string -> unit
@@ -34,7 +34,6 @@ let consoleLogProcessor =
 
         innerLoop ())
 
-
 let private consoleLog message level =
 
     match level with
@@ -44,7 +43,7 @@ let private consoleLog message level =
     | Trace -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}")
     | _ -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[32mInfo\u001b[0m [{timeStamp}] {message}")
 
-let Logger =
+let private logger =
     match getLevel () with
     | Error ->
         { logTrace = ignore
@@ -76,3 +75,9 @@ let Logger =
           logInfo = fun message -> consoleLog message Information
           logWarning = fun message -> consoleLog message Warning
           logError = fun message -> consoleLog message Error }
+
+let trace = logger.logTrace
+let debug = logger.logDebug
+let info = logger.logInfo
+let warning = logger.logWarning
+let error = logger.logError

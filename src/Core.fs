@@ -2,149 +2,138 @@ module Core
 
 open System
 open System.Threading
-open Logging
+open Domain.Core
 
-open Domain.Settings
+let private getExpirationToken taskName scheduler =
+    async {
+        let now = DateTime.UtcNow.AddHours(scheduler.TimeShift |> float)
+        let cts = new CancellationTokenSource()
 
-module TaskScheduler =
-    open Domain.Core
+        if not scheduler.IsEnabled then
+            $"Task '{taskName}' is disabled" |> Log.warning
+            do! cts.CancelAsync() |> Async.AwaitTask
 
-    let getTaskExpirationToken taskName scheduler =
-        async {
-            let now = DateTime.UtcNow.AddHours(scheduler.TimeShift |> float)
-            let cts = new CancellationTokenSource()
-
-            if not scheduler.IsEnabled then
-                $"Task '{taskName}' is disabled" |> Logger.logWarning
-                do! cts.CancelAsync() |> Async.AwaitTask
-
-            if not cts.IsCancellationRequested then
-                match scheduler.StopWork with
-                | Some stopWork ->
-                    match stopWork - now with
-                    | delay when delay > TimeSpan.Zero ->
-                        $"Task '{taskName}' will be stopped at {stopWork}" |> Logger.logWarning
-                        cts.CancelAfter delay
-                    | _ -> do! cts.CancelAsync() |> Async.AwaitTask
-                | _ -> ()
-
-            if not cts.IsCancellationRequested then
-                match scheduler.StartWork - now with
+        if not cts.IsCancellationRequested then
+            match scheduler.StopWork with
+            | Some stopWork ->
+                match stopWork - now with
                 | delay when delay > TimeSpan.Zero ->
-                    $"Task '{taskName}' will start at {scheduler.StartWork}" |> Logger.logWarning
-                    do! Async.Sleep delay
-                | _ -> ()
+                    $"Task '{taskName}' will be stopped at {stopWork}" |> Log.warning
+                    cts.CancelAfter delay
+                | _ -> do! cts.CancelAsync() |> Async.AwaitTask
+            | _ -> ()
 
-                if scheduler.IsOnce then
-                    $"Task '{taskName}' will be run once" |> Logger.logWarning
-                    cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
+        if not cts.IsCancellationRequested then
+            match scheduler.StartWork - now with
+            | delay when delay > TimeSpan.Zero ->
+                $"Task '{taskName}' will start at {scheduler.StartWork}" |> Log.warning
+                do! Async.Sleep delay
+            | _ -> ()
 
-            return cts.Token
-        }
+            if scheduler.IsOnce then
+                $"Task '{taskName}' will be run once" |> Log.warning
+                cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
 
-module TaskHandler =
-    open Domain.Core
-    open Persistence
+        return cts.Token
+    }
 
-    let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
+let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
+    let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
         async {
+            if ct.IsCancellationRequested then
+                ct.ThrowIfCancellationRequested()
 
-            let! lastStepState = Repository.getLastStepState taskName
+            if stepHandler.Name <> step.Name then
+                $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
+                |> Log.error
+            else
 
-            let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
-                async {
-                    if ct.IsCancellationRequested then
-                        ct.ThrowIfCancellationRequested()
+                let! lastStepState = Persistence.getLastStepState taskName
 
-                    if stepHandler.Name <> step.Name then
-                        $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
-                        |> Logger.logError
-                    else
-                        $"Task '{taskName}'. Step '{step.Name}'. Started" |> Logger.logTrace
+                $"Task '{taskName}'. Step '{step.Name}'. Started" |> Log.trace
 
-                        let! handledResult = stepHandler.Handle()
+                let! handledResult = stepHandler.Handle()
 
-                        let result =
-                            match handledResult with
-                            | Ok msg ->
-                                $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Logger.logInfo
-                                {| Status = Completed; Message = msg |}
-                            | Error error ->
-                                $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Logger.logError
-                                {| Status = Failed; Message = error |}
+                let result =
+                    match handledResult with
+                    | Ok msg ->
+                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.info
+                        {| Status = Completed; Message = msg |}
+                    | Error error ->
+                        $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
+                        {| Status = Failed; Message = error |}
 
-                        let state =
-                            { Id = step.Name
-                              Status = result.Status
-                              Attempts =
-                                match lastStepState with
-                                | Some x -> x.Attempts + 1
-                                | None -> 1
-                              Message = result.Message
-                              UpdatedAt = DateTime.UtcNow }
+                let state =
+                    { Id = step.Name
+                      Status = result.Status
+                      Attempts =
+                        match lastStepState with
+                        | Some x -> x.Attempts + 1
+                        | None -> 1
+                      Message = result.Message
+                      UpdatedAt = DateTime.UtcNow }
 
-                        do! Repository.setStepState taskName state
-                }
-
-            let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
-                async {
-                    match steps, stepHandlers with
-                    | [], _ -> ()
-                    | step :: stepsTail, [] ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Handler was not found"
-                        |> Logger.logError
-
-                        return! innerLoop step.Steps []
-                        return! innerLoop stepsTail []
-                    | step :: stepsTail, stepHandler :: stepHandlerTail ->
-                        do! handleStep step stepHandler
-                        return! innerLoop step.Steps stepHandler.Steps
-                        return! innerLoop stepsTail stepHandlerTail
-                }
-
-            do! innerLoop steps stepHandlers
+                do! Persistence.setStepState taskName state
         }
 
-    let internal startTask (task: Task) (taskHandlers: TaskHandler list) workerCt =
+    let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
         async {
-            match taskHandlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
-            | None -> $"Task '{task.Name}'. Handler was not found" |> Logger.logError
-            | Some taskHandler ->
-                let! taskCt = TaskScheduler.getTaskExpirationToken task.Name task.Scheduler
+            match steps, stepHandlers with
+            | [], _ -> ()
+            | step :: stepsTail, [] ->
+                $"Task '{taskName}'. Step '{step.Name}'. Handler was not found" |> Log.error
 
-                let rec innerLoop () =
-                    async {
-                        match taskCt.IsCancellationRequested with
-                        | true -> $"Task '{task.Name}'. Stopped" |> Logger.logWarning
-                        | false ->
-                            $"Task '{task.Name}'. Started" |> Logger.logDebug
-                            do! handleSteps task.Name task.Steps taskHandler.Steps workerCt
-                            $"Task '{task.Name}'. Completed" |> Logger.logDebug
-
-                            $"Task '{task.Name}'. Next run will be in {task.Scheduler.Delay}"
-                            |> Logger.logTrace
-
-                            do! Async.Sleep task.Scheduler.Delay
-                            do! innerLoop ()
-                    }
-
-                return! innerLoop ()
+                return! innerLoop step.Steps []
+                return! innerLoop stepsTail []
+            | step :: stepsTail, stepHandler :: stepHandlerTail ->
+                do! handleStep step stepHandler
+                return! innerLoop step.Steps stepHandler.Steps
+                return! innerLoop stepsTail stepHandlerTail
         }
+
+    innerLoop steps stepHandlers
+
+let private startTask taskName taskHandlers workerCt =
+    match taskHandlers |> Seq.tryFind (fun x -> x.Name = taskName) with
+    | None -> async { $"Task '{taskName}'. Handler was not found" |> Log.error }
+    | Some taskHandler ->
+        let rec innerLoop () =
+            async {
+                let! task = Persistence.getTask taskName
+
+                match task with
+                | Error error -> $"Task '{taskName}'. {error}" |> Log.error
+                | Ok task ->
+                    let! taskCt = getExpirationToken taskName task.Scheduler
+
+                    match taskCt.IsCancellationRequested with
+                    | true -> $"Task '{taskName}'. Stopped" |> Log.warning
+                    | false ->
+                        $"Task '{taskName}'. Started" |> Log.debug
+                        do! handleSteps taskName task.Steps taskHandler.Steps workerCt
+                        $"Task '{taskName}'. Completed" |> Log.debug
+
+                        $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+
+                        do! Async.Sleep task.Scheduler.Delay
+                        do! innerLoop ()
+            }
+
+        innerLoop ()
 
 let startWorker duration handlers =
     try
-        $"The worker will be running for {duration} seconds" |> Logger.logWarning
+        $"The worker will be running for {duration} seconds" |> Log.warning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
 
-        match Configuration.getSection<Domain.Settings.Section> "Worker" with
-        | Some settings ->
-            settings.Tasks
-            |> Seq.map (fun taskSettings -> Domain.Core.toTask taskSettings.Key taskSettings.Value)
-            |> Seq.map (fun task -> TaskHandler.startTask task handlers cts.Token)
+        match Persistence.getConfiguredTaskNames () with
+        | Ok taskNames ->
+            taskNames
+            |> Seq.map (fun taskName -> startTask taskName handlers cts.Token)
             |> Async.Parallel
             |> Async.RunSynchronously
             |> ignore
-        | None -> failwith "Worker settings was not found"
+        | Error error -> failwith error
     with
-    | :? OperationCanceledException -> $"The worker has been cancelled" |> Logger.logWarning
-    | ex -> ex.Message |> Logger.logError
+    | :? OperationCanceledException -> $"The worker has been cancelled" |> Log.warning
+    | ex -> ex.Message |> Log.error

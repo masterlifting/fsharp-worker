@@ -105,17 +105,26 @@ let private startTask taskName taskHandlers workerCt =
                     match taskCt.IsCancellationRequested with
                     | true -> $"Task '{taskName}'. Stopped" |> Log.warning
                     | false ->
-                        match Persistence.Type.InMemoryStorage |> Persistence.setScope <| taskName with
+
+                        let persistenceType =
+                            Persistence.Type.FileStorage $"{Environment.CurrentDirectory}/tasks/{taskName}.json"
+
+                        let persistenceScopeResult = Persistence.Scope.create persistenceType
+
+                        match persistenceScopeResult with
                         | Error error -> error |> Log.error
                         | Ok persistenceScope ->
+
                             $"Task '{taskName}'. Started" |> Log.debug
                             do! handleSteps persistenceScope taskName task.Steps taskHandler.Steps workerCt
                             $"Task '{taskName}'. Completed" |> Log.debug
 
-                            $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                            Persistence.Scope.remove persistenceScope
 
-                            do! Async.Sleep task.Scheduler.Delay
-                            do! innerLoop ()
+                        $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+
+                        do! Async.Sleep task.Scheduler.Delay
+                        do! innerLoop ()
             }
 
         innerLoop ()

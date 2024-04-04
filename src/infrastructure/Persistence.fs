@@ -5,35 +5,36 @@ open System
 open System.Text.Json
 
 type Type =
-    | FileStorage
+    | FileStorage of string
     | InMemoryStorage
 
-type PersistenceScope =
-    | FileStorageScope of FileStream
-    | InMemoryStorageScope of MemoryStream
-
-let setScope persistenceType = 
-    match persistenceType with
-    | FileStorage -> 
-        fun path ->
+module Scope = 
+    type Type =
+        | FileStorageScope of FileStream
+        | InMemoryStorageScope of MemoryStream
+    
+    let create persistenceType = 
+        match persistenceType with
+        | FileStorage path -> 
             try 
                 let stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite)
                 Ok (FileStorageScope stream)
             with
                 | ex -> Error ex.Message
-    | InMemoryStorage -> 
-        fun _ -> 
+        | InMemoryStorage -> 
             let stream = new MemoryStream()
             Ok (InMemoryStorageScope stream)
+    
+    let remove scope = 
+        match scope with
+        | FileStorageScope stream -> stream.Dispose()
+        | InMemoryStorageScope stream -> stream.Dispose()
 
-module private File =
+module private FileStorage =
     open Domain.Core
 
-    let saveStep (stream: FileStream) taskName stepState =
+    let saveStep (stream: FileStream) stepState =
         async {
-            let path = $"{Environment.CurrentDirectory}/tasks"
-            let file = $"{path}/{taskName}.json"
-
             let state: Domain.Persistence.StepState =
                 { Id = stepState.Id
                   Status =
@@ -48,7 +49,6 @@ module private File =
             
             let serializedStete = JsonSerializer.Serialize state
             
-
         }
 
     let getLastStep stream taskName =
@@ -105,12 +105,12 @@ module private Settings =
 
 let setStepState scope = 
     match scope with
-    | FileStorageScope stream -> fun taskName -> fun stepState -> File.saveStep stream taskName stepState
-    | InMemoryStorageScope stream -> failwith "Not implemented"
-
+    | Scope.Type.FileStorageScope stream -> stream |> FileStorage.saveStep
+    | Scope.Type.InMemoryStorageScope stream -> failwith "Not implemented"
 let getLastStepState scope = 
     match scope with
-    | FileStorageScope stream -> fun taskName -> File.getLastStep stream taskName
-    | InMemoryStorageScope stream -> failwith "Not implemented"
+    | Scope.Type.FileStorageScope stream -> stream |> FileStorage.getLastStep
+    | Scope.Type.InMemoryStorageScope stream -> failwith "Not implemented"
+
 let getConfiguredTaskNames = Settings.getTaskNames
 let getTask name = async { return Settings.getTask name }

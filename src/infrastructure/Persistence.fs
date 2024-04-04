@@ -4,16 +4,35 @@ open System.IO
 open System
 open System.Text.Json
 
+type Type =
+    | FileStorage
+    | InMemoryStorage
+
+type PersistenceScope =
+    | FileStorageScope of FileStream
+    | InMemoryStorageScope of MemoryStream
+
+let setScope persistenceType = 
+    match persistenceType with
+    | FileStorage -> 
+        fun path ->
+            try 
+                let stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite)
+                Ok (FileStorageScope stream)
+            with
+                | ex -> Error ex.Message
+    | InMemoryStorage -> 
+        fun _ -> 
+            let stream = new MemoryStream()
+            Ok (InMemoryStorageScope stream)
+
 module private File =
     open Domain.Core
 
-    let saveStep taskName stepState =
+    let saveStep (stream: FileStream) taskName stepState =
         async {
             let path = $"{Environment.CurrentDirectory}/tasks"
             let file = $"{path}/{taskName}.json"
-
-            if not (Directory.Exists(path)) then
-                Directory.CreateDirectory(path) |> ignore
 
             let state: Domain.Persistence.StepState =
                 { Id = stepState.Id
@@ -26,13 +45,13 @@ module private File =
                   Attempts = stepState.Attempts
                   Message = stepState.Message
                   UpdatedAt = stepState.UpdatedAt }
+            
+            let serializedStete = JsonSerializer.Serialize state
+            
 
-            do!
-                File.AppendAllLinesAsync(file, [ JsonSerializer.Serialize state ])
-                |> Async.AwaitTask
         }
 
-    let getLastStep taskName =
+    let getLastStep stream taskName =
         async {
             let path = $"{Environment.CurrentDirectory}/tasks"
             let file = $"{path}/{taskName}.json"
@@ -84,7 +103,14 @@ module private Settings =
             | None -> Error "Task was not found"
         | Error error -> Error error
 
-let setStepState = File.saveStep
-let getLastStepState = File.getLastStep
+let setStepState scope = 
+    match scope with
+    | FileStorageScope stream -> fun taskName -> fun stepState -> File.saveStep stream taskName stepState
+    | InMemoryStorageScope stream -> failwith "Not implemented"
+
+let getLastStepState scope = 
+    match scope with
+    | FileStorageScope stream -> fun taskName -> File.getLastStep stream taskName
+    | InMemoryStorageScope stream -> failwith "Not implemented"
 let getConfiguredTaskNames = Settings.getTaskNames
 let getTask name = async { return Settings.getTask name }

@@ -37,7 +37,7 @@ let private getExpirationToken taskName scheduler =
         return cts.Token
     }
 
-let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
+let private handleSteps persistenceScope taskName steps stepHandlers (ct: CancellationToken) =
     let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
         async {
             if ct.IsCancellationRequested then
@@ -47,8 +47,7 @@ let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
                 $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
                 |> Log.error
             else
-
-                let! lastStepState = Persistence.getLastStepState taskName
+                let! lastStepState = Persistence.getLastStepState persistenceScope taskName
 
                 $"Task '{taskName}'. Step '{step.Name}'. Started" |> Log.trace
 
@@ -73,7 +72,7 @@ let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
                       Message = result.Message
                       UpdatedAt = DateTime.UtcNow }
 
-                do! Persistence.setStepState taskName state
+                do! Persistence.setStepState persistenceScope taskName state
         }
 
     let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
@@ -82,7 +81,6 @@ let private handleSteps taskName steps stepHandlers (ct: CancellationToken) =
             | [], _ -> ()
             | step :: stepsTail, [] ->
                 $"Task '{taskName}'. Step '{step.Name}'. Handler was not found" |> Log.error
-
                 return! innerLoop step.Steps []
                 return! innerLoop stepsTail []
             | step :: stepsTail, stepHandler :: stepHandlerTail ->
@@ -99,9 +97,7 @@ let private startTask taskName taskHandlers workerCt =
     | Some taskHandler ->
         let rec innerLoop () =
             async {
-                let! task = Persistence.getTask taskName
-
-                match task with
+                match! Persistence.getTask taskName with
                 | Error error -> $"Task '{taskName}'. {error}" |> Log.error
                 | Ok task ->
                     let! taskCt = getExpirationToken taskName task.Scheduler
@@ -109,14 +105,17 @@ let private startTask taskName taskHandlers workerCt =
                     match taskCt.IsCancellationRequested with
                     | true -> $"Task '{taskName}'. Stopped" |> Log.warning
                     | false ->
-                        $"Task '{taskName}'. Started" |> Log.debug
-                        do! handleSteps taskName task.Steps taskHandler.Steps workerCt
-                        $"Task '{taskName}'. Completed" |> Log.debug
+                        match Persistence.Type.InMemoryStorage |> Persistence.setScope <| taskName with
+                        | Error error -> error |> Log.error
+                        | Ok persistenceScope ->
+                            $"Task '{taskName}'. Started" |> Log.debug
+                            do! handleSteps persistenceScope taskName task.Steps taskHandler.Steps workerCt
+                            $"Task '{taskName}'. Completed" |> Log.debug
 
-                        $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                            $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
 
-                        do! Async.Sleep task.Scheduler.Delay
-                        do! innerLoop ()
+                            do! Async.Sleep task.Scheduler.Delay
+                            do! innerLoop ()
             }
 
         innerLoop ()

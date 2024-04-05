@@ -14,14 +14,20 @@ module private FileStorageRepository =
     let getTaskSteps stream size =
         async {
             let! linesResult = FileStorage.readLines stream size
+
             match linesResult with
             | Error error -> return Error error
             | Ok lines ->
-                let mappedSteps = lines |> List.map Mapper.mapStringToStep
-                let errorStep = mappedSteps |> List.tryFind (function | Error _ -> true | _ -> false)
-                match errorStep with
-                | Some (Error error) -> return Error error
-                | _ -> return Ok lines
+                let mutable hasError = false
+                let mutable steps = []
+
+                for mappedStep in lines |> Seq.map Mapper.mapStringToStep do
+                    match mappedStep with
+                    | Ok step -> steps <- step :: steps
+                    | Error error -> return Error error
+
+                return Ok steps
+
         }
 
 let saveTaskStep scope step =

@@ -37,7 +37,10 @@ let private getExpirationToken taskName scheduler =
         return cts.Token
     }
 
-let private handleSteps persistenceScope taskName steps stepHandlers (ct: CancellationToken) =
+let private handleSteps pScope taskName steps stepHandlers (ct: CancellationToken) =
+
+    let taskSteps = Repository.getTaskSteps pScope 5
+
     let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
         async {
             if ct.IsCancellationRequested then
@@ -47,16 +50,14 @@ let private handleSteps persistenceScope taskName steps stepHandlers (ct: Cancel
                 $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
                 |> Log.error
             else
-                let! lastStepState = Persistence.getLastStepState persistenceScope taskName
-
-                $"Task '{taskName}'. Step '{step.Name}'. Started" |> Log.trace
+                $"Task '{taskName}'. Step '{step.Name}'. Started" |> Log.info
 
                 let! handledResult = stepHandler.Handle()
 
                 let result =
                     match handledResult with
                     | Ok msg ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.info
+                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.debug
                         {| Status = Completed; Message = msg |}
                     | Error error ->
                         $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
@@ -65,14 +66,13 @@ let private handleSteps persistenceScope taskName steps stepHandlers (ct: Cancel
                 let state =
                     { Id = step.Name
                       Status = result.Status
-                      Attempts =
-                        match lastStepState with
-                        | Some x -> x.Attempts + 1
-                        | None -> 1
+                      Attempts = 1
                       Message = result.Message
                       UpdatedAt = DateTime.UtcNow }
 
-                do! Persistence.setStepState persistenceScope taskName state
+                match! Repository.saveTaskStep pScope state with
+                | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
+                | Ok _ -> ()
         }
 
     let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
@@ -93,12 +93,12 @@ let private handleSteps persistenceScope taskName steps stepHandlers (ct: Cancel
 
 let private startTask taskName taskHandlers workerCt =
     match taskHandlers |> Seq.tryFind (fun x -> x.Name = taskName) with
-    | None -> async { $"Task '{taskName}'. Handler was not found" |> Log.error }
+    | None -> async { $"Task '{taskName}'. Failed. Handler was not found" |> Log.error }
     | Some taskHandler ->
         let rec innerLoop () =
             async {
-                match! Persistence.getTask taskName with
-                | Error error -> $"Task '{taskName}'. {error}" |> Log.error
+                match! Repository.getTask taskName with
+                | Error error -> $"Task '{taskName}'. Failed. {error}" |> Log.error
                 | Ok task ->
                     let! taskCt = getExpirationToken taskName task.Scheduler
 
@@ -112,10 +112,10 @@ let private startTask taskName taskHandlers workerCt =
                         let persistenceScopeResult = Persistence.Scope.create persistenceType
 
                         match persistenceScopeResult with
-                        | Error error -> error |> Log.error
+                        | Error error -> $"Task '{taskName}'. Failed. {error}" |> Log.error
                         | Ok persistenceScope ->
 
-                            $"Task '{taskName}'. Started" |> Log.debug
+                            $"Task '{taskName}'. Started" |> Log.info
                             do! handleSteps persistenceScope taskName task.Steps taskHandler.Steps workerCt
                             $"Task '{taskName}'. Completed" |> Log.debug
 
@@ -134,7 +134,7 @@ let startWorker duration handlers =
         $"The worker will be running for {duration} seconds" |> Log.warning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
 
-        match Persistence.getConfiguredTaskNames () with
+        match Repository.getConfiguredTaskNames () with
         | Ok taskNames ->
             taskNames
             |> Seq.map (fun taskName -> startTask taskName handlers cts.Token)

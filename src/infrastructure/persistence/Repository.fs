@@ -6,6 +6,8 @@ let getTask name =
     async { return SettingsStorage.getTask name }
 
 module private FileStorageRepository =
+    open System
+
     let saveTaskStep stream step =
         match Mapper.mapStepToString step with
         | Ok data -> FileStorage.writeLine stream data
@@ -18,16 +20,21 @@ module private FileStorageRepository =
             match linesResult with
             | Error error -> return Error error
             | Ok lines ->
-                let mutable hasError = false
+                let mutable error: string option = None
+                let mutable index = 0
                 let mutable steps = []
 
-                for mappedStep in lines |> Seq.map Mapper.mapStringToStep do
-                    match mappedStep with
+                let mappedSteps = lines |> Array.ofList |> Array.map Mapper.mapStringToStep
+
+                while error.IsNone && index < mappedSteps.Length do
+                    match mappedSteps.[index] with
                     | Ok step -> steps <- step :: steps
-                    | Error error -> return Error error
+                    | Error msg -> error <- Some msg
 
-                return Ok steps
-
+                return
+                    match error with
+                    | Some msg -> Error msg
+                    | None -> Ok steps
         }
 
 let saveTaskStep scope step =

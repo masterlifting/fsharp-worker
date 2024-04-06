@@ -9,7 +9,7 @@ let getTask name =
 
 module private FileStorageRepository =
     let saveTaskStep stream step =
-        match Mapper.toPersistenceTaskStepJsonString step with
+        match Mapper.TaskStep.toPersistenceString step with
         | Ok data -> FileStorage.writeLine stream data
         | Error error -> async { return Error error }
 
@@ -28,7 +28,7 @@ module private FileStorageRepository =
                         | Error error -> Error error
 
                 let checkMappedSteps () =
-                    let mappedSteps = lines |> Seq.map Mapper.toCoreTaskStepFromJsonString
+                    let mappedSteps = lines |> Seq.map Mapper.TaskStep.fromPersistenceString
                     Seq.fold checkMappedStep (Ok []) mappedSteps
 
                 return

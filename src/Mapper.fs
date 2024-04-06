@@ -2,7 +2,7 @@ module Mapper
 
 open Domain
 
-let mapStepTo (step: Core.TaskStepState) : Persistence.StepState =
+let toPersistenceTaskStep (step: Core.TaskStepState) : Persistence.StepState =
     { Id = step.Id
       Status =
         match step.Status with
@@ -14,7 +14,7 @@ let mapStepTo (step: Core.TaskStepState) : Persistence.StepState =
       Message = step.Message
       UpdatedAt = step.UpdatedAt }
 
-let mapStepFrom (step: Persistence.StepState) : Core.TaskStepState =
+let toCoreTaskStep (step: Persistence.StepState) : Core.TaskStepState =
     { Id = step.Id
       Status =
         match step.Status with
@@ -27,9 +27,10 @@ let mapStepFrom (step: Persistence.StepState) : Core.TaskStepState =
       Message = step.Message
       UpdatedAt = step.UpdatedAt }
 
-let mapStepToString = mapStepTo >> Serialization.toJsonString
+let toPersistenceTaskStepJsonString =
+    toPersistenceTaskStep >> Serialization.toJsonString
 
-let mapStringToStep step = 
-  match Serialization.fromJsonString<Persistence.StepState> step with
-  | Ok step -> mapStepFrom step |> Ok
-  | Error error -> Error error
+let toCoreTaskStepFromJsonString step =
+    match Serialization.fromJsonString<Persistence.StepState> step with
+    | Ok step -> toCoreTaskStep step |> Ok
+    | Error error -> Error error

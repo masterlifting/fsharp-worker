@@ -1,4 +1,5 @@
 module Serialization
+
 open System.Text.Json
 
 let toJsonString data =

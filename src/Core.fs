@@ -10,7 +10,7 @@ let private getExpirationToken taskName scheduler =
         let cts = new CancellationTokenSource()
 
         if not scheduler.IsEnabled then
-            $"Task '{taskName}' is disabled" |> Log.warning
+            $"Task '%s{taskName}' is disabled" |> Log.warning
             do! cts.CancelAsync() |> Async.AwaitTask
 
         if not cts.IsCancellationRequested then
@@ -18,7 +18,7 @@ let private getExpirationToken taskName scheduler =
             | Some stopWork ->
                 match stopWork - now with
                 | delay when delay > TimeSpan.Zero ->
-                    $"Task '{taskName}' will be stopped at {stopWork}" |> Log.warning
+                    $"Task '%s{taskName}' will be stopped at {stopWork}" |> Log.warning
                     cts.CancelAfter delay
                 | _ -> do! cts.CancelAsync() |> Async.AwaitTask
             | _ -> ()
@@ -26,102 +26,71 @@ let private getExpirationToken taskName scheduler =
         if not cts.IsCancellationRequested then
             match scheduler.StartWork - now with
             | delay when delay > TimeSpan.Zero ->
-                $"Task '{taskName}' will start at {scheduler.StartWork}" |> Log.warning
+                $"Task '%s{taskName}' will start at {scheduler.StartWork}" |> Log.warning
                 do! Async.Sleep delay
             | _ -> ()
 
             if scheduler.IsOnce then
-                $"Task '{taskName}' will be run once" |> Log.warning
+                $"Task '%s{taskName}' will be run once" |> Log.warning
                 cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
 
         return cts.Token
     }
 
-let private handleSteps pScope taskName steps stepHandlers (ct: CancellationToken) =
+let rec private handleSteps
+    taskName
+    (steps: TaskStep list)
+    (stepHandlers: TaskStepHandler list)
+    (ct: CancellationToken)
+    =
+    async {
+        if ct.IsCancellationRequested then
+            ct.ThrowIfCancellationRequested()
 
-    let taskSteps = Repository.getTaskSteps pScope 5
+        match steps, stepHandlers with
+        | [], _ -> ()
+        | step :: stepsTail, [] ->
 
-    let handleStep (step: TaskStep) (stepHandler: TaskStepHandler) =
-        async {
-            if ct.IsCancellationRequested then
-                ct.ThrowIfCancellationRequested()
+            $"Task '%s{taskName}'. Step '%s{step.Name}'. Handler was not found" |> Log.error
+
+            return! handleSteps taskName step.Steps [] ct
+            return! handleSteps taskName stepsTail [] ct
+        | step :: stepsTail, stepHandler :: stepHandlerTail ->
 
             if stepHandler.Name <> step.Name then
-                $"Task '{taskName}'. Step '{step.Name}'. Handler '{stepHandler.Name}' does not match"
+                $"Task '%s{taskName}'. Step '%s{step.Name}'. Handler '%s{stepHandler.Name}' does not match"
                 |> Log.error
             else
-                $"Task '{taskName}'. Step '{step.Name}'. Started" |> Log.info
+                $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
 
-                let! handledResult = stepHandler.Handle()
+                match! stepHandler.Handle() with
+                | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
+                | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
 
-                let result =
-                    match handledResult with
-                    | Error error ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
-                        {| Status = Failed; Message = error |}
-                    | Ok msg ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.debug
-                        {| Status = Completed; Message = msg |}
-
-                let state =
-                    { Id = step.Name
-                      Status = result.Status
-                      Attempts = 1
-                      Message = result.Message
-                      UpdatedAt = DateTime.UtcNow }
-
-                match! Repository.saveTaskStep pScope state with
-                | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
-                | Ok _ -> $"Task '{taskName}'. Step '{step.Name}'. Saved" |> Log.trace
-        }
-
-    let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =
-        async {
-            match steps, stepHandlers with
-            | [], _ -> ()
-            | step :: stepsTail, [] ->
-                $"Task '{taskName}'. Step '{step.Name}'. Handler was not found" |> Log.error
-                return! innerLoop step.Steps []
-                return! innerLoop stepsTail []
-            | step :: stepsTail, stepHandler :: stepHandlerTail ->
-                do! handleStep step stepHandler
-                return! innerLoop step.Steps stepHandler.Steps
-                return! innerLoop stepsTail stepHandlerTail
-        }
-
-    innerLoop steps stepHandlers
+                return! handleSteps taskName step.Steps stepHandler.Steps ct
+                return! handleSteps taskName stepsTail stepHandlerTail ct
+    }
 
 let private startTask taskName taskHandlers workerCt =
     match taskHandlers |> Seq.tryFind (fun x -> x.Name = taskName) with
-    | None -> async { $"Task '{taskName}'. Failed. Handler was not found" |> Log.error }
+    | None -> async { $"Task '%s{taskName}'. Failed. Handler was not found" |> Log.error }
     | Some taskHandler ->
         let rec innerLoop () =
             async {
                 match! Repository.getTask taskName with
-                | Error error -> $"Task '{taskName}'. Failed. {error}" |> Log.error
+                | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
                 | Ok task ->
                     let! taskCt = getExpirationToken taskName task.Scheduler
 
                     match taskCt.IsCancellationRequested with
-                    | true -> $"Task '{taskName}'. Stopped" |> Log.warning
+                    | true -> $"Task '%s{taskName}'. Stopped" |> Log.warning
                     | false ->
 
-                        let persistenceType =
-                            Persistence.Type.FileStorage $"{Environment.CurrentDirectory}/tasks/{taskName}.json"
+                        $"Task '{taskName}'. Started" |> Log.info
+                        do! handleSteps taskName task.Steps taskHandler.Steps workerCt
+                        $"Task '%s{taskName}'. Completed" |> Log.debug
 
-                        let persistenceScopeResult = Persistence.Scope.create persistenceType
-
-                        match persistenceScopeResult with
-                        | Error error -> $"Task '{taskName}'. Failed. {error}" |> Log.error
-                        | Ok persistenceScope ->
-
-                            $"Task '{taskName}'. Started" |> Log.info
-                            do! handleSteps persistenceScope taskName task.Steps taskHandler.Steps workerCt
-                            $"Task '{taskName}'. Completed" |> Log.debug
-
-                            Persistence.Scope.remove persistenceScope
-
-                        $"Task '{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                        $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
 
                         do! Async.Sleep task.Scheduler.Delay
                         do! innerLoop ()

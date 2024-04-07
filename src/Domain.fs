@@ -91,12 +91,12 @@ module Core =
         | Completed
         | Failed
 
-    type TaskStepState =
-        { Id: string
-          Status: TaskStepStatus
-          Attempts: int
+    type TaskStepLog =
+        { CorellationId: Guid
+          Name: string
+          Status: string
           Message: string
-          UpdatedAt: DateTime }
+          Created: DateTime }
 
     let rec private toList (steps: TaskStepSettings array) =
         match steps with

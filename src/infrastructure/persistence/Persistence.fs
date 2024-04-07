@@ -9,7 +9,7 @@ type Type =
 module Scope =
     type Type =
         | FileStorageScope of FileStream
-        | InMemoryStorageScope of MemoryStream
+        | InMemoryStorageScope
 
     let create persistenceType =
         match persistenceType with
@@ -19,12 +19,9 @@ module Scope =
                 Ok <| FileStorageScope stream
             with ex ->
                 Error ex.Message
-        | InMemoryStorage ->
-            let stream = new MemoryStream()
-            Ok <| InMemoryStorageScope stream
+        | InMemoryStorage -> Ok InMemoryStorageScope
 
     let remove scope =
         match scope with
         | FileStorageScope stream -> stream.Dispose()
-        | InMemoryStorageScope stream -> stream.Dispose()
-
+        | InMemoryStorageScope -> ignore ()

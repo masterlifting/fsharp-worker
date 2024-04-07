@@ -3,8 +3,8 @@ module Mapper
 open Domain
 
 module TaskStep =
-    let toPersistence (step: Core.TaskStepState) : Persistence.StepState =
-        { Id = step.Id
+    let toPersistence (step: Core.TaskStepLog) : Persistence.StepState =
+        { Id = step.Name
           Status =
             match step.Status with
             | Core.TaskStepStatus.Pending -> "Pending"
@@ -13,10 +13,10 @@ module TaskStep =
             | Core.TaskStepStatus.Failed -> "Failed"
           Attempts = step.Attempts
           Message = step.Message
-          UpdatedAt = step.UpdatedAt }
+          UpdatedAt = step.Created }
 
-    let fromPersistence (step: Persistence.StepState) : Core.TaskStepState =
-        { Id = step.Id
+    let fromPersistence (step: Persistence.StepState) : Core.TaskStepLog =
+        { Name = step.Id
           Status =
             match step.Status with
             | "Pending" -> Core.TaskStepStatus.Pending
@@ -26,7 +26,7 @@ module TaskStep =
             | _ -> Core.TaskStepStatus.Failed
           Attempts = step.Attempts
           Message = step.Message
-          UpdatedAt = step.UpdatedAt }
+          Created = step.UpdatedAt }
 
     let toPersistenceString = toPersistence >> Serialization.toJsonString
 

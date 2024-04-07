@@ -56,12 +56,12 @@ let private handleSteps pScope taskName steps stepHandlers (ct: CancellationToke
 
                 let result =
                     match handledResult with
-                    | Ok msg ->
-                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.debug
-                        {| Status = Completed; Message = msg |}
                     | Error error ->
                         $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
                         {| Status = Failed; Message = error |}
+                    | Ok msg ->
+                        $"Task '{taskName}'. Step '{step.Name}'. Completed" |> Log.debug
+                        {| Status = Completed; Message = msg |}
 
                 let state =
                     { Id = step.Name
@@ -72,7 +72,7 @@ let private handleSteps pScope taskName steps stepHandlers (ct: CancellationToke
 
                 match! Repository.saveTaskStep pScope state with
                 | Error error -> $"Task '{taskName}'. Step '{step.Name}'. Failed. {error}" |> Log.error
-                | Ok _ -> ()
+                | Ok _ -> $"Task '{taskName}'. Step '{step.Name}'. Saved" |> Log.trace
         }
 
     let rec innerLoop (steps: TaskStep list) (stepHandlers: TaskStepHandler list) =

@@ -10,31 +10,17 @@ let getTask name =
 module private FileStorageRepository =
     let saveTaskStep stream step =
         match Mapper.TaskStep.toPersistenceString step with
-        | Ok data -> FileStorage.writeLine stream data
         | Error error -> async { return Error error }
+        | Ok data -> FileStorage.writeLine stream data
 
     let getTaskSteps stream size =
         async {
-            match! FileStorage.readLines stream size with
-            | Error error -> return Error error
-            | Ok lines ->
+            let! readLines = FileStorage.readLines stream size
 
-                let checkMappedStep state stepResult =
-                    match state with
-                    | Error error -> Error error
-                    | Ok steps ->
-                        match stepResult with
-                        | Ok step -> Ok <| step :: steps
-                        | Error error -> Error error
-
-                let checkMappedSteps () =
-                    let mappedSteps = lines |> Seq.map Mapper.TaskStep.fromPersistenceString
-                    Seq.fold checkMappedStep (Ok []) mappedSteps
-
-                return
-                    match checkMappedSteps () with
-                    | Error error -> Error error
-                    | Ok steps -> steps |> List.rev |> Ok
+            return
+                match readLines with
+                | Error error -> Error error
+                | Ok lines -> lines |> Seq.map Mapper.TaskStep.fromPersistenceString |> DSL.resultOrError
         }
 
 let saveTaskStep scope step =

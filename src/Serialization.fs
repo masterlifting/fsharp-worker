@@ -4,12 +4,12 @@ open System.Text.Json
 
 let toJsonString data =
     try
-        data |> JsonSerializer.Serialize |> Ok
+        Ok <| JsonSerializer.Serialize data
     with ex ->
         Error ex.Message
 
 let fromJsonString<'a> (data: string) =
     try
-        JsonSerializer.Deserialize<'a> data |> Ok
+        Ok <| JsonSerializer.Deserialize<'a> data
     with ex ->
         Error ex.Message

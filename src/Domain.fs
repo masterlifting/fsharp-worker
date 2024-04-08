@@ -18,12 +18,12 @@ module Settings =
     [<CLIMutable>]
     type TaskStepSettings =
         { Name: string
+          IsParallel: bool
           Steps: TaskStepSettings[] }
 
     [<CLIMutable>]
     type TaskSettings =
-        { ChunkSize: int
-          Steps: TaskStepSettings[]
+        { Steps: TaskStepSettings[]
           Scheduler: TaskShchedulerSettings }
 
     [<CLIMutable>]
@@ -31,13 +31,6 @@ module Settings =
         { Tasks: Dictionary<string, TaskSettings> }
 
 module Persistence =
-    type StepState =
-        { Id: string
-          Status: string
-          Attempts: int
-          Message: string
-          UpdatedAt: DateTime }
-
     type TaskStepState =
         abstract CorellationId: Guid option
         abstract StatusId: int
@@ -65,7 +58,6 @@ module Persistence =
             member _.UpdatedAt = updatedAt
 
 module Core =
-    open DSL
     open Settings
 
     type TaskScheduler =
@@ -77,28 +69,17 @@ module Core =
           WorkDays: DayOfWeek Set
           Delay: TimeSpan }
 
-    type TaskStep = { Name: string; Steps: TaskStep list }
+    type TaskStepSettings =
+        { Name: string
+          IsParallel: bool
+          Steps: TaskStepSettings list }
 
     type Task =
         { Name: string
-          ChunkSize: int
-          Steps: TaskStep list
+          Steps: TaskStepSettings list
           Scheduler: TaskScheduler }
 
-    type TaskStepStatus =
-        | Pending
-        | Running
-        | Completed
-        | Failed
-
-    type TaskStepLog =
-        { CorellationId: Guid
-          Name: string
-          Status: string
-          Message: string
-          Created: DateTime }
-
-    let rec private toList (steps: TaskStepSettings array) =
+    let rec private toList (steps: Settings.TaskStepSettings array) =
         match steps with
         | [||] -> []
         | null -> []
@@ -106,6 +87,7 @@ module Core =
             steps
             |> Array.map (fun x ->
                 { Name = x.Name
+                  IsParallel = x.IsParallel
                   Steps = x.Steps |> toList })
             |> List.ofArray
 
@@ -118,9 +100,14 @@ module Core =
         { Name: string
           Steps: TaskStepHandler list }
 
+    type TaskStep =
+        { Name: string
+          IsParallel: bool
+          Handle: unit -> Async<Result<string, string>>
+          Steps: TaskStep list }
+
     let toTask name (task: TaskSettings) =
         { Name = name
-          ChunkSize = task.ChunkSize
           Steps = task.Steps |> toList
           Scheduler =
             { IsEnabled = task.Scheduler.IsEnabled
@@ -155,6 +142,8 @@ module Core =
                     |> Set.ofArray
               Delay =
                 match task.Scheduler.Delay with
-                | IsTimeSpan value -> value
+                | DSL.AP.IsTimeSpan value -> value
                 | _ -> TimeSpan.Zero
               TimeShift = task.Scheduler.TimeShift } }
+
+    

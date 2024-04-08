@@ -35,7 +35,6 @@ let consoleLogProcessor =
         innerLoop ())
 
 let private consoleLog message level =
-
     match level with
     | Error -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[31mError [{timeStamp}] {message}\u001b[0m")
     | Warning -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[33mWarning\u001b[0m [{timeStamp}] {message}")

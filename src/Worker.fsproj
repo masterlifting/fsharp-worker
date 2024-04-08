@@ -9,8 +9,6 @@
     </Content>
     <Compile Include="DSL.fs" />
     <Compile Include="Domain.fs" />
-    <Compile Include="Serialization.fs" />
-    <Compile Include="Mapper.fs" />
     <Compile Include="./infrastructure/Configuration.fs" />
     <Compile Include="./infrastructure/Logging.fs" />
     <Compile Include="./infrastructure/persistence/Persistence.fs" />
@@ -18,7 +16,7 @@
     <Compile Include="./infrastructure/persistence/storages/InMemoryStorage.fs" />
     <Compile Include="./infrastructure/persistence/storages/SettingsStorage.fs" />
     <Compile Include="./infrastructure/persistence/Repository.fs" />
-    <Compile Include="./thirdparty/StepHandlers.fs" />
+    <Compile Include="./thirdparty/TaskStepHandlers.fs" />
     <Compile Include="Core.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

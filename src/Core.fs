@@ -37,41 +37,57 @@ let private getExpirationToken taskName scheduler =
         return cts.Token
     }
 
-let rec private handleSteps
-    taskName
-    (steps: TaskStep list)
-    (stepHandlers: TaskStepHandler list)
-    (ct: CancellationToken)
-    =
+let private handleTaskStep taskName (step: TaskStep) =
+    async {
+        $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
+
+        match! step.Handle() with
+        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
+        | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
+    }
+
+let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationToken) =
     async {
         if ct.IsCancellationRequested then
             ct.ThrowIfCancellationRequested()
 
-        match steps, stepHandlers with
-        | [], _ -> ()
-        | step :: stepsTail, [] ->
+            match steps with
+            | [] -> ()
+            | _ ->
+                match steps |> List.takeWhile (fun step -> step.IsParallel) with
+                | parallelSteps when parallelSteps.Length < 2 ->
 
-            $"Task '%s{taskName}'. Step '%s{step.Name}'. Handler was not found" |> Log.error
+                    for step in steps do
+                        do! handleTaskStep taskName step
+                        do! handleSteps taskName step.Steps ct
 
-            return! handleSteps taskName step.Steps [] ct
-            return! handleSteps taskName stepsTail [] ct
-        | step :: stepsTail, stepHandler :: stepHandlerTail ->
+                | parallelSteps ->
+                    let handle step =
+                        async {
+                            do! handleTaskStep taskName step
+                            do! handleSteps taskName step.Steps ct
+                        }
 
-            if stepHandler.Name <> step.Name then
-                $"Task '%s{taskName}'. Step '%s{step.Name}'. Handler '%s{stepHandler.Name}' does not match"
-                |> Log.error
-            else
-                $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
-
-                match! stepHandler.Handle() with
-                | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
-                | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
-
-                return! handleSteps taskName step.Steps stepHandler.Steps ct
-                return! handleSteps taskName stepsTail stepHandlerTail ct
+                    return! parallelSteps |> List.map handle |> Async.Parallel |> Async.Ignore
     }
 
-let private startTask taskName taskHandlers workerCt =
+let rec private mergeStepsConfig (steps: TaskStepSettings list) (handlers: TaskStepHandler list) =
+    steps
+    |> List.map (fun step ->
+        match handlers |> List.tryFind (fun handler -> handler.Name = step.Name) with
+        | None -> Error $"Handler %s{step.Name} was not found"
+        | Some handler ->
+            match mergeStepsConfig step.Steps handler.Steps with
+            | Error error -> Error error
+            | Ok steps ->
+                Ok
+                    { Name = step.Name
+                      IsParallel = step.IsParallel
+                      Handle = handler.Handle
+                      Steps = steps })
+    |> DSL.Seq.resultOrError
+
+let private startTask taskName (taskHandlers: TaskHandler list) workerCt =
     match taskHandlers |> Seq.tryFind (fun x -> x.Name = taskName) with
     | None -> async { $"Task '%s{taskName}'. Failed. Handler was not found" |> Log.error }
     | Some taskHandler ->
@@ -85,15 +101,18 @@ let private startTask taskName taskHandlers workerCt =
                     match taskCt.IsCancellationRequested with
                     | true -> $"Task '%s{taskName}'. Stopped" |> Log.warning
                     | false ->
+                        match mergeStepsConfig task.Steps taskHandler.Steps with
+                        | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
+                        | Ok steps ->
 
-                        $"Task '{taskName}'. Started" |> Log.info
-                        do! handleSteps taskName task.Steps taskHandler.Steps workerCt
-                        $"Task '%s{taskName}'. Completed" |> Log.debug
+                            $"Task '{taskName}'. Started" |> Log.info
+                            do! handleSteps taskName steps workerCt
+                            $"Task '%s{taskName}'. Completed" |> Log.debug
 
-                        $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                            $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
 
-                        do! Async.Sleep task.Scheduler.Delay
-                        do! innerLoop ()
+                            do! Async.Sleep task.Scheduler.Delay
+                            do! innerLoop ()
             }
 
         innerLoop ()

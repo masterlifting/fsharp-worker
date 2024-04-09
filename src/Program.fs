@@ -15,12 +15,11 @@ let main args =
     match Repository.getTasks () with
     | Error error -> $"Error: {error}" |> Log.error
     | Ok tasks ->
-        let config =
-            { Duration = duration
-              Tasks = tasks
-              Handlers = TaskStepHandlers.taskHandlers
-              getTask = Repository.getTask }
-
-        Async.RunSynchronously <| Core.startWorker config
+        { Duration = duration
+          Tasks = tasks
+          Handlers = TaskStepHandlers.taskHandlers
+          getTask = Repository.getTask }
+        |> Core.startWorker
+        |> Async.RunSynchronously
 
     0

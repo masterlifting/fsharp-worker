@@ -119,12 +119,7 @@ let rec private startTask taskName (handler: TaskHandler) workerCt =
                     do! startTask taskName handler workerCt
     }
 
-let private getHandler taskName (handlers: TaskHandler list) =
-    match handlers |> List.tryFind (fun x -> x.Name = taskName) with
-    | None -> Error $"Task '%s{taskName}'. Failed. Handler was not found"
-    | Some handler -> Ok handler
-
-let startWorker duration handlers =
+let startWorker duration (handlers: TaskHandler list) =
     try
         $"The worker will be running for {duration} seconds" |> Log.warning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
@@ -133,9 +128,9 @@ let startWorker duration handlers =
         | Ok taskNames ->
             taskNames
             |> Seq.map (fun taskName ->
-                match getHandler taskName handlers with
-                | Ok handler -> startTask taskName handler cts.Token
-                | Error error -> async { return error |> Log.error })
+                match handlers |> List.tryFind (fun x -> x.Name = taskName) with
+                | Some handler -> startTask taskName handler cts.Token
+                | None -> async { return $"Task '%s{taskName}'. Failed. Handler was not found" |> Log.error })
             |> Async.Parallel
             |> Async.RunSynchronously
             |> ignore

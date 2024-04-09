@@ -37,47 +37,65 @@ let private getExpirationToken taskName scheduler =
         return cts.Token
     }
 
-let private handleTaskStep taskName (step: TaskStep) =
+let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationToken) =
+    async {
+        if ct.IsCancellationRequested then
+            ct.ThrowIfCancellationRequested()
+
+        if steps.Length > 0 then
+            match steps |> List.takeWhile (fun step -> step.IsParallel) with
+            | [] ->
+                let sequentialSteps = steps |> List.takeWhile (fun step -> not step.IsParallel)
+
+                do!
+                    sequentialSteps
+                    |> List.map (fun step -> handleStep taskName step ct)
+                    |> Async.Sequential
+                    |> Async.Ignore
+
+                do! handleSteps taskName (steps |> List.skip sequentialSteps.Length) ct
+            | [ _ ] ->
+
+                let sequentialSteps =
+                    steps |> List.skip 1 |> List.takeWhile (fun step -> not step.IsParallel)
+
+                do!
+                    sequentialSteps
+                    |> List.map (fun step -> handleStep taskName step ct)
+                    |> Async.Sequential
+                    |> Async.Ignore
+
+                do! handleSteps taskName (steps |> List.skip sequentialSteps.Length) ct
+
+            | parallelSteps ->
+
+                do!
+                    parallelSteps
+                    |> List.map (fun step -> handleStep taskName step ct)
+                    |> Async.Parallel
+                    |> Async.Ignore
+
+                do! handleSteps taskName (steps |> List.skip parallelSteps.Length) ct
+    }
+
+and handleStep taskName step ct =
     async {
         $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
 
         match! step.Handle() with
         | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
         | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
+
+        do! handleSteps taskName step.Steps ct
     }
 
-let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationToken) =
-    async {
-        if ct.IsCancellationRequested then
-            ct.ThrowIfCancellationRequested()
-
-            match steps with
-            | [] -> ()
-            | _ ->
-                match steps |> List.takeWhile (fun step -> step.IsParallel) with
-                | parallelSteps when parallelSteps.Length < 2 ->
-
-                    for step in steps do
-                        do! handleTaskStep taskName step
-                        do! handleSteps taskName step.Steps ct
-
-                | parallelSteps ->
-                    let handle step =
-                        async {
-                            do! handleTaskStep taskName step
-                            do! handleSteps taskName step.Steps ct
-                        }
-
-                    return! parallelSteps |> List.map handle |> Async.Parallel |> Async.Ignore
-    }
-
-let rec private mergeStepsConfig (steps: TaskStepSettings list) (handlers: TaskStepHandler list) =
+let rec private mergeSteps (steps: TaskStepSettings list) (handlers: TaskStepHandler list) =
     steps
     |> List.map (fun step ->
         match handlers |> List.tryFind (fun handler -> handler.Name = step.Name) with
         | None -> Error $"Handler %s{step.Name} was not found"
         | Some handler ->
-            match mergeStepsConfig step.Steps handler.Steps with
+            match mergeSteps step.Steps handler.Steps with
             | Error error -> Error error
             | Ok steps ->
                 Ok
@@ -101,7 +119,7 @@ let private startTask taskName (taskHandlers: TaskHandler list) workerCt =
                     match taskCt.IsCancellationRequested with
                     | true -> $"Task '%s{taskName}'. Stopped" |> Log.warning
                     | false ->
-                        match mergeStepsConfig task.Steps taskHandler.Steps with
+                        match mergeSteps task.Steps taskHandler.Steps with
                         | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
                         | Ok steps ->
 

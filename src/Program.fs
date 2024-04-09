@@ -19,7 +19,16 @@ let main args =
                         Steps = [] } ] }
                 { Name = "Step_2"
                   Handle = ExternalTask.step_2
-                  Steps = [] } ] } ]
+                  Steps = [] }
+                { Name = "Step_3"
+                  Handle = ExternalTask.step_2
+                  Steps =
+                    [ { Name = "Step_3_1"
+                        Handle = ExternalTask.step_1
+                        Steps = [] }
+                      { Name = "Step_3_2"
+                        Handle = ExternalTask.step_2
+                        Steps = [] } ] } ] } ]
 
     let duration =
         match args.Length with

@@ -1,34 +1,8 @@
 ﻿open System
 open Domain.Core
-open TaskStepHandlers
 
 [<EntryPoint>]
 let main args =
-
-    let handlers =
-        [ { Name = "ExternalTask"
-            Steps =
-              [ { Name = "Step_1"
-                  Handle = ExternalTask.step_1
-                  Steps =
-                    [ { Name = "Step_1_1"
-                        Handle = ExternalTask.Step1.step_1_1
-                        Steps = [] }
-                      { Name = "Step_1_2"
-                        Handle = ExternalTask.Step1.step_1_2
-                        Steps = [] } ] }
-                { Name = "Step_2"
-                  Handle = ExternalTask.step_2
-                  Steps = [] }
-                { Name = "Step_3"
-                  Handle = ExternalTask.step_2
-                  Steps =
-                    [ { Name = "Step_3_1"
-                        Handle = ExternalTask.step_1
-                        Steps = [] }
-                      { Name = "Step_3_2"
-                        Handle = ExternalTask.step_2
-                        Steps = [] } ] } ] } ]
 
     let duration =
         match args.Length with
@@ -38,6 +12,15 @@ let main args =
             | _ -> (TimeSpan.FromDays 1).TotalSeconds
         | _ -> (TimeSpan.FromDays 1).TotalSeconds
 
-    Core.startWorker duration handlers
+    match Repository.getTasks () with
+    | Error error -> $"Error: {error}" |> Log.error
+    | Ok tasks ->
+        let config =
+            { Duration = duration
+              Tasks = tasks
+              Handlers = TaskStepHandlers.taskHandlers
+              getTask = Repository.getTask }
+
+        Async.RunSynchronously <| Core.startWorker config
 
     0

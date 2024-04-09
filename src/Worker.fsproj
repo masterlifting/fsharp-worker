@@ -14,7 +14,7 @@
     <Compile Include="./infrastructure/persistence/Persistence.fs" />
     <Compile Include="./infrastructure/persistence/storages/FileStorage.fs" />
     <Compile Include="./infrastructure/persistence/storages/InMemoryStorage.fs" />
-    <Compile Include="./infrastructure/persistence/storages/SettingsStorage.fs" />
+    <Compile Include="./infrastructure/persistence/storages/ConfigurationStorage.fs" />
     <Compile Include="./infrastructure/persistence/Repository.fs" />
     <Compile Include="./thirdparty/TaskStepHandlers.fs" />
     <Compile Include="Core.fs" />

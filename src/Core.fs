@@ -95,9 +95,9 @@ let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: Tas
                       Steps = steps })
     |> DSL.Seq.resultOrError
 
-let rec private startTask taskName (handler: TaskHandler) workerCt =
+let rec private startTask taskName (handler: TaskHandler) workerCt (getTask: string -> Async<Result<Task, string>>) =
     async {
-        match! Repository.getTask taskName with
+        match! getTask taskName with
         | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
         | Ok task ->
             let! taskCt = getExpirationToken taskName task.Scheduler
@@ -109,32 +109,34 @@ let rec private startTask taskName (handler: TaskHandler) workerCt =
                 | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
                 | Ok steps ->
 
-                    $"Task '{taskName}'. Started" |> Log.info
+                    $"Task '%s{taskName}'. Started" |> Log.info
                     do! handleSteps taskName steps workerCt
                     $"Task '%s{taskName}'. Completed" |> Log.debug
 
                     $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
 
                     do! Async.Sleep task.Scheduler.Delay
-                    do! startTask taskName handler workerCt
+                    do! startTask taskName handler workerCt getTask
     }
 
-let startWorker duration (handlers: TaskHandler list) =
-    try
-        $"The worker will be running for {duration} seconds" |> Log.warning
-        use cts = new CancellationTokenSource(TimeSpan.FromSeconds duration)
+let startWorker config =
+    async {
+        $"The worker will be running for %f{config.Duration} seconds" |> Log.warning
+        use cts = new CancellationTokenSource(TimeSpan.FromSeconds config.Duration)
 
-        match Repository.getConfiguredTaskNames () with
-        | Ok taskNames ->
-            taskNames
-            |> Seq.map (fun taskName ->
-                match handlers |> List.tryFind (fun x -> x.Name = taskName) with
-                | Some handler -> startTask taskName handler cts.Token
-                | None -> async { return $"Task '%s{taskName}'. Failed. Handler was not found" |> Log.error })
+        let! result =
+            config.Tasks
+            |> Seq.map (fun task ->
+                match config.Handlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
+                | Some handler -> startTask task.Name handler cts.Token config.getTask
+                | None -> async { return $"Task '%s{task.Name}'. Failed. Handler was not found" |> Log.error })
             |> Async.Parallel
-            |> Async.RunSynchronously
-            |> ignore
-        | Error error -> failwith error
-    with
-    | :? OperationCanceledException -> $"The worker has been cancelled" |> Log.warning
-    | ex -> ex.Message |> Log.error
+            |> Async.Catch
+
+        match result with
+        | Choice1Of2 _ -> $"All tasks completed successfully" |> Log.info
+        | Choice2Of2 ex ->
+            match ex with
+            | :? OperationCanceledException -> $"Worker was stopped" |> Log.warning
+            | _ -> $"Worker failed. %s{ex.Message}" |> Log.error
+    }

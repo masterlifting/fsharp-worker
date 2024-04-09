@@ -58,8 +58,6 @@ module Persistence =
             member _.UpdatedAt = updatedAt
 
 module Core =
-    open Settings
-
     type TaskScheduler =
         { IsEnabled: bool
           IsOnce: bool
@@ -79,18 +77,6 @@ module Core =
           Steps: TaskStepSettings list
           Scheduler: TaskScheduler }
 
-    let rec private toList (steps: Settings.TaskStepSettings array) =
-        match steps with
-        | [||] -> []
-        | null -> []
-        | _ ->
-            steps
-            |> Array.map (fun x ->
-                { Name = x.Name
-                  IsParallel = x.IsParallel
-                  Steps = x.Steps |> toList })
-            |> List.ofArray
-
     type TaskStepHandler =
         { Name: string
           Handle: unit -> Async<Result<string, string>>
@@ -106,44 +92,8 @@ module Core =
           Handle: unit -> Async<Result<string, string>>
           Steps: TaskStep list }
 
-    let toTask name (task: TaskSettings) =
-        { Name = name
-          Steps = task.Steps |> toList
-          Scheduler =
-            { IsEnabled = task.Scheduler.IsEnabled
-              IsOnce = task.Scheduler.IsOnce
-              StartWork =
-                task.Scheduler.StartWork
-                |> Option.ofNullable
-                |> Option.defaultValue DateTime.UtcNow
-              StopWork = Option.ofNullable task.Scheduler.StopWork
-              WorkDays =
-                match task.Scheduler.WorkDays.Split(',') with
-                | [||] ->
-                    set
-                        [ DayOfWeek.Friday
-                          DayOfWeek.Monday
-                          DayOfWeek.Saturday
-                          DayOfWeek.Sunday
-                          DayOfWeek.Thursday
-                          DayOfWeek.Tuesday
-                          DayOfWeek.Wednesday ]
-                | workDays ->
-                    workDays
-                    |> Array.map (function
-                        | "mon" -> DayOfWeek.Monday
-                        | "tue" -> DayOfWeek.Tuesday
-                        | "wed" -> DayOfWeek.Wednesday
-                        | "thu" -> DayOfWeek.Thursday
-                        | "fri" -> DayOfWeek.Friday
-                        | "sat" -> DayOfWeek.Saturday
-                        | "sun" -> DayOfWeek.Sunday
-                        | _ -> DayOfWeek.Sunday)
-                    |> Set.ofArray
-              Delay =
-                match task.Scheduler.Delay with
-                | DSL.AP.IsTimeSpan value -> value
-                | _ -> TimeSpan.Zero
-              TimeShift = task.Scheduler.TimeShift } }
-
-    
+    type WorkerConfiguration =
+        { Duration: float
+          Tasks: Task seq
+          Handlers: TaskHandler seq
+          getTask: string -> Async<Result<Task, string>> }

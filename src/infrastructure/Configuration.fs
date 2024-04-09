@@ -2,12 +2,10 @@ module Configuration
 
 open Microsoft.Extensions.Configuration
 
-let private get () =
+let private settings =
     ConfigurationBuilder()
         .AddJsonFile("appsettings.json", optional = false, reloadOnChange = true)
         .Build()
-
-let private settings = get ()
 
 let getSection<'T> name =
     let section = settings.GetSection(name)

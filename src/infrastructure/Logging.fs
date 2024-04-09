@@ -42,7 +42,7 @@ let private consoleLog message level =
     | Trace -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[90mTrace\u001b[0m [{timeStamp}] {message}")
     | _ -> consoleLogProcessor.Post(fun timeStamp -> $"\u001b[32mInfo\u001b[0m [{timeStamp}] {message}")
 
-let private logger =
+let private consoleLogger =
     match getLevel () with
     | Error ->
         { logTrace = ignore
@@ -75,8 +75,8 @@ let private logger =
           logWarning = fun message -> consoleLog message Warning
           logError = fun message -> consoleLog message Error }
 
-let trace = logger.logTrace
-let debug = logger.logDebug
-let info = logger.logInfo
-let warning = logger.logWarning
-let error = logger.logError
+let trace = consoleLogger.logTrace
+let debug = consoleLogger.logDebug
+let info = consoleLogger.logInfo
+let warning = consoleLogger.logWarning
+let error = consoleLogger.logError

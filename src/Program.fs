@@ -1,7 +1,4 @@
-﻿open System
-open Domain.Core
-
-[<EntryPoint>]
+﻿[<EntryPoint>]
 let main args =
 
     match Repository.getTasks () with
@@ -13,10 +10,10 @@ let main args =
             | 1 ->
                 match args.[0] with
                 | DSL.AP.IsFloat seconds -> seconds
-                | _ -> (TimeSpan.FromDays 1).TotalSeconds
-            | _ -> (TimeSpan.FromDays 1).TotalSeconds
+                | _ -> (System.TimeSpan.FromDays 1).TotalSeconds
+            | _ -> (System.TimeSpan.FromDays 1).TotalSeconds
 
-        let config =
+        let config: Domain.Core.WorkerConfiguration =
             { Duration = duration
               Tasks = tasks
               Handlers = TaskStepHandlers.taskHandlers

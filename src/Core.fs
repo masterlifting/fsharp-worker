@@ -95,7 +95,7 @@ let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: Tas
                       Steps = steps })
     |> DSL.Seq.resultOrError
 
-let rec private startTask taskName (handler: TaskHandler) workerCt (getTask: string -> Async<Result<Task, string>>) =
+let rec private startTask taskName (handler: TaskHandler) workerCt (getTask: string -> Async<Result<TaskSettings, string>>) =
     async {
         match! getTask taskName with
         | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error

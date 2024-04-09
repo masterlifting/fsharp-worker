@@ -30,35 +30,8 @@ module Settings =
     type Section =
         { Tasks: Dictionary<string, TaskSettings> }
 
-module Persistence =
-    type TaskStepState =
-        abstract CorellationId: Guid option
-        abstract StatusId: int
-        abstract StepId: int
-        abstract Attempts: int
-        abstract Error: string option
-        abstract UpdatedAt: DateTime
-
-    type Kdmid(corellationId, statusId, stepId, attempts, error, updatedAt) =
-        interface TaskStepState with
-            member _.CorellationId = corellationId
-            member _.StatusId = statusId
-            member _.StepId = stepId
-            member _.Attempts = attempts
-            member _.Error = error
-            member _.UpdatedAt = updatedAt
-
-    type Kdmud(corellationId, statusId, stepId, attempts, error, updatedAt) =
-        interface TaskStepState with
-            member _.CorellationId = corellationId
-            member _.StatusId = statusId
-            member _.StepId = stepId
-            member _.Attempts = attempts
-            member _.Error = error
-            member _.UpdatedAt = updatedAt
-
 module Core =
-    type TaskScheduler =
+    type TaskSchedulerSettings =
         { IsEnabled: bool
           IsOnce: bool
           TimeShift: byte
@@ -72,10 +45,10 @@ module Core =
           IsParallel: bool
           Steps: TaskStepSettings list }
 
-    type Task =
+    type TaskSettings =
         { Name: string
           Steps: TaskStepSettings list
-          Scheduler: TaskScheduler }
+          Scheduler: TaskSchedulerSettings }
 
     type TaskStepHandler =
         { Name: string
@@ -94,6 +67,6 @@ module Core =
 
     type WorkerConfiguration =
         { Duration: float
-          Tasks: Task seq
+          Tasks: TaskSettings seq
           Handlers: TaskHandler seq
-          getTask: string -> Async<Result<Task, string>> }
+          getTask: string -> Async<Result<TaskSettings, string>> }

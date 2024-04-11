@@ -47,3 +47,39 @@ module SerDe =
                 Ok <| JsonSerializer.Deserialize<'a> data
             with ex ->
                 Error ex.Message
+
+module CETest =
+    type WorkflowBuilder() =
+        member _.Bind(m, f) = Option.bind f m
+        member _.Return(m) = Some m
+
+    let strToInt (s: string) =
+        match System.Int32.TryParse s with
+        | true, i -> Some i
+        | _ -> None
+
+    let maybe = new WorkflowBuilder()
+
+    let strWorkflow (data: string array) =
+        maybe {
+
+            let! a = strToInt data.[0]
+            printfn "a: %d" a
+            let! b = strToInt data.[1]
+            let! c = strToInt data.[2]
+            return a + b + c
+        }
+
+    let good = strWorkflow [| "1"; "2"; "3" |]
+    let bad = strWorkflow [| "1"; "a"; "2" |]
+
+
+    let private (>>=) m f = Option.bind f m
+
+    let strAdd str i =
+        match strToInt str with
+        | Some x -> Some(x + i)
+        | None -> None
+
+    let good' = strToInt "1" >>= strAdd "2" >>= strAdd "3"
+    let bad' = strToInt "1" >>= strAdd "a" >>= strAdd "2"

@@ -1,12 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Content Include="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Compile Include="DSL.fs" />
     <Compile Include="Domain.fs" />
     <Compile Include="./infrastructure/Configuration.fs" />
@@ -16,13 +13,13 @@
     <Compile Include="./infrastructure/persistence/storages/ConfigurationStorage.fs" />
     <Compile Include="./infrastructure/persistence/Persistence.fs" />
     <Compile Include="./infrastructure/persistence/Repository.fs" />
-    <Compile Include="./thirdparty/TaskStepHandlers.fs" />
     <Compile Include="Core.fs" />
-    <Compile Include="Program.fs" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\fsharp-infrastructure\src\fsharp-infrastructure.fsproj" />
   </ItemGroup>
 </Project>

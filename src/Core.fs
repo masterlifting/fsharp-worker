@@ -3,6 +3,7 @@ module Core
 open System
 open System.Threading
 open Domain.Core
+open Worker
 
 let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationToken) =
     async {
@@ -37,11 +38,11 @@ let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationTok
 
 and private handleStep taskName step ct =
     async {
-        $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
+        $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Logger.info
 
         match! step.Handle() with
-        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
-        | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
+        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Logger.error
+        | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Logger.debug
 
         do! handleSteps taskName step.Steps ct
     }
@@ -60,27 +61,33 @@ let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: Tas
                       IsParallel = step.IsParallel
                       Handle = handler.Handle
                       Steps = steps })
-    |> DSL.Seq.resultOrError
+    |> Infrastructure.DSL.Seq.resultOrError
 
-let rec private startTask taskName (handler: TaskHandler) workerCt (getTask: string -> Async<Result<TaskSettings, string>>) =
+let rec private startTask
+    taskName
+    (handler: TaskHandler)
+    workerCt
+    (getTask: string -> Async<Result<TaskSettings, string>>)
+    =
     async {
         match! getTask taskName with
-        | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
+        | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Logger.error
         | Ok task ->
             let! taskCt = Scheduler.getExpirationToken taskName task.Scheduler
 
             match taskCt.IsCancellationRequested with
-            | true -> $"Task '%s{taskName}'. Stopped" |> Log.warning
+            | true -> $"Task '%s{taskName}'. Stopped" |> Logger.warning
             | false ->
                 match mergeStepsHandlers task.Steps handler.Steps with
-                | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
+                | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Logger.error
                 | Ok steps ->
 
-                    $"Task '%s{taskName}'. Started" |> Log.info
+                    $"Task '%s{taskName}'. Started" |> Logger.info
                     do! handleSteps taskName steps workerCt
-                    $"Task '%s{taskName}'. Completed" |> Log.debug
+                    $"Task '%s{taskName}'. Completed" |> Logger.debug
 
-                    $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                    $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}"
+                    |> Logger.trace
 
                     do! Async.Sleep task.Scheduler.Delay
                     do! startTask taskName handler workerCt getTask
@@ -88,7 +95,7 @@ let rec private startTask taskName (handler: TaskHandler) workerCt (getTask: str
 
 let startWorker config =
     async {
-        $"The worker will be running for %f{config.Duration} seconds" |> Log.warning
+        $"The worker will be running for %f{config.Duration} seconds" |> Logger.warning
         use cts = new CancellationTokenSource(TimeSpan.FromSeconds config.Duration)
 
         let! result =
@@ -96,14 +103,14 @@ let startWorker config =
             |> Seq.map (fun task ->
                 match config.Handlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
                 | Some handler -> startTask task.Name handler cts.Token config.getTask
-                | None -> async { return $"Task '%s{task.Name}'. Failed. Handler was not found" |> Log.error })
+                | None -> async { return $"Task '%s{task.Name}'. Failed. Handler was not found" |> Logger.error })
             |> Async.Parallel
             |> Async.Catch
 
         match result with
-        | Choice1Of2 _ -> $"All tasks completed successfully" |> Log.info
+        | Choice1Of2 _ -> $"All tasks completed successfully" |> Logger.info
         | Choice2Of2 ex ->
             match ex with
-            | :? OperationCanceledException -> $"Worker was stopped" |> Log.warning
-            | _ -> $"Worker failed. %s{ex.Message}" |> Log.error
+            | :? OperationCanceledException -> $"Worker was stopped" |> Logger.warning
+            | _ -> $"Worker failed. %s{ex.Message}" |> Logger.error
     }

@@ -1,4 +1,4 @@
-module ConfigurationStorage
+module Converter
 
 open Domain.Core
 open System
@@ -15,7 +15,7 @@ let rec private toList (steps: Domain.Settings.TaskStepSettings array) =
               Steps = x.Steps |> toList })
         |> List.ofArray
 
-let getTasks () =
+let getTasks ()=
     match Configuration.getSection<Domain.Settings.Section> "Worker" with
     | Some settings ->
         settings.Tasks

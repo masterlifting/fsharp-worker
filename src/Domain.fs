@@ -1,4 +1,4 @@
-module Domain
+module Worker.Domain
 
 open System
 
@@ -65,8 +65,8 @@ module Core =
           Handle: unit -> Async<Result<string, string>>
           Steps: TaskStep list }
 
-    type WorkerConfiguration =
-        { Duration: float
-          Tasks: TaskSettings seq
-          Handlers: TaskHandler seq
-          getTask: string -> Async<Result<TaskSettings, string>> }
+type WorkerConfiguration =
+    { Duration: float
+      Tasks: Core.TaskSettings seq
+      Handlers: Core.TaskHandler seq
+      getTask: string -> Async<Result<Core.TaskSettings, string>> }

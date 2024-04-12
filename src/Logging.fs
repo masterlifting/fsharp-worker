@@ -1,7 +1,7 @@
 module Worker.Logger
 
 let mutable private logger: Infrastructure.Logging.Logger option = None
-let add logger' = logger <- Some logger'
+let on logger' = logger <- Some logger'
 
 let internal trace =
     match logger with

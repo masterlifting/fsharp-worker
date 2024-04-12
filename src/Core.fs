@@ -1,7 +1,8 @@
-module Core
+module Worker.Core
 
 open System
 open System.Threading
+open Domain
 open Domain.Core
 open Worker
 

@@ -1,11 +1,11 @@
-module Scheduler
+module internal Worker.Scheduler
 
 open System
 open System.Threading
 open Domain.Core
 open Worker
 
-let internal getExpirationToken taskName scheduler =
+let getExpirationToken taskName scheduler =
     async {
         let now = DateTime.UtcNow.AddHours(scheduler.TimeShift |> float)
         let cts = new CancellationTokenSource()

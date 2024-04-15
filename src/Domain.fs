@@ -65,7 +65,7 @@ module Core =
           Handle: unit -> Async<Result<string, string>>
           Steps: TaskStep list }
 
-type WorkerConfiguration =
+type Configuration =
     { Duration: float
       Tasks: Core.TaskSettings seq
       Handlers: Core.TaskHandler seq

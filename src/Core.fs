@@ -94,7 +94,7 @@ let rec private startTask
                     do! startTask taskName handler workerCt getTask
     }
 
-let startWorker config =
+let start config =
     async {
         match! config with
         | Error error -> error |> Log.error

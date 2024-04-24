@@ -66,7 +66,7 @@ module Core =
           Steps: TaskStep list }
 
 type Configuration =
-    { Duration: float
+    { CancellationToken: Threading.CancellationToken
       Tasks: Core.TaskSettings seq
       Handlers: Core.TaskHandler seq
       getTask: string -> Async<Result<Core.TaskSettings, string>> }

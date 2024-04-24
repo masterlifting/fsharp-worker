@@ -40,10 +40,10 @@ let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationTok
 
 and private handleStep taskName step ct =
     async {
-        $"Task '%s{taskName}'. Step '%s{step.Name}'. Started" |> Log.info
+        $"Task '%s{taskName}'. Step '%s{step.Name}'. Started." |> Log.info
 
         match! step.Handle() with
-        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed. %s{error}" |> Log.error
+        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed: %s{error}" |> Log.error
         | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
 
         do! handleSteps taskName step.Steps ct
@@ -53,7 +53,7 @@ let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: Tas
     steps
     |> List.map (fun step ->
         match handlers |> List.tryFind (fun handler -> handler.Name = step.Name) with
-        | None -> Error $"Handler %s{step.Name} was not found"
+        | None -> Error $"Handler %s{step.Name} was not found."
         | Some handler ->
             match mergeStepsHandlers step.Steps handler.Steps with
             | Error error -> Error error
@@ -73,22 +73,22 @@ let rec private startTask
     =
     async {
         match! getTask taskName with
-        | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
+        | Error error -> $"Task '%s{taskName}'. Failed: %s{error}" |> Log.error
         | Ok task ->
             let! taskCt = Scheduler.getExpirationToken taskName task.Scheduler
 
             match taskCt.IsCancellationRequested with
-            | true -> $"Task '%s{taskName}'. Stopped" |> Log.warning
+            | true -> $"Task '%s{taskName}'. Stopped." |> Log.warning
             | false ->
                 match mergeStepsHandlers task.Steps handler.Steps with
-                | Error error -> $"Task '%s{taskName}'. Failed. %s{error}" |> Log.error
+                | Error error -> $"Task '%s{taskName}'. Failed: %s{error}" |> Log.error
                 | Ok steps ->
 
-                    $"Task '%s{taskName}'. Started" |> Log.info
+                    $"Task '%s{taskName}'. Started." |> Log.info
                     do! handleSteps taskName steps workerCt
-                    $"Task '%s{taskName}'. Completed" |> Log.debug
+                    $"Task '%s{taskName}'. Completed." |> Log.debug
 
-                    $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}" |> Log.trace
+                    $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}." |> Log.trace
 
                     do! Async.Sleep task.Scheduler.Delay
                     do! startTask taskName handler workerCt getTask
@@ -99,23 +99,19 @@ let startWorker config =
         match! config with
         | Error error -> error |> Log.error
         | Ok config ->
-
-            $"The worker will be running for %f{config.Duration} seconds" |> Log.warning
-            use cts = new CancellationTokenSource(TimeSpan.FromSeconds config.Duration)
-
             let! result =
                 config.Tasks
                 |> Seq.map (fun task ->
                     match config.Handlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
-                    | Some handler -> startTask task.Name handler cts.Token config.getTask
-                    | None -> async { return $"Task '%s{task.Name}'. Failed. Handler was not found" |> Log.error })
+                    | Some handler -> startTask task.Name handler config.CancellationToken config.getTask
+                    | None -> async { return $"Task '%s{task.Name}'. Failed: Handler was not found." |> Log.error })
                 |> Async.Parallel
                 |> Async.Catch
 
             match result with
-            | Choice1Of2 _ -> $"All tasks completed successfully" |> Log.info
+            | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.info
             | Choice2Of2 ex ->
                 match ex with
-                | :? OperationCanceledException -> $"Worker was stopped" |> Log.warning
-                | _ -> $"Worker failed. %s{ex.Message}" |> Log.error
+                | :? OperationCanceledException -> $"Worker was stopped." |> Log.warning
+                | _ -> $"Worker failed: %s{ex.Message}" |> Log.error
     }

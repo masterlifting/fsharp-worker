@@ -5,35 +5,39 @@ open System.Threading
 open Domain.Core
 open Infrastructure.Logging
 
-let getExpirationToken taskName scheduler =
+let getExpirationToken task schedule =
     async {
-        let now = DateTime.UtcNow.AddHours(scheduler.TimeShift |> float)
         let cts = new CancellationTokenSource()
 
-        if not scheduler.IsEnabled then
-            $"Task '%s{taskName}' is disabled" |> Log.warning
-            do! cts.CancelAsync() |> Async.AwaitTask
+        match schedule with
+        | None -> return cts.Token
+        | Some schedule ->
+            let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)
+            
+            if not schedule.IsEnabled then
+                $"Task '%s{task}' is disabled" |> Log.warning
+                do! cts.CancelAsync() |> Async.AwaitTask
 
-        if not cts.IsCancellationRequested then
-            match scheduler.StopWork with
-            | Some stopWork ->
-                match stopWork - now with
+            if not cts.IsCancellationRequested then
+                match schedule.StopWork with
+                | Some stopWork ->
+                    match stopWork - now with
+                    | delay when delay > TimeSpan.Zero ->
+                        $"Task '%s{task}' will be stopped at {stopWork}" |> Log.warning
+                        cts.CancelAfter delay
+                    | _ -> do! cts.CancelAsync() |> Async.AwaitTask
+                | _ -> ()
+
+            if not cts.IsCancellationRequested then
+                match schedule.StartWork - now with
                 | delay when delay > TimeSpan.Zero ->
-                    $"Task '%s{taskName}' will be stopped at {stopWork}" |> Log.warning
-                    cts.CancelAfter delay
-                | _ -> do! cts.CancelAsync() |> Async.AwaitTask
-            | _ -> ()
+                    $"Task '%s{task}' will start at {schedule.StartWork}" |> Log.warning
+                    do! Async.Sleep delay
+                | _ -> ()
 
-        if not cts.IsCancellationRequested then
-            match scheduler.StartWork - now with
-            | delay when delay > TimeSpan.Zero ->
-                $"Task '%s{taskName}' will start at {scheduler.StartWork}" |> Log.warning
-                do! Async.Sleep delay
-            | _ -> ()
+                if schedule.IsOnce then
+                    $"Task '%s{task}' will be run once" |> Log.warning
+                    cts.CancelAfter(schedule.Delay.Subtract(TimeSpan.FromSeconds 1.0))
 
-            if scheduler.IsOnce then
-                $"Task '%s{taskName}' will be run once" |> Log.warning
-                cts.CancelAfter(scheduler.Delay.Subtract(TimeSpan.FromSeconds 1.0))
-
-        return cts.Token
+            return cts.Token
     }

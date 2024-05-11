@@ -2,71 +2,53 @@ module Worker.Domain
 
 open System
 
-module Settings =
-    open System.Collections.Generic
+module Persistence =
 
     [<CLIMutable>]
-    type TaskShchedulerSettings =
+    type Schedule =
         { IsEnabled: bool
           IsOnce: bool
           StartWork: Nullable<DateTime>
           StopWork: Nullable<DateTime>
           WorkDays: string
           Delay: string
-          TimeShift: byte }
+          TimeShift: byte}
 
     [<CLIMutable>]
-    type TaskStepSettings =
+    type Task =
         { Name: string
           IsParallel: bool
-          Steps: TaskStepSettings[] }
-
-    [<CLIMutable>]
-    type TaskSettings =
-        { Steps: TaskStepSettings[]
-          Scheduler: TaskShchedulerSettings }
-
-    [<CLIMutable>]
-    type Section =
-        { Tasks: Dictionary<string, TaskSettings> }
+          Schedule: Schedule option
+          Steps: Task[] }
 
 module Core =
-    type TaskSchedulerSettings =
+    type Schedule =
         { IsEnabled: bool
           IsOnce: bool
-          TimeShift: byte
           StartWork: DateTime
           StopWork: DateTime option
           WorkDays: DayOfWeek Set
-          Delay: TimeSpan }
+          Delay: TimeSpan
+          TimeShift: byte}
 
-    type TaskStepSettings =
+    type Task =
         { Name: string
           IsParallel: bool
-          Steps: TaskStepSettings list }
-
-    type TaskSettings =
-        { Name: string
-          Steps: TaskStepSettings list
-          Scheduler: TaskSchedulerSettings }
-
-    type TaskStepHandler =
-        { Name: string
-          Handle: unit -> Async<Result<string, string>>
-          Steps: TaskStepHandler list }
+          Schedule: Schedule option
+          Steps: Task list }
 
     type TaskHandler =
         { Name: string
-          Steps: TaskStepHandler list }
+          Handle: (unit -> Async<Result<string, string>>) option
+          Steps: TaskHandler list }
 
-    type TaskStep =
-        { Name: string
-          IsParallel: bool
-          Handle: unit -> Async<Result<string, string>>
-          Steps: TaskStep list }
+    type TaskStepHandler =
+      { Name: string
+        IsParallel: bool
+        Handle: (unit -> Async<Result<string, string>>) option
+        Steps: TaskStepHandler list }
 
 type Configuration =
-    { CancellationToken: Threading.CancellationToken
-      Tasks: Core.TaskSettings seq
+    { Tasks: Core.Task seq
       Handlers: Core.TaskHandler seq
-      getTask: string -> Async<Result<Core.TaskSettings, string>> }
+      getTask: string -> Async<Result<Core.Task, string>> }

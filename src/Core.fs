@@ -7,7 +7,7 @@ open Domain.Core
 open Worker
 open Infrastructure.Logging
 
-let rec private handleSteps taskName (steps: TaskStep list) (ct: CancellationToken) =
+let rec private handleSteps taskName (steps: TaskStepHandler list) (ct: CancellationToken) =
     async {
         if ct.IsCancellationRequested then
             ct.ThrowIfCancellationRequested()
@@ -42,14 +42,17 @@ and private handleStep taskName step ct =
     async {
         $"Task '%s{taskName}'. Step '%s{step.Name}'. Started." |> Log.info
 
-        match! step.Handle() with
-        | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed: %s{error}" |> Log.error
-        | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
+        match step.Handle with
+        | None -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Handler was not found." |> Log.warning
+        | Some handle ->
+            match! handle() with
+            | Error error -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Failed: %s{error}" |> Log.error
+            | Ok msg -> $"Task '%s{taskName}'. Step '%s{step.Name}'. Completed. %s{msg}" |> Log.debug
 
         do! handleSteps taskName step.Steps ct
     }
 
-let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: TaskStepHandler list) =
+let rec private mergeStepsHandlers (steps: Task list) (handlers: TaskHandler list) =
     steps
     |> List.map (fun step ->
         match handlers |> List.tryFind (fun handler -> handler.Name = step.Name) with
@@ -68,42 +71,45 @@ let rec private mergeStepsHandlers (steps: TaskStepSettings list) (handlers: Tas
 let rec private startTask
     taskName
     (handler: TaskHandler)
-    workerCt
-    (getTask: string -> Async<Result<TaskSettings, string>>)
+    (getTask: string -> Async<Result<Task, string>>)
     =
     async {
         match! getTask taskName with
         | Error error -> $"Task '%s{taskName}'. Failed: %s{error}" |> Log.error
         | Ok task ->
-            let! taskCt = Scheduler.getExpirationToken taskName task.Scheduler
+            let! ct = Scheduler.getExpirationToken taskName task.Schedule
 
-            match taskCt.IsCancellationRequested with
+            match ct.IsCancellationRequested with
             | true -> $"Task '%s{taskName}'. Stopped." |> Log.warning
             | false ->
                 match mergeStepsHandlers task.Steps handler.Steps with
                 | Error error -> $"Task '%s{taskName}'. Failed: %s{error}" |> Log.error
-                | Ok steps ->
+                | Ok handlers ->
 
                     $"Task '%s{taskName}'. Started." |> Log.info
-                    do! handleSteps taskName steps workerCt
+                    do! handleSteps taskName handlers ct
                     $"Task '%s{taskName}'. Completed." |> Log.debug
+                    
+                    match task.Schedule with
+                    | None -> $"Task '%s{taskName}' will be run once" |> Log.warning
+                    | Some schedule ->
 
-                    $"Task '%s{taskName}'. Next run will be in {task.Scheduler.Delay}." |> Log.trace
+                        $"Task '%s{taskName}'. Next run will be in {schedule.Delay}." |> Log.trace
 
-                    do! Async.Sleep task.Scheduler.Delay
-                    do! startTask taskName handler workerCt getTask
+                        do! Async.Sleep schedule.Delay
+                        do! startTask taskName handler getTask
     }
 
-let start config =
+let start configure =
     async {
-        match! config with
+        match! configure() with
         | Error error -> error |> Log.error
         | Ok config ->
             let! result =
                 config.Tasks
                 |> Seq.map (fun task ->
                     match config.Handlers |> Seq.tryFind (fun x -> x.Name = task.Name) with
-                    | Some handler -> startTask task.Name handler config.CancellationToken config.getTask
+                    | Some handler -> startTask task.Name handler config.getTask
                     | None -> async { return $"Task '%s{task.Name}'. Failed: Handler was not found." |> Log.error })
                 |> Async.Parallel
                 |> Async.Catch

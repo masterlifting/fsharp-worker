@@ -3,7 +3,7 @@ module Worker.Mapper
 open Domain.Core
 open System
 
-let private mapToSchedule (schedule: Domain.Persistence.Schedule option) =
+let private mapSchedule (schedule: Domain.Persistence.Schedule option) =
   schedule
   |> Option.map (fun x ->
     { IsEnabled = x.IsEnabled
@@ -39,21 +39,15 @@ let private mapToSchedule (schedule: Domain.Persistence.Schedule option) =
         | _ -> TimeSpan.Zero
       TimeShift = x.TimeShift})
 
-let rec private mapToSteps (steps: Domain.Persistence.Task array) =
-    match steps with
+let rec mapTasks (tasks: Domain.Persistence.Task array) =
+    match tasks with
     | [||] -> []
     | null -> []
     | _ ->
-        steps
+        tasks
         |> Array.map (fun x ->
             { Name = x.Name
               IsParallel = x.IsParallel
-              Schedule = x.Schedule |> mapToSchedule 
-              Steps = x.Steps |> mapToSteps })
+              Schedule = x.Schedule |> mapSchedule 
+              Steps = x.Steps |> mapTasks })
         |> List.ofArray
-
-let mapToTask (task: Domain.Persistence.Task) =
-    { Name = task.Name
-      IsParallel = task.IsParallel
-      Schedule = task.Schedule |> mapToSchedule
-      Steps = task.Steps |> mapToSteps }

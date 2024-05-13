@@ -12,7 +12,7 @@ module Persistence =
           StopWork: Nullable<DateTime>
           WorkDays: string
           Delay: string
-          TimeShift: byte}
+          TimeShift: byte }
 
     [<CLIMutable>]
     type Task =
@@ -29,13 +29,16 @@ module Core =
           StopWork: DateTime option
           WorkDays: DayOfWeek Set
           Delay: TimeSpan
-          TimeShift: byte}
+          TimeShift: byte }
 
     type Task =
         { Name: string
           IsParallel: bool
           Schedule: Schedule option
           Steps: Task list }
+
+        interface Infrastructure.Domain.ITree with
+            member this.Name = this.Name
 
     type TaskHandler =
         { Name: string

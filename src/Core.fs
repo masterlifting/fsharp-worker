@@ -3,6 +3,7 @@ module Worker.Core
 open System
 open Domain
 open Domain.Core
+open Infrastructure.Domain
 open Worker
 open Infrastructure
 open Infrastructure.Logging
@@ -21,6 +22,9 @@ let private merge tasks handlers =
                 match innerLoop (Some nodeName) task.Steps handler.Steps with
                 | Error error -> Error error
                 | Ok steps ->
+                    
+                    
+                    
                     Ok
                         { new Domain.ITreeHandler with
                             member _.Name = task.Name

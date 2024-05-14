@@ -1,6 +1,7 @@
 module Worker.Domain
 
 open System
+open Infrastructure.Domain
 
 module Persistence =
 
@@ -34,17 +35,16 @@ module Core =
     type Task =
         { Name: string
           IsParallel: bool
-          Schedule: Schedule option
-          Steps: Task list }
-
-        interface Infrastructure.Domain.ITree with
+          Schedule: Schedule option}
+        interface IName with
             member this.Name = this.Name
-
+            
     type TaskHandler =
         { Name: string
-          Handle: (unit -> Async<Result<string, string>>) option
-          Steps: TaskHandler list }
-
+          Handle: (unit -> Async<Result<string, string>>) option }
+        interface IName with
+            member this.Name = this.Name
+        
 type Configuration =
     { Tasks: Core.Task list
       Handlers: Core.TaskHandler list

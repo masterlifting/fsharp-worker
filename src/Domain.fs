@@ -46,6 +46,6 @@ module Core =
             member this.Name = this.Name
         
 type Configuration =
-    { Tasks: Core.Task list
-      Handlers: Core.TaskHandler list
+    { Tasks: Graph<Core.Task> list
+      Handlers: Graph<Core.TaskHandler> list
       getSchedule: string -> Async<Result<Core.Schedule option, string>> }

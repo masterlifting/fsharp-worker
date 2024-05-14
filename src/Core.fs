@@ -10,33 +10,30 @@ open Infrastructure.Logging
 
 let private merge tasks handlers =
     
-    let rec innerLoop (name: string option) (tasks: Core.Task list) (handlers: Core.TaskHandler list) =
+    let rec innerLoop (name: string option) (tasks: Graph<Core.Task> list) (handlers: Graph<Core.TaskHandler> list) =
         tasks
         |> List.map (fun task ->
-            let nodeName = name |> DSL.Tree.buildNodeName <| task.Name
+            let nodeName = name |> DSL.Graph.buildNodeName <| task.current.Name
 
-            match handlers |> List.tryFind (fun handler -> handler.Name = task.Name) with
+            match handlers |> List.tryFind (fun handler -> handler.current.Name = task.current.Name) with
             | None -> Error $"Handler %s{nodeName} was not found."
             | Some handler ->
 
-                match innerLoop (Some nodeName) task.Steps handler.Steps with
+                match innerLoop (Some nodeName) task.nodes handler.nodes with
                 | Error error -> Error error
                 | Ok steps ->
-                    
-                    
-                    
-                    Ok
-                        { new Domain.ITreeHandler with
-                            member _.Name = task.Name
-                            member _.IsParallel = task.IsParallel
-                            member _.Handle = handler.Handle 
-                            member _.Nodes = steps })
+                    let graph =
+                        Graph( { new IHandle with
+                                    member _.Name = task.current.Name
+                                    member _.IsParallel = task.current.IsParallel
+                                    member _.Handle = handler.current.Handle }, steps )
+                    Ok graph )  
         |> DSL.Seq.resultOrError
 
     innerLoop None tasks handlers
 
 let rec private runTask getSchedule =
-    fun name (task: Domain.ITreeHandler) ->
+    fun name (task: IHandle) ->
         async {
             match! getSchedule name with
             | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
@@ -78,7 +75,7 @@ let start configure =
             | Error error -> error |> Log.error
             | Ok tasks ->
                 let handleTask = runTask config.getSchedule
-                match! DSL.Tree.doParallelOrSequential None tasks handleTask |> Async.Catch with
+                match! DSL.Graph.doParallelOrSequential None tasks handleTask |> Async.Catch with
                 | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.info
                 | Choice2Of2 ex ->
                     match ex with

@@ -2,6 +2,7 @@ module Worker.Mapper
 
 open Domain.Core
 open System
+open Infrastructure.Domain
 
 let private mapSchedule (schedule: Domain.Persistence.Schedule option) =
   schedule
@@ -46,8 +47,7 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
     | _ ->
         tasks
         |> Array.map (fun x ->
-            { Name = x.Name
-              IsParallel = x.IsParallel
-              Schedule = x.Schedule |> mapSchedule 
-              Steps = x.Steps |> mapTasks })
+            Graph ({  Name = x.Name
+                      IsParallel = x.IsParallel
+                      Schedule = x.Schedule |> mapSchedule }, x.Steps |> mapTasks ))
         |> List.ofArray

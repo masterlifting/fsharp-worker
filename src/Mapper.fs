@@ -46,8 +46,8 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
     | null -> []
     | _ ->
         tasks
-        |> Array.map (fun x ->
-            Graph ({  Name = x.Name
-                      IsParallel = x.IsParallel
-                      Schedule = x.Schedule |> mapSchedule }, x.Steps |> mapTasks ))
+        |> Array.map (fun task ->
+          Graph ({  Name = task.Name
+                    IsParallel = task.IsParallel
+                    Schedule = task.Schedule |> mapSchedule }, task.Steps |> mapTasks ))
         |> List.ofArray

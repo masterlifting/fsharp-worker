@@ -36,13 +36,13 @@ module Core =
         { Name: string
           IsParallel: bool
           Schedule: Schedule option}
-        interface IName with
+        interface IGraphNodeName with
             member this.Name = this.Name
             
     type TaskHandler =
         { Name: string
           Handle: (unit -> Async<Result<string, string>>) option }
-        interface IName with
+        interface IGraphNodeName with
             member this.Name = this.Name
         
 type Configuration =

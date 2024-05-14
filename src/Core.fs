@@ -31,8 +31,10 @@ let private merge tasks handlers =
     innerLoop None tasks handlers
 
 let rec private runTask getSchedule =
-    fun name (task: IGraphNodeHandle) ->
+    fun (task: IGraphNodeHandle) ->
         async {
+            let name = task.Name
+            
             match! getSchedule name with
             | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
             | Ok schedule ->
@@ -60,7 +62,7 @@ let rec private runTask getSchedule =
                         $"Task '%s{name}'. Next run will be in {schedule.Delay}." |> Log.trace
 
                         do! Async.Sleep schedule.Delay
-                        do! runTask getSchedule name task
+                        do! runTask getSchedule task
         }
 
 let start configure =

@@ -67,7 +67,6 @@ let rec private runTask getSchedule =
 
 let start configure =
     async {
-        Log.info "Worker started."
         match! configure() with
         | Error error -> error |> Log.error
         | Ok config ->

@@ -23,7 +23,7 @@ let private merge tasks handlers =
                 | Error error -> Error error
                 | Ok steps ->
                     Ok <| Node( { new INodeHandle with
-                                member _.Name = task.Value.Name
+                                member _.Name = nodeName
                                 member _.IsParallel = task.Value.IsParallel
                                 member _.Handle = handler.Value.Handle }, steps ))  
         |> DSL.Seq.resultOrError
@@ -75,7 +75,7 @@ let start configure =
             | Error error -> error |> Log.error
             | Ok tasks ->
                 let handleTask = runTask config.getSchedule
-                match! DSL.Graph.handle' None tasks handleTask |> Async.Catch with
+                match! DSL.Graph.handleNodes tasks handleTask |> Async.Catch with
                 | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.info
                 | Choice2Of2 ex ->
                     match ex with

@@ -1,7 +1,6 @@
 module Worker.Domain
 
 open System
-open Infrastructure.Domain
 
 module Persistence =
 
@@ -23,6 +22,8 @@ module Persistence =
           Steps: Task[] }
 
 module Core =
+    open Infrastructure.Domain.Graph
+
     type Schedule =
         { IsEnabled: bool
           IsOnce: bool
@@ -36,16 +37,19 @@ module Core =
         { Name: string
           IsParallel: bool
           Schedule: Schedule option}
-        interface IGraphNodeName with
+        interface INodeName with
             member this.Name = this.Name
             
     type TaskHandler =
         { Name: string
           Handle: (unit -> Async<Result<string, string>>) option }
-        interface IGraphNodeName with
+        interface INodeName with
             member this.Name = this.Name
         
+open Infrastructure.Domain.Graph
+open Core
+
 type Configuration =
-    { Tasks: Graph<Core.Task> list
-      Handlers: Graph<Core.TaskHandler> list
-      getSchedule: string -> Async<Result<Core.Schedule option, string>> }
+    { Tasks: Node<Task> list
+      Handlers: Node<TaskHandler> list
+      getSchedule: string -> Async<Result<Schedule option, string>> }

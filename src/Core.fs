@@ -13,17 +13,21 @@ let private merge tasks handlers =
     let rec innerLoop nodeName (tasks: Node<Task> list) (handlers: Node<TaskHandler> list) =
         tasks
         |> List.map (fun task ->
-            let nodeName = nodeName |> DSL.Graph.buildNodeName <| task.Value.Name
+            let name = nodeName |> DSL.Graph.buildNodeName <| task.Value.Name
 
             match handlers |> List.tryFind (fun handler -> handler.Value.Name = task.Value.Name) with
-            | None -> Error $"Handler %s{nodeName} was not found."
+            | None -> Error $"Handler %s{name} was not found."
             | Some handler ->
 
-                match innerLoop (Some nodeName) task.Children handler.Children with
+                match innerLoop (Some name) task.Children handler.Children with
                 | Error error -> Error error
                 | Ok steps ->
+                    
+                    if handler.Value.Handle.IsNone then
+                        $"Task '%s{name}'. Handler was not set." |> Log.warning
+
                     Ok <| Node( { new INodeHandle with
-                                member _.Name = nodeName
+                                member _.Name = name
                                 member _.IsParallel = task.Value.IsParallel
                                 member _.Handle = handler.Value.Handle }, steps ))  
         |> DSL.Seq.resultOrError
@@ -44,16 +48,13 @@ let rec private runTask getSchedule =
                 | true -> $"Task '%s{name}'. Stopped." |> Log.warning
                 | false ->
                     
-                    $"Task '%s{name}'. Started." |> Log.info
-
                     match task.Handle with
-                    | None -> $"Task '%s{name}'. Handler was not set." |> Log.trace
+                    | None -> ()
                     | Some handle ->
-                        match! handle() with
-                        | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
-                        | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.info
-
-                    $"Task '%s{name}'. Completed." |> Log.info
+                            $"Task '%s{name}'. Started." |> Log.info
+                            match! handle() with
+                            | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
+                            | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
 
                     match schedule with
                     | None -> ()
@@ -75,7 +76,7 @@ let start configure =
             | Ok tasks ->
                 let handleTask = runTask config.getSchedule
                 match! DSL.Graph.handleNodes tasks handleTask |> Async.Catch with
-                | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.info
+                | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.success
                 | Choice2Of2 ex ->
                     match ex with
                     | :? OperationCanceledException -> $"Worker was stopped." |> Log.warning

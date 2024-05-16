@@ -10,9 +10,7 @@ let getExpirationToken task schedule =
         let cts = new CancellationTokenSource()
 
         match schedule with
-        | None -> 
-            $"Task '%s{task}' has no schedule" |> Log.warning
-            return cts.Token
+        | None -> return cts.Token
         | Some schedule ->
             let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)
             

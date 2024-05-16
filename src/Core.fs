@@ -68,17 +68,21 @@ let rec private runTask getSchedule =
 
 let start configure =
     async {
-        match! configure() with
-        | Error error -> error |> Log.error
-        | Ok config ->
-            match config.Tasks |> merge <| config.Handlers with
+
+        try 
+            match! configure() with
             | Error error -> error |> Log.error
-            | Ok tasks ->
-                let handleTask = runTask config.getSchedule
-                match! DSL.Graph.handleNodes tasks handleTask |> Async.Catch with
-                | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.success
-                | Choice2Of2 ex ->
-                    match ex with
-                    | :? OperationCanceledException -> $"Worker was stopped." |> Log.warning
-                    | _ -> $"Worker failed: %s{ex.Message}" |> Log.error
+            | Ok config ->
+                match config.Tasks |> merge <| config.Handlers with
+                | Error error -> error |> Log.error
+                | Ok tasks ->
+                    let handleTask = runTask config.getSchedule
+                    match! DSL.Graph.handleNodes tasks handleTask |> Async.Catch with
+                    | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.success
+                    | Choice2Of2 ex ->
+                        match ex with
+                        | :? OperationCanceledException -> failwith "Worker was stopped."
+                        | _ ->  failwith $"Worker failed: %s{ex.Message}"
+        with
+        | ex -> $"Worker failed: %s{ex.Message}" |> Log.error
     }

@@ -13,14 +13,14 @@ module Persistence =
           WorkDays: string
           Delay: string
           TimeShift: byte }
-
+    
     [<CLIMutable>]
     type Task =
         { Name: string
           IsParallel: bool
           Schedule: Schedule option
           Steps: Task[] }
-
+    
 module Core =
     open Infrastructure.Domain.Graph
 

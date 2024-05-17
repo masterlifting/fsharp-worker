@@ -48,22 +48,24 @@ let rec private runTask getSchedule =
                 | true -> $"Task '%s{name}'. Stopped." |> Log.warning
                 | false ->
                     
+                    $"Task '%s{name}'. Started." |> Log.trace
+                    
                     match task.Handle with
                     | None -> ()
                     | Some handle ->
-                            $"Task '%s{name}'. Started." |> Log.info
-                            match! handle() with
-                            | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
-                            | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
+                        match! handle() with
+                        | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
+                        | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
+
+                    let compleated = $"Task '%s{name}'. Completed."
 
                     match schedule with
-                    | None -> ()
+                    | None -> 
+                        compleated |> Log.trace
                     | Some schedule ->
-
-                        $"Task '%s{name}'. Next run will be in {schedule.Delay}." |> Log.trace
-
+                        $"{compleated} Next task run will be in {schedule.Delay}." |> Log.trace
                         do! Async.Sleep schedule.Delay
-                        //do! runTask getSchedule task
+                        do! runTask getSchedule task
         }
 
 let start configure =

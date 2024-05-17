@@ -23,12 +23,11 @@ module Core =
     open Infrastructure.Domain.Graph
 
     type Schedule =
-        { IsEnabled: bool
-          IsOnce: bool
-          StartWork: DateTime
+        { StartWork: DateTime
           StopWork: DateTime option
           WorkDays: DayOfWeek Set
           Delay: TimeSpan
+          IsOnce: bool
           TimeShift: byte }
 
     type Task =

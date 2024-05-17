@@ -9,9 +9,7 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
         None
     else
         Some
-        <| { IsEnabled = schedule.IsEnabled
-             IsOnce = schedule.IsOnce
-             StartWork = Option.ofNullable schedule.StartWork |> Option.defaultValue DateTime.UtcNow
+        <| { StartWork = Option.ofNullable schedule.StartWork |> Option.defaultValue DateTime.UtcNow
              StopWork = Option.ofNullable schedule.StopWork
              WorkDays =
                match schedule.WorkDays.Split(',') with
@@ -40,6 +38,7 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                match schedule.Delay with
                | Infrastructure.DSL.AP.IsTimeSpan value -> value
                | _ -> TimeSpan.Zero
+             IsOnce = schedule.IsOnce
              TimeShift = schedule.TimeShift }
 
 

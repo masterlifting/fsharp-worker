@@ -6,7 +6,6 @@ module Persistence =
 
     type Schedule ()=
       member val IsEnabled: bool = false with get, set
-      member val IsOnce: bool = false with get, set
       member val StartWork: Nullable<DateTime> = Nullable() with get, set
       member val StopWork: Nullable<DateTime> = Nullable() with get, set
       member val WorkDays: string = "" with get, set
@@ -15,7 +14,8 @@ module Persistence =
     
     type Task () =
       member val Name: string = "" with get, set
-      member val IsParallel: bool = false with get, set
+      member val Parallel: bool = false with get, set
+      member val Recurcive: bool = false with get, set
       member val Schedule: Schedule = Schedule() with get, set
       member val Steps: Task[] = [||] with get, set
     
@@ -27,12 +27,12 @@ module Core =
           StopWork: DateTime option
           WorkDays: DayOfWeek Set
           Delay: TimeSpan
-          IsOnce: bool
           TimeShift: byte }
 
     type Task =
         { Name: string
-          IsParallel: bool
+          Parallel: bool
+          Recurcive: bool
           Schedule: Schedule option}
         interface INodeName with
             member this.Name = this.Name

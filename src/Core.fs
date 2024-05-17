@@ -28,7 +28,8 @@ let private merge tasks handlers =
 
                     Ok <| Node( { new INodeHandle with
                                 member _.Name = name
-                                member _.IsParallel = task.Value.IsParallel
+                                member _.Parallel = task.Value.Parallel
+                                member _.Recurcive = task.Value.Recurcive
                                 member _.Handle = handler.Value.Handle }, steps ))  
         |> DSL.Seq.resultOrError
 
@@ -65,6 +66,8 @@ let rec private runTask getSchedule =
                     | Some schedule ->
                         $"{compleated} Next task run will be in {schedule.Delay}." |> Log.trace
                         do! Async.Sleep schedule.Delay
+                    
+                    if task.Recurcive then
                         do! runTask getSchedule task
         }
 

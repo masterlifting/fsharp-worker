@@ -38,7 +38,6 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                match schedule.Delay with
                | Infrastructure.DSL.AP.IsTimeSpan value -> value
                | _ -> TimeSpan.Zero
-             IsOnce = schedule.IsOnce
              TimeShift = schedule.TimeShift }
 
 
@@ -51,7 +50,8 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
         |> Array.map (fun task ->
             Node(
                 { Name = task.Name
-                  IsParallel = task.IsParallel
+                  Parallel = task.Parallel
+                  Recurcive = task.Recurcive
                   Schedule = task.Schedule |> mapSchedule },
                 task.Steps |> mapTasks
             ))

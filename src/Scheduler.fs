@@ -33,9 +33,5 @@ let getExpirationToken task schedule =
                     do! Async.Sleep delay
                 | _ -> ()
 
-                if schedule.IsOnce then
-                    $"Task '%s{task}' will be run once" |> Log.warning
-                    cts.CancelAfter(schedule.Delay.Subtract(TimeSpan.FromSeconds 1.0))
-
             return cts.Token
     }

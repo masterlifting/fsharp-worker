@@ -63,7 +63,7 @@ let rec private runTask getSchedule =
                         $"Task '%s{name}'. Next run will be in {schedule.Delay}." |> Log.trace
 
                         do! Async.Sleep schedule.Delay
-                        do! runTask getSchedule task
+                        //do! runTask getSchedule task
         }
 
 let start configure =

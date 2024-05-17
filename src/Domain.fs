@@ -4,22 +4,20 @@ open System
 
 module Persistence =
 
-    [<CLIMutable>]
-    type Schedule =
-        { IsEnabled: bool
-          IsOnce: bool
-          StartWork: Nullable<DateTime>
-          StopWork: Nullable<DateTime>
-          WorkDays: string
-          Delay: string
-          TimeShift: byte }
+    type Schedule ()=
+      member val IsEnabled: bool = false with get, set
+      member val IsOnce: bool = false with get, set
+      member val StartWork: Nullable<DateTime> = Nullable() with get, set
+      member val StopWork: Nullable<DateTime> = Nullable() with get, set
+      member val WorkDays: string = "" with get, set
+      member val Delay: string = "" with get, set
+      member val TimeShift: byte = 0uy with get, set
     
-    [<CLIMutable>]
-    type Task =
-        { Name: string
-          IsParallel: bool
-          Schedule: Schedule option
-          Steps: Task[] }
+    type Task () =
+      member val Name: string = "" with get, set
+      member val IsParallel: bool = false with get, set
+      member val Schedule: Schedule = Schedule() with get, set
+      member val Steps: Task[] = [||] with get, set
     
 module Core =
     open Infrastructure.Domain.Graph

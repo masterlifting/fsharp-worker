@@ -15,13 +15,13 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                match schedule.WorkDays.Split(',') with
                | [||] ->
                    set
-                       [ DayOfWeek.Friday
-                         DayOfWeek.Monday
-                         DayOfWeek.Saturday
-                         DayOfWeek.Sunday
-                         DayOfWeek.Thursday
+                       [ DayOfWeek.Monday
                          DayOfWeek.Tuesday
-                         DayOfWeek.Wednesday ]
+                         DayOfWeek.Wednesday
+                         DayOfWeek.Thursday
+                         DayOfWeek.Friday
+                         DayOfWeek.Saturday
+                         DayOfWeek.Sunday ]
                | workDays ->
                    workDays
                    |> Array.map (function
@@ -36,10 +36,9 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                    |> Set.ofArray
              Delay =
                match schedule.Delay with
-               | Infrastructure.DSL.AP.IsTimeSpan value -> value
-               | _ -> TimeSpan.Zero
+               | Infrastructure.DSL.AP.IsTimeSpan value -> Some value
+               | _ -> None
              TimeShift = schedule.TimeShift }
-
 
 let rec mapTasks (tasks: Domain.Persistence.Task array) =
     match tasks with

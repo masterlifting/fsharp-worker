@@ -11,11 +11,15 @@ let getExpirationToken task schedule =
 
         match schedule with
         | None ->
-            $"Task '%s{task}'. Schedule is disabled." |> Log.warning 
+            $"Task '%s{task}'. Schedule is disabled." |> Log.warning
             return cts.Token
         | Some schedule ->
             let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)
-            
+
+            if not (schedule.WorkDays |> Set.contains now.DayOfWeek) then
+                $"Task '%s{task}'. Today is not a working day." |> Log.warning
+                do! cts.CancelAsync() |> Async.AwaitTask
+
             if not cts.IsCancellationRequested then
                 match schedule.StopWork with
                 | Some stopWork ->

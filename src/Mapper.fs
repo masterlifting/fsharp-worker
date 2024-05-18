@@ -4,6 +4,16 @@ open System
 open Domain.Core
 open Infrastructure.Domain.Graph
 
+let private defaultWorkDays =
+    set
+        [ DayOfWeek.Monday
+          DayOfWeek.Tuesday
+          DayOfWeek.Wednesday
+          DayOfWeek.Thursday
+          DayOfWeek.Friday
+          DayOfWeek.Saturday
+          DayOfWeek.Sunday ]
+
 let private mapSchedule (schedule: Domain.Persistence.Schedule) =
     if not schedule.IsEnabled then
         None
@@ -12,28 +22,23 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
         <| { StartWork = Option.ofNullable schedule.StartWork |> Option.defaultValue DateTime.UtcNow
              StopWork = Option.ofNullable schedule.StopWork
              WorkDays =
-               match schedule.WorkDays.Split(',') with
-               | [||] ->
-                   set
-                       [ DayOfWeek.Monday
-                         DayOfWeek.Tuesday
-                         DayOfWeek.Wednesday
-                         DayOfWeek.Thursday
-                         DayOfWeek.Friday
-                         DayOfWeek.Saturday
-                         DayOfWeek.Sunday ]
-               | workDays ->
-                   workDays
-                   |> Array.map (function
-                       | "mon" -> DayOfWeek.Monday
-                       | "tue" -> DayOfWeek.Tuesday
-                       | "wed" -> DayOfWeek.Wednesday
-                       | "thu" -> DayOfWeek.Thursday
-                       | "fri" -> DayOfWeek.Friday
-                       | "sat" -> DayOfWeek.Saturday
-                       | "sun" -> DayOfWeek.Sunday
-                       | _ -> DayOfWeek.Sunday)
-                   |> Set.ofArray
+               if schedule.WorkDays = String.Empty then
+                   defaultWorkDays
+               else
+                   match schedule.WorkDays.Split(",") with
+                   | [||] -> defaultWorkDays
+                   | workDays ->
+                       workDays
+                       |> Array.map (function
+                           | "mon" -> DayOfWeek.Monday
+                           | "tue" -> DayOfWeek.Tuesday
+                           | "wed" -> DayOfWeek.Wednesday
+                           | "thu" -> DayOfWeek.Thursday
+                           | "fri" -> DayOfWeek.Friday
+                           | "sat" -> DayOfWeek.Saturday
+                           | "sun" -> DayOfWeek.Sunday
+                           | _ -> DayOfWeek.Sunday)
+                       |> Set.ofArray
              Delay =
                match schedule.Delay with
                | Infrastructure.DSL.AP.IsTimeSpan value -> Some value

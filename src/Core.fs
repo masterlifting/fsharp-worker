@@ -53,7 +53,7 @@ let rec private runTask getSchedule =
                 | true -> $"Task '%s{name}'. Stopped." |> Log.warning
                 | false ->
 
-                    $"Task '%s{name}'. Started." |> Log.trace
+                    //$"Task '%s{name}'. Started." |> Log.trace
 
                     match task.Handle with
                     | None -> ()
@@ -72,7 +72,7 @@ let rec private runTask getSchedule =
                         | Some delay ->
                             $"{compleated} Next task run will be in {delay}." |> Log.trace
                             do! Async.Sleep delay
-        }
+            }
 
 let start configure =
     async {

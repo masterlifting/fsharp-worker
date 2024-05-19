@@ -5,10 +5,8 @@ open System.Threading
 open Domain.Core
 open Infrastructure.Logging
 
-let getExpirationToken task schedule =
+let getExpirationToken task schedule (cts: CancellationTokenSource) =
     async {
-        let cts = new CancellationTokenSource()
-
         match schedule with
         | None ->
             $"Task '%s{task}'. Schedule is disabled." |> Log.warning

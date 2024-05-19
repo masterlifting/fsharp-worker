@@ -7,6 +7,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Infrastructure.Domain.Graph
 open Worker
+open System.Threading
 
 let private merge tasks handlers =
 
@@ -40,39 +41,57 @@ let private merge tasks handlers =
     innerLoop None tasks handlers
 
 let rec private runTask getSchedule =
-    fun (task: INodeHandle) ->
+    fun (task: INodeHandle) (cTokens: CancellationToken list) ->
         async {
             let name = task.Name
 
-            match! getSchedule name with
-            | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
-            | Ok schedule ->
-                let! ct = Scheduler.getExpirationToken name schedule
+            match
+                cTokens
+                |> List.tryPick (fun t -> if t.IsCancellationRequested then Some t else None)
+            with
+            | Some requestedToken ->
+                $"Task '%s{name}'. Stopped by parent." |> Log.warning
+                return [ requestedToken ]
+            | None ->
+                let cts = new CancellationTokenSource()
 
-                match ct.IsCancellationRequested with
-                | true -> $"Task '%s{name}'. Stopped." |> Log.warning
-                | false ->
+                match! getSchedule name with
+                | Error error ->
+                    cts.Cancel()
+                    $"Task '%s{name}'. Failed: %s{error}" |> Log.error
+                    return [ cts.Token ]
+                | Ok schedule ->
 
-                    //$"Task '%s{name}'. Started." |> Log.trace
+                    let! taskExpirationToken = Scheduler.getExpirationToken name schedule cts
 
-                    match task.Handle with
-                    | None -> ()
-                    | Some handle ->
-                        match! handle () with
-                        | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
-                        | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
+                    match taskExpirationToken.IsCancellationRequested with
+                    | true ->
+                        $"Task '%s{name}'. Stopped." |> Log.warning
+                        return [ taskExpirationToken ]
+                    | false ->
 
-                    let compleated = $"Task '%s{name}'. Completed."
+                        //$"Task '%s{name}'. Started." |> Log.trace
 
-                    match schedule with
-                    | None -> compleated |> Log.trace
-                    | Some schedule ->
-                        match schedule.Delay with
+                        match task.Handle with
+                        | None -> ()
+                        | Some handle ->
+                            match! handle () with
+                            | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
+                            | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
+
+                        let compleated = $"Task '%s{name}'. Completed."
+
+                        match schedule with
                         | None -> compleated |> Log.trace
-                        | Some delay ->
-                            $"{compleated} Next task run will be in {delay}." |> Log.trace
-                            do! Async.Sleep delay
-            }
+                        | Some schedule ->
+                            match schedule.Delay with
+                            | None -> compleated |> Log.trace
+                            | Some delay ->
+                                $"{compleated} Next task run will be in {delay}." |> Log.trace
+                                do! Async.Sleep delay
+
+                        return taskExpirationToken :: cTokens
+        }
 
 let start configure =
     async {
@@ -86,7 +105,7 @@ let start configure =
                 | Ok tasks ->
                     let handleTask = runTask config.getSchedule
 
-                    match! DSL.Graph.handleNodes tasks handleTask |> Async.Catch with
+                    match! DSL.Graph.handleNodes tasks handleTask [] |> Async.Catch with
                     | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.success
                     | Choice2Of2 ex ->
                         match ex with

@@ -49,7 +49,7 @@ let rec private runTask getSchedule =
                 $"{taskName} Canceled by parent." |> Log.error
                 return cTokens
             else
-                let cts = new CancellationTokenSource()
+                use cts = new CancellationTokenSource()
 
                 match! getSchedule task.Name with
                 | Error error ->

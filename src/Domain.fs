@@ -40,7 +40,7 @@ module Core =
 
     type TaskHandler =
         { Name: string
-          Handle: (unit -> Async<Result<string, string>>) option }
+          Handle: (Threading.CancellationTokenSource -> Async<Result<string, string>>) option }
 
         interface INodeName with
             member this.Name = this.Name
@@ -49,6 +49,7 @@ open Infrastructure.Domain.Graph
 open Core
 
 type Configuration =
-    { Tasks: Node<Task> list
+    { Name: string
+      Tasks: Node<Task> list
       Handlers: Node<TaskHandler> list
       getSchedule: string -> Async<Result<Schedule option, string>> }

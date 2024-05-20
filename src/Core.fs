@@ -14,23 +14,23 @@ let private merge tasks handlers =
     let rec innerLoop nodeName (tasks: Node<Task> list) (handlers: Node<TaskHandler> list) =
         tasks
         |> List.map (fun task ->
-            let name = nodeName |> DSL.Graph.buildNodeName <| task.Value.Name
+            let fillNodeName = nodeName |> DSL.Graph.buildNodeName <| task.Value.Name
 
             match handlers |> List.tryFind (fun handler -> handler.Value.Name = task.Value.Name) with
-            | None -> Error $"Handler %s{name} was not found."
+            | None -> Error $"Task %s{fillNodeName}. Failed: Handler was not found."
             | Some handler ->
 
-                match innerLoop (Some name) task.Children handler.Children with
+                match innerLoop (Some fillNodeName) task.Children handler.Children with
                 | Error error -> Error error
                 | Ok steps ->
 
                     if handler.Value.Handle.IsNone then
-                        $"Task '%s{name}'. Handler was not set." |> Log.warning
+                        $"Task '%s{fillNodeName}'. Handling function was not set." |> Log.warning
 
                     Ok
                     <| Node(
                         { new INodeHandle with
-                            member _.Name = name
+                            member _.Name = fillNodeName
                             member _.Parallel = task.Value.Parallel
                             member _.Recurcive = task.Value.Recurcive
                             member _.Handle = handler.Value.Handle },
@@ -43,59 +43,54 @@ let private merge tasks handlers =
 let rec private runTask getSchedule =
     fun (task: INodeHandle) (cTokens: CancellationToken list) ->
         async {
-            let name = task.Name
+            let taskName = $"Task '%s{task.Name}'."
 
-            match
-                cTokens
-                |> List.tryPick (fun t -> if t.IsCancellationRequested then Some t else None)
-            with
-            | Some requestedToken ->
-                $"Task '%s{name}'. Stopped by parent." |> Log.warning
-                return [ requestedToken ]
-            | None ->
+            if DSL.Graph.canceled cTokens then
+                $"{taskName} Stopped by parent." |> Log.warning
+                return cTokens
+            else
                 let cts = new CancellationTokenSource()
 
-                match! getSchedule name with
+                match! getSchedule task.Name with
                 | Error error ->
                     cts.Cancel()
-                    $"Task '%s{name}'. Failed: %s{error}" |> Log.error
+                    $"{taskName} Failed: %s{error}" |> Log.error
                     return [ cts.Token ]
                 | Ok schedule ->
 
-                    let! taskExpirationToken = Scheduler.getExpirationToken task schedule cts
+                    let! expirationToken = Scheduler.getExpirationToken task schedule cts
 
-                    match taskExpirationToken.IsCancellationRequested with
+                    match expirationToken.IsCancellationRequested with
                     | true ->
-                        $"Task '%s{name}'. Stopped." |> Log.warning
-                        return [ taskExpirationToken ]
+                        $"{taskName} Stopped." |> Log.warning
+                        return [ expirationToken ]
                     | false ->
-
-                        //$"Task '%s{name}'. Started." |> Log.trace
 
                         match task.Handle with
                         | None -> ()
                         | Some handle ->
-                            match! handle () with
-                            | Error error -> $"Task '%s{name}'. Failed: %s{error}" |> Log.error
-                            | Ok msg -> $"Task '%s{name}'. Successful. %s{msg}" |> Log.success
+                            $"{taskName} Started." |> Log.trace
 
-                        let compleated = $"Task '%s{name}'. Completed."
+                            match! handle cts with
+                            | Error error -> $"{taskName} Failed: %s{error}" |> Log.error
+                            | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
+
+                        let compleated = $"{taskName} Compleated."
 
                         match schedule with
-                        | None -> compleated |> Log.trace
+                        | None -> compleated |> Log.debug
                         | Some schedule ->
                             match schedule.Delay with
-                            | None -> compleated |> Log.trace
+                            | None -> compleated |> Log.debug
                             | Some delay ->
-                                $"{compleated} Next task run will be in {delay}." |> Log.trace
+                                $"%s{compleated} Next task will be run in {delay}." |> Log.debug
                                 do! Async.Sleep delay
 
-                        return taskExpirationToken :: cTokens
+                        return expirationToken :: cTokens
         }
 
 let start configure =
     async {
-
         try
             match! configure () with
             | Error error -> error |> Log.error
@@ -106,11 +101,15 @@ let start configure =
                     let handleTask = runTask config.getSchedule
 
                     match! DSL.Graph.handleNodes tasks handleTask [] |> Async.Catch with
-                    | Choice1Of2 _ -> $"All tasks completed successfully." |> Log.success
+                    | Choice1Of2 _ ->
+                        $"All tasks of the worker '%s{config.Name}' are started successfully."
+                        |> Log.success
                     | Choice2Of2 ex ->
                         match ex with
-                        | :? OperationCanceledException -> failwith "Worker was stopped."
-                        | _ -> failwith $"Worker failed: %s{ex.Message}"
+                        | :? OperationCanceledException ->
+                            let message = $"Worker '%s{config.Name}' was stopped."
+                            failwith message
+                        | _ -> failwith $"Worker '%s{config.Name}' failed: %s{ex.Message}"
         with ex ->
-            $"Worker failed: %s{ex.Message}" |> Log.error
+            ex.Message |> Log.error
     }

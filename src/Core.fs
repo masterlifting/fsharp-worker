@@ -62,7 +62,7 @@ let rec private runTask getSchedule =
                     return [ cts.Token ]
                 | Ok schedule ->
 
-                    let! taskExpirationToken = Scheduler.getExpirationToken name schedule cts
+                    let! taskExpirationToken = Scheduler.getExpirationToken task schedule cts
 
                     match taskExpirationToken.IsCancellationRequested with
                     | true ->

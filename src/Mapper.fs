@@ -2,6 +2,8 @@ module Worker.Mapper
 
 open System
 open Domain.Core
+open Infrastructure.Logging
+open Infrastructure.DSL.AP
 open Infrastructure.Domain.Graph
 
 let private defaultWorkDays =
@@ -39,10 +41,6 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                            | "sun" -> DayOfWeek.Sunday
                            | _ -> DayOfWeek.Sunday)
                        |> Set.ofArray
-             Delay =
-               match schedule.Delay with
-               | Infrastructure.DSL.AP.IsTimeSpan value -> Some value
-               | _ -> None
              TimeShift = schedule.TimeShift }
 
 let rec mapTasks (tasks: Domain.Persistence.Task array) =
@@ -55,7 +53,16 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
             Node(
                 { Name = task.Name
                   Parallel = task.Parallel
-                  Recurcive = task.Recurcive
+                  Recursively = task.Recursively
+                  Delay =
+                    match task.Delay with
+                    | IsTimeSpan value -> Some value
+                    | _ -> None
+                  Duration =
+                    match task.Duration with
+                    | IsTimeSpan value -> Some value
+                    | _ -> None
+                  Times = if task.Times = 0 then None else Some(uint task.Times)
                   Schedule = task.Schedule |> mapSchedule },
                 task.Steps |> mapTasks
             ))

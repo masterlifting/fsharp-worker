@@ -10,13 +10,15 @@ module Persistence =
         member val StartWork: Nullable<DateTime> = Nullable() with get, set
         member val StopWork: Nullable<DateTime> = Nullable() with get, set
         member val WorkDays: string = String.Empty with get, set
-        member val Delay: string = String.Empty with get, set
         member val TimeShift: byte = 0uy with get, set
 
     type Task() =
         member val Name: string = String.Empty with get, set
         member val Parallel: bool = false with get, set
-        member val Recurcive: bool = false with get, set
+        member val Recursively: bool = false with get, set
+        member val Delay: string = String.Empty with get, set
+        member val Duration: string = String.Empty with get, set
+        member val Times: int = 0 with get, set
         member val Schedule: Schedule = Schedule() with get, set
         member val Steps: Task[] = [||] with get, set
 
@@ -27,13 +29,15 @@ module Core =
         { StartWork: DateTime
           StopWork: DateTime option
           WorkDays: DayOfWeek Set
-          Delay: TimeSpan option
           TimeShift: byte }
 
     type Task =
         { Name: string
           Parallel: bool
-          Recurcive: bool
+          Recursively: bool
+          Delay: TimeSpan option
+          Duration: TimeSpan option
+          Times: uint option
           Schedule: Schedule option }
 
         interface INodeName with

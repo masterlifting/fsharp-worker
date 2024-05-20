@@ -16,7 +16,7 @@ let getExpirationToken (task: INodeHandle) schedule (cts: CancellationTokenSourc
             if not (schedule.WorkDays |> Set.contains now.DayOfWeek) then
                 $"Task '%s{task.Name}'. Today is not a working day." |> Log.warning
 
-                if not task.Recurcive then
+                if not task.Recursively then
                     do! cts.CancelAsync() |> Async.AwaitTask
 
             if not cts.IsCancellationRequested then

@@ -32,7 +32,10 @@ let private merge tasks handlers =
                         { new INodeHandle with
                             member _.Name = fillNodeName
                             member _.Parallel = task.Value.Parallel
-                            member _.Recurcive = task.Value.Recurcive
+                            member _.Recursively = task.Value.Recursively
+                            member _.Delay = task.Value.Delay
+                            member _.Duration = task.Value.Duration
+                            member _.Times = task.Value.Times
                             member _.Handle = handler.Value.Handle },
                         steps
                     ))
@@ -75,16 +78,11 @@ let rec private runTask getSchedule =
                             | Error error -> $"{taskName} Failed: %s{error.ToString()}" |> Log.error
                             | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
 
-                        let compleated = $"{taskName} Compleated."
+                        let completed = $"{taskName} Completed."
 
-                        match schedule with
-                        | None -> compleated |> Log.debug
-                        | Some schedule ->
-                            match schedule.Delay with
-                            | None -> compleated |> Log.debug
-                            | Some delay ->
-                                $"%s{compleated} Next task will be run in {delay}." |> Log.debug
-                                do! Async.Sleep delay
+                        match task.Delay with
+                        | None -> completed |> Log.debug
+                        | Some delay -> $"%s{completed} Next task will be run in {delay}." |> Log.debug
 
                         return expirationToken :: cTokens
         }

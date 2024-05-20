@@ -46,7 +46,7 @@ let rec private runTask getSchedule =
             let taskName = $"Task '%s{task.Name}'."
 
             if DSL.Graph.canceled cTokens then
-                $"{taskName} Stopped by parent." |> Log.warning
+                $"{taskName} Canceled by parent." |> Log.error
                 return cTokens
             else
                 let cts = new CancellationTokenSource()
@@ -62,7 +62,7 @@ let rec private runTask getSchedule =
 
                     match expirationToken.IsCancellationRequested with
                     | true ->
-                        $"{taskName} Stopped." |> Log.warning
+                        $"{taskName} Canceled." |> Log.error
                         return [ expirationToken ]
                     | false ->
 
@@ -72,7 +72,7 @@ let rec private runTask getSchedule =
                             $"{taskName} Started." |> Log.trace
 
                             match! handle cts with
-                            | Error error -> $"{taskName} Failed: %s{error}" |> Log.error
+                            | Error error -> $"{taskName} Failed: %s{error.ToString()}" |> Log.error
                             | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
 
                         let compleated = $"{taskName} Compleated."

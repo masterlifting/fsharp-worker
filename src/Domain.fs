@@ -1,6 +1,7 @@
 module Worker.Domain
 
 open System
+open Infrastructure.Domain.Errors
 
 module Persistence =
 
@@ -40,7 +41,7 @@ module Core =
 
     type TaskHandler =
         { Name: string
-          Handle: (Threading.CancellationTokenSource -> Async<Result<string, string>>) option }
+          Handle: (Threading.CancellationTokenSource -> Async<Result<string, AppError>>) option }
 
         interface INodeName with
             member this.Name = this.Name

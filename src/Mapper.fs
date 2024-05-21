@@ -62,7 +62,7 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
                     match task.Duration with
                     | IsTimeSpan value -> Some value
                     | _ -> None
-                  Times = if task.Times = 0 then None else Some(uint task.Times)
+                  Limit = if task.Limit = 0 then None else Some(uint task.Limit)
                   Schedule = task.Schedule |> mapSchedule },
                 task.Steps |> mapTasks
             ))

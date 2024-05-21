@@ -18,11 +18,12 @@ module Persistence =
         member val Recursively: bool = false with get, set
         member val Delay: string = String.Empty with get, set
         member val Duration: string = String.Empty with get, set
-        member val Times: int = 0 with get, set
+        member val Limit: int = 0 with get, set
         member val Schedule: Schedule = Schedule() with get, set
         member val Steps: Task[] = [||] with get, set
 
 module Core =
+    open System.Threading
     open Infrastructure.Domain.Graph
 
     type Schedule =
@@ -37,7 +38,7 @@ module Core =
           Recursively: bool
           Delay: TimeSpan option
           Duration: TimeSpan option
-          Times: uint option
+          Limit: uint option
           Schedule: Schedule option }
 
         interface INodeName with
@@ -45,7 +46,7 @@ module Core =
 
     type TaskHandler =
         { Name: string
-          Handle: (Threading.CancellationTokenSource -> Async<Result<string, AppError>>) option }
+          Handle: (CancellationToken -> Async<Result<string, AppError>>) option }
 
         interface INodeName with
             member this.Name = this.Name

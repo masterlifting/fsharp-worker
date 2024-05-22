@@ -2,7 +2,6 @@ module Worker.Mapper
 
 open System
 open Domain.Core
-open Infrastructure.Logging
 open Infrastructure.DSL.AP
 open Infrastructure.Domain.Graph
 
@@ -41,7 +40,16 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                            | "sun" -> DayOfWeek.Sunday
                            | _ -> DayOfWeek.Sunday)
                        |> Set.ofArray
-             TimeShift = schedule.TimeShift }
+             TimeShift = schedule.TimeShift
+             Delay =
+               match schedule.Delay with
+               | IsTimeSpan value -> Some value
+               | _ -> None
+             Limit =
+               if schedule.Limit <= 0 then
+                   None
+               else
+                   Some(uint schedule.Limit) }
 
 let rec mapTasks (tasks: Domain.Persistence.Task array) =
     match tasks with
@@ -54,15 +62,10 @@ let rec mapTasks (tasks: Domain.Persistence.Task array) =
                 { Name = task.Name
                   Parallel = task.Parallel
                   Recursively = task.Recursively
-                  Delay =
-                    match task.Delay with
-                    | IsTimeSpan value -> Some value
-                    | _ -> None
                   Duration =
                     match task.Duration with
                     | IsTimeSpan value -> Some value
                     | _ -> None
-                  Limit = if task.Limit = 0 then None else Some(uint task.Limit)
                   Schedule = task.Schedule |> mapSchedule },
                 task.Steps |> mapTasks
             ))

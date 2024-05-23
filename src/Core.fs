@@ -112,7 +112,7 @@ let start configure =
 
                     match! DSL.Graph.handleNodes tasks handleTask CancellationToken.None |> Async.Catch with
                     | Choice1Of2 _ ->
-                        $"All tasks of the worker '%s{config.Name}' are started successfully."
+                        $"All tasks of the worker '%s{config.Name}' were completed."
                         |> Log.success
                     | Choice2Of2 ex ->
                         match ex with

@@ -8,7 +8,6 @@ module Persistence =
     type Schedule() =
         member val IsEnabled: bool = false with get, set
         member val Delay: string = String.Empty with get, set
-
         member val Limit: int = 0 with get, set
         member val StartWork: Nullable<DateTime> = Nullable() with get, set
         member val StopWork: Nullable<DateTime> = Nullable() with get, set

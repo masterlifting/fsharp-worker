@@ -4,12 +4,11 @@ open System
 open System.Threading
 open Domain.Core
 open Infrastructure.Logging
-open Infrastructure.Domain.Graph
 open Infrastructure.DSL.Threading
 
-let getExpirationToken (task: INodeHandle) schedule count (cts: CancellationTokenSource) =
+let getExpirationToken task count (cts: CancellationTokenSource) =
     async {
-        match schedule with
+        match task.Schedule with
         | None -> return cts.Token
         | Some schedule ->
             let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)

@@ -10,7 +10,7 @@ open Infrastructure.DSL.Threading
 open Worker
 open System.Threading
 
-let private merge tasks handlers =
+let private merge tasks handlers refresh =
 
     let rec innerLoop nodeName (tasks: Node<Task> list) (handlers: Node<TaskHandler> list) =
         tasks
@@ -30,20 +30,18 @@ let private merge tasks handlers =
 
                     Ok
                     <| Node(
-                        { new INodeHandle with
-                            member _.Name = fillNodeName
-                            member _.Parallel = task.Value.Parallel
-                            member _.Recursively = task.Value.Recursively
-                            member _.Duration = task.Value.Duration
-                            member _.Handle = handler.Value.Handle },
+                        { task.Value with
+                            Name = fillNodeName
+                            Handle = handler.Value.Handle
+                            Refresh = refresh },
                         steps
                     ))
         |> DSL.Seq.resultOrError
 
     innerLoop None tasks handlers
 
-let rec private runTask getSchedule =
-    fun (task: INodeHandle) parentToken count ->
+let rec private runTask =
+    fun (task: Task) parentToken count ->
         async {
             let taskName = $"Task '%s{task.Name}'."
 
@@ -53,50 +51,43 @@ let rec private runTask getSchedule =
             else
                 use cts = new CancellationTokenSource()
 
-                match! getSchedule task.Name with
-                | Error error ->
-                    cts.Cancel()
-                    $"{taskName} Failed: %s{error}" |> Log.error
-                    return cts.Token
-                | Ok schedule ->
+                let! taskToken = Scheduler.getExpirationToken task count cts
 
-                    let! taskToken = Scheduler.getExpirationToken task schedule count cts
+                use linkedCts =
+                    CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
-                    use linkedCts =
-                        CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
+                match linkedCts.IsCancellationRequested with
+                | true ->
+                    $"{taskName} Canceled." |> Log.warning
+                    return linkedCts.Token
+                | false ->
 
-                    match linkedCts.IsCancellationRequested with
-                    | true ->
-                        $"{taskName} Canceled." |> Log.warning
-                        return linkedCts.Token
-                    | false ->
+                    match task.Handle with
+                    | None -> ()
+                    | Some handle ->
+                        $"{taskName} Started." |> Log.trace
 
-                        match task.Handle with
-                        | None -> ()
-                        | Some handle ->
-                            $"{taskName} Started." |> Log.trace
+                        use cts = new CancellationTokenSource()
 
-                            use cts = new CancellationTokenSource()
+                        if task.Duration.IsSome then
+                            cts.CancelAfter task.Duration.Value
 
-                            if task.Duration.IsSome then
-                                cts.CancelAfter task.Duration.Value
+                        match! handle cts.Token with
+                        | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
+                        | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
 
-                            match! handle cts.Token with
-                            | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
-                            | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
+                    let completed = $"{taskName} Completed."
 
-                        let completed = $"{taskName} Completed."
-
-                        match schedule with
+                    match task.Schedule with
+                    | None -> completed |> Log.debug
+                    | Some schedule ->
+                        match schedule.Delay with
                         | None -> completed |> Log.debug
-                        | Some schedule ->
-                            match schedule.Delay with
-                            | None -> completed |> Log.debug
-                            | Some delay ->
-                                $"%s{completed} Next task will be run in {delay}." |> Log.debug
-                                do! Async.Sleep delay
+                        | Some delay ->
+                            $"%s{completed} Next task will be run in {delay}." |> Log.debug
+                            do! Async.Sleep delay
 
-                        return linkedCts.Token
+                    return linkedCts.Token
         }
 
 let start configure =
@@ -105,15 +96,11 @@ let start configure =
             match! configure () with
             | Error error -> error |> Log.error
             | Ok config ->
-                match config.Tasks |> merge <| config.Handlers with
+                match merge config.Tasks config.Handlers config.Refresh with
                 | Error error -> error |> Log.error
                 | Ok tasks ->
-                    let handleTask = runTask config.getSchedule
-
-                    match! DSL.Graph.handleNodes tasks handleTask CancellationToken.None |> Async.Catch with
-                    | Choice1Of2 _ ->
-                        $"All tasks of the worker '%s{config.Name}' were completed."
-                        |> Log.success
+                    match! DSL.Graph.handleNodes tasks runTask CancellationToken.None |> Async.Catch with
+                    | Choice1Of2 _ -> $"All tasks of the worker '%s{config.Name}' were completed." |> Log.success
                     | Choice2Of2 ex ->
                         match ex with
                         | :? OperationCanceledException ->

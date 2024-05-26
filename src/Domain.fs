@@ -1,9 +1,10 @@
 module Worker.Domain
 
 open System
+open Infrastructure.Domain.Graph
+open Infrastructure.Domain.Errors
 
 module Persistence =
-    open Infrastructure.Domain.Graph
 
     type Schedule() =
         member val IsEnabled: bool = false with get, set
@@ -26,7 +27,7 @@ module Persistence =
             member this.Name = this.Name
 
 module Core =
-    open Infrastructure.Domain.Graph
+    open System.Threading
 
     type Schedule =
         { StartWork: DateTime
@@ -42,29 +43,21 @@ module Core =
           Recursively: bool
           Duration: TimeSpan option
           Schedule: Schedule option
-          Handle: NodeHandle
-          Refresh: NodeRefresh<Task> }
-
-        interface INodeHandle<Task> with
-            member this.Name = this.Name
-            member this.Parallel = this.Parallel
-            member this.Recursively = this.Recursively
-            member this.Duration = this.Duration
-            member this.Handle = this.Handle
-            member this.Refresh = this.Refresh
-
-    type TaskHandler =
-        { Name: string
-          Handle: NodeHandle }
+          Handle: (CancellationToken -> Async<Result<string, AppError>>) option }
 
         interface INodeName with
             member this.Name = this.Name
 
-open Infrastructure.Domain.Graph
+    type TaskHandler =
+        { Name: string
+          Handle: (CancellationToken -> Async<Result<string, AppError>>) option }
+
+        interface INodeName with
+            member this.Name = this.Name
+
 open Core
 
 type Configuration =
-    { Name: string
-      Tasks: Node<Task> list
+    { TasksGraph: Node<Task>
       Handlers: Node<TaskHandler> list
-      Refresh: NodeRefresh<Task> }
+      getTaskNode: string -> Async<Result<Node<Task>, InfrastructureError>> }

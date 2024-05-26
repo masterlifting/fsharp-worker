@@ -51,24 +51,26 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                else
                    Some(uint schedule.Limit) }
 
-let rec mapTasks (tasks: Domain.Persistence.Task array) =
-    match tasks with
-    | [||] -> []
-    | null -> []
-    | _ ->
-        tasks
-        |> Array.map (fun task ->
-            Node(
-                { Name = task.Name
-                  Parallel = task.Parallel
-                  Recursively = task.Recursively
-                  Duration =
-                    match task.Duration with
-                    | IsTimeSpan value -> Some value
-                    | _ -> None
-                  Schedule = task.Schedule |> mapSchedule
-                  Handle = None
-                  Refresh = None },
-                task.Steps |> mapTasks
-            ))
-        |> List.ofArray
+let private mapTask (task: Domain.Persistence.Task) =
+    { Name = task.Name
+      Parallel = task.Parallel
+      Recursively = task.Recursively
+      Duration =
+        match task.Duration with
+        | IsTimeSpan value -> Some value
+        | _ -> None
+      Schedule = task.Schedule |> mapSchedule
+      Handle = None }
+
+let buildGraph (task: Domain.Persistence.Task) =
+
+    let rec innerLoop tasks =
+        match tasks with
+        | [||] -> []
+        | null -> []
+        | _ ->
+            tasks
+            |> Array.map (fun task -> Node(mapTask task, task.Steps |> innerLoop))
+            |> List.ofArray
+
+    Node(mapTask task, task.Steps |> innerLoop)

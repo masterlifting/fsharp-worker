@@ -5,12 +5,14 @@ open Domain.Core
 open Infrastructure.DSL
 open Infrastructure.Logging
 open Infrastructure.DSL.Threading
+open Infrastructure.Domain.Graph
+open Infrastructure.Domain.Errors
 open Worker
 open System.Threading
 
 let rec private handleNode
     nodeName
-    (getNode: GetTaskNode)
+    (getNode: string -> Async<Result<Node<Task>, InfrastructureError>>)
     handleNodeValue
     cToken
     count
@@ -26,7 +28,7 @@ let rec private handleNode
             let! cToken = handleNodeValue nodeValue cToken count
             do! handleNodes nodeName node.Children getNode handleNodeValue cToken
 
-            if node.Value.Recursively && cToken |> notCanceled then
+            if nodeValue.Recursively && cToken |> notCanceled then
                 do! handleNode nodeName getNode handleNodeValue cToken count
     }
 

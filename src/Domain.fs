@@ -50,8 +50,6 @@ module Core =
         interface INodeName with
             member this.Name = this.Name
 
-    type GetTaskNode = string -> Async<Result<Node<Task>, InfrastructureError>>
-
     type TaskHandler =
         { Name: string
           Handle: HandleTask }

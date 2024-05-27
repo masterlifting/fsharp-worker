@@ -67,21 +67,25 @@ let private getHandle nodeName garph =
     | Some handler -> handler.Value.Handle
     | None -> None
 
-let private createNode (task: Domain.Persistence.Task) handlersGraph buildSteps=
-    let handle = getHandle task.Name handlersGraph
-    let task' = mapTask task handle
-    let steps = task.Steps |> buildSteps
-    Node(task', steps)
+let private createNode nodeName (task: Domain.Persistence.Task) handlersGraph buildSteps=
+    let steps = buildSteps nodeName task.Steps
+    let handle = getHandle nodeName handlersGraph
+    let task = mapTask task handle
+    Node(task, steps)
 
-let buildCoreGraph task handlersGraph =
+open Infrastructure.DSL.Graph
 
-    let rec innerLoop tasks =
+let buildCoreGraph (task: Domain.Persistence.Task) handlersGraph =
+
+    let rec innerLoop nodeName (tasks: Domain.Persistence.Task array) =
         match tasks with
         | [||] -> []
         | null -> []
         | _ ->
             tasks
-            |> Array.map (fun task -> createNode task handlersGraph innerLoop)
+            |> Array.map (fun task -> 
+                let taskName = Some nodeName |> buildNodeName <| task.Name
+                createNode taskName task handlersGraph innerLoop)
             |> List.ofArray
 
-    createNode task handlersGraph innerLoop
+    createNode task.Name task handlersGraph innerLoop

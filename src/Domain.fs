@@ -60,5 +60,5 @@ module Core =
 open Core
 
 type Configuration =
-    { TaskHandlersGraph: Node<TaskHandler>
+    { RootName: string
       getTaskNode: string -> Async<Result<Node<Task>, InfrastructureError>> }

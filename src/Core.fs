@@ -125,7 +125,7 @@ let private processGraph nodeName getNode =
 let start config =
     async {
         try
-            let workerName = config.TaskHandlersGraph.Value.Name
+            let workerName = config.RootName
 
             match! processGraph workerName config.getTaskNode |> Async.Catch with
             | Choice1Of2 _ -> $"All tasks of the worker '%s{workerName}' were completed." |> Log.success

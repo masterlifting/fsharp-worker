@@ -51,7 +51,7 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                else
                    Some(uint schedule.Limit) }
 
-let private mapTask (task: Domain.Persistence.Task) =
+let private mapTask (task: Domain.Persistence.Task) (handle: TaskHandle) =
     { Name = task.Name
       Parallel = task.Parallel
       Recursively = task.Recursively
@@ -60,17 +60,26 @@ let private mapTask (task: Domain.Persistence.Task) =
         | IsTimeSpan value -> Some value
         | _ -> None
       Schedule = task.Schedule |> mapSchedule
-      Handle = None }
+      Handle = handle }
 
-let buildGraph (task: Domain.Persistence.Task) =
+let private getTaskHandle taskName handler =
+    match Infrastructure.DSL.Graph.findNode taskName handler with
+    | Some handler -> handler.Value.Handle
+    | None -> None
 
-    let rec innerLoop tasks =
+let buildGraph (task: Domain.Persistence.Task) handler =
+
+    let rec innerLoop (tasks: Domain.Persistence.Task array) =
         match tasks with
         | [||] -> []
         | null -> []
         | _ ->
             tasks
-            |> Array.map (fun task -> Node(mapTask task, task.Steps |> innerLoop))
+            |> Array.map (fun task ->
+                let handle = getTaskHandle task.Name handler
+                let node = mapTask task handle
+                Node(node, task.Steps |> innerLoop))
             |> List.ofArray
 
-    Node(mapTask task, task.Steps |> innerLoop)
+    let handle = getTaskHandle task.Name handler
+    Node(mapTask task handle, task.Steps |> innerLoop)

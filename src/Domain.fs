@@ -37,7 +37,7 @@ module Core =
           Limit: uint option
           TimeShift: byte }
 
-    type TaskHandle = (CancellationToken -> Async<Result<string, AppError>>) option
+    type HandleTask = (CancellationToken -> Async<Result<string, AppError>>) option
 
     type Task =
         { Name: string
@@ -45,20 +45,16 @@ module Core =
           Recursively: bool
           Duration: TimeSpan option
           Schedule: Schedule option
-          Handle: TaskHandle }
+          Handle: HandleTask }
 
         interface INodeName with
             member this.Name = this.Name
+
+    type GetTaskNode = string -> Async<Result<Node<Task>, InfrastructureError>>
 
     type TaskHandler =
         { Name: string
-          Handle: TaskHandle }
+          Handle: HandleTask }
 
         interface INodeName with
             member this.Name = this.Name
-
-open Core
-
-type Configuration =
-    { RootName: string
-      getTaskNode: string -> Async<Result<Node<Task>, InfrastructureError>> }

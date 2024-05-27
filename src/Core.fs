@@ -1,21 +1,18 @@
 module Worker.Core
 
 open System
-open Domain
 open Domain.Core
 open Infrastructure.DSL
 open Infrastructure.Logging
-open Infrastructure.Domain.Graph
-open Infrastructure.Domain.Errors
 open Infrastructure.DSL.Threading
 open Worker
 open System.Threading
 
 let rec private handleNode
     nodeName
-    (getNode: string -> Async<Result<Node<Task>, InfrastructureError>>)
-    (handleNodeValue: Task -> CancellationToken -> uint -> Async<CancellationToken>)
-    (cToken: CancellationToken)
+    (getNode: GetTaskNode)
+    handleNodeValue
+    cToken
     count
     =
     async {
@@ -24,8 +21,9 @@ let rec private handleNode
         match! getNode nodeName with
         | Error error -> $"Task '%s{nodeName}'. Failed: %s{error.Message}" |> Log.error
         | Ok node ->
+            let nodeValue = { node.Value with Name = nodeName }
 
-            let! cToken = handleNodeValue node.Value cToken count
+            let! cToken = handleNodeValue nodeValue cToken count
             do! handleNodes nodeName node.Children getNode handleNodeValue cToken
 
             if node.Value.Recursively && cToken |> notCanceled then
@@ -92,7 +90,7 @@ let rec private handleTask =
                 | false ->
 
                     match task.Handle with
-                    | None -> ()
+                    | None -> $"{taskName} Skipped." |> Log.trace
                     | Some handle ->
                         $"{taskName} Started." |> Log.trace
 
@@ -122,19 +120,17 @@ let rec private handleTask =
 let private processGraph nodeName getNode =
     handleNode nodeName getNode handleTask CancellationToken.None 0u
 
-let start config =
+let start rootName getNode =
     async {
         try
-            let workerName = config.RootName
-
-            match! processGraph workerName config.getTaskNode |> Async.Catch with
-            | Choice1Of2 _ -> $"All tasks of the worker '%s{workerName}' were completed." |> Log.success
+            match! processGraph rootName getNode |> Async.Catch with
+            | Choice1Of2 _ -> $"All tasks of the worker '%s{rootName}' were completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with
                 | :? OperationCanceledException ->
-                    let message = $"Worker '%s{workerName}' was stopped."
+                    let message = $"Worker '%s{rootName}' was stopped."
                     failwith message
-                | _ -> failwith $"Worker '%s{workerName}' failed: %s{ex.Message}"
+                | _ -> failwith $"Worker '%s{rootName}' failed: %s{ex.Message}"
         with ex ->
             ex.Message |> Log.error
     }

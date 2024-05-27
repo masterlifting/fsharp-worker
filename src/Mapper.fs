@@ -51,7 +51,7 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                else
                    Some(uint schedule.Limit) }
 
-let private mapTask (task: Domain.Persistence.Task) (handle: TaskHandle) =
+let private mapTask (task: Domain.Persistence.Task) (handle: HandleTask) =
     { Name = task.Name
       Parallel = task.Parallel
       Recursively = task.Recursively
@@ -62,24 +62,26 @@ let private mapTask (task: Domain.Persistence.Task) (handle: TaskHandle) =
       Schedule = task.Schedule |> mapSchedule
       Handle = handle }
 
-let private getTaskHandle taskName handler =
-    match Infrastructure.DSL.Graph.findNode taskName handler with
+let private getHandle nodeName garph =
+    match Infrastructure.DSL.Graph.findNode nodeName garph with
     | Some handler -> handler.Value.Handle
     | None -> None
 
-let buildGraph (task: Domain.Persistence.Task) handler =
+let private createNode (task: Domain.Persistence.Task) handlersGraph buildSteps=
+    let handle = getHandle task.Name handlersGraph
+    let task' = mapTask task handle
+    let steps = task.Steps |> buildSteps
+    Node(task', steps)
 
-    let rec innerLoop (tasks: Domain.Persistence.Task array) =
+let buildCoreGraph task handlersGraph =
+
+    let rec innerLoop tasks =
         match tasks with
         | [||] -> []
         | null -> []
         | _ ->
             tasks
-            |> Array.map (fun task ->
-                let handle = getTaskHandle task.Name handler
-                let node = mapTask task handle
-                Node(node, task.Steps |> innerLoop))
+            |> Array.map (fun task -> createNode task handlersGraph innerLoop)
             |> List.ofArray
 
-    let handle = getTaskHandle task.Name handler
-    Node(mapTask task handle, task.Steps |> innerLoop)
+    createNode task handlersGraph innerLoop

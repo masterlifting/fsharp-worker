@@ -74,49 +74,45 @@ let rec private handleTask =
         async {
             let taskName = $"Task '%s{task.Name}'."
 
-            if parentToken |> canceled then
-                $"{taskName} Canceled by parent." |> Log.warning
-                return parentToken
-            else
-                use cts = new CancellationTokenSource()
+            use cts = new CancellationTokenSource()
 
-                let! taskToken = Scheduler.getExpirationToken task count cts
+            let! taskToken = Scheduler.getExpirationToken task count cts
 
-                use linkedCts =
-                    CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
+            use linkedCts =
+                CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
-                match linkedCts.IsCancellationRequested with
-                | true ->
-                    $"{taskName} Canceled." |> Log.warning
-                    return linkedCts.Token
-                | false ->
+            match linkedCts.IsCancellationRequested with
+            | true ->
+                $"{taskName} Canceled." |> Log.warning
+                return linkedCts.Token
+            | false ->
 
-                    match task.Handle with
-                    | None -> $"{taskName} Skipped." |> Log.trace
-                    | Some handle ->
-                        $"{taskName} Started." |> Log.trace
+                match task.Handle with
+                | None -> $"{taskName} Skipped." |> Log.trace
+                | Some handle ->
+                    $"{taskName} Started." |> Log.trace
 
-                        use cts = new CancellationTokenSource()
+                    use cts = new CancellationTokenSource()
 
-                        if task.Duration.IsSome then
-                            cts.CancelAfter task.Duration.Value
+                    if task.Duration.IsSome then
+                        cts.CancelAfter task.Duration.Value
 
-                        match! handle cts.Token with
-                        | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
-                        | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
+                    match! handle cts.Token with
+                    | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
+                    | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
 
-                    let completed = $"{taskName} Completed."
+                let completed = $"{taskName} Completed."
 
-                    match task.Schedule with
+                match task.Schedule with
+                | None -> completed |> Log.debug
+                | Some schedule ->
+                    match schedule.Delay with
                     | None -> completed |> Log.debug
-                    | Some schedule ->
-                        match schedule.Delay with
-                        | None -> completed |> Log.debug
-                        | Some delay ->
-                            $"%s{completed} Next task will be run in {delay}." |> Log.debug
-                            do! Async.Sleep delay
+                    | Some delay ->
+                        $"%s{completed} Next task will be run in {delay}." |> Log.debug
+                        do! Async.Sleep delay
 
-                    return linkedCts.Token
+                return linkedCts.Token
         }
 
 let private processGraph nodeName getNode =

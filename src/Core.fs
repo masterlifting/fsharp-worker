@@ -99,17 +99,15 @@ let rec private handleTask =
 
                     match! handle cts.Token with
                     | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
-                    | Ok msg -> $"{taskName} Success. %s{msg}" |> Log.success
-
-                let completed = $"{taskName} Completed."
+                    | Ok msg -> $"{taskName} Completed. %s{msg}" |> Log.success
 
                 match task.Schedule with
-                | None -> completed |> Log.debug
+                | None -> ()
                 | Some schedule ->
                     match schedule.Delay with
-                    | None -> completed |> Log.debug
+                    | None -> ()
                     | Some delay ->
-                        $"%s{completed} Next task will be run in {delay}." |> Log.debug
+                        $"{taskName} Next task will be run in {delay}." |> Log.debug
                         do! Async.Sleep delay
 
                 return linkedCts.Token

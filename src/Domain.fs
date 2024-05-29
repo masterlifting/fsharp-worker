@@ -12,7 +12,7 @@ module Persistence =
         member val Limit: int = 0 with get, set
         member val StartWork: Nullable<DateTime> = Nullable() with get, set
         member val StopWork: Nullable<DateTime> = Nullable() with get, set
-        member val WorkDays: string = String.Empty with get, set
+        member val Workdays: string = String.Empty with get, set
         member val TimeShift: byte = 0uy with get, set
 
     type Task() =
@@ -32,12 +32,19 @@ module Core =
     type Schedule =
         { StartWork: DateTime
           StopWork: DateTime option
-          WorkDays: DayOfWeek Set
+          Workdays: DayOfWeek Set
           Delay: TimeSpan option
           Limit: uint option
           TimeShift: byte }
 
-    type HandleTask = (CancellationToken -> Async<Result<string, AppError>>) option
+    type TaskResult =
+        | Data of Object
+        | Warn of string
+        | Debug of string
+        | Info of string
+        | Trace of string
+        
+    type HandleTask = (CancellationToken -> Async<Result<TaskResult, AppError>>) option
 
     type Task =
         { Name: string
@@ -49,6 +56,8 @@ module Core =
 
         interface INodeName with
             member this.Name = this.Name
+    
+
 
     type TaskHandler =
         { Name: string

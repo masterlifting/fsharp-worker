@@ -99,7 +99,15 @@ let rec private handleTask =
 
                     match! handle cts.Token with
                     | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
-                    | Ok msg -> $"{taskName} Completed. %s{msg}" |> Log.success
+                    | Ok result ->
+                        let message = $"{taskName} Completed. "
+
+                        match result with
+                        | Data msg -> $"{message}%A{msg}" |> Log.success
+                        | Warn msg -> $"{message}%s{msg}" |> Log.warning
+                        | Debug msg -> $"{message}%s{msg}" |> Log.debug
+                        | Info msg -> $"{message}%s{msg}" |> Log.info
+                        | Trace msg -> $"{message}%s{msg}" |> Log.trace
 
                 match task.Schedule with
                 | None -> ()
@@ -116,17 +124,19 @@ let rec private handleTask =
 let private processGraph nodeName getNode =
     handleNode nodeName getNode handleTask CancellationToken.None 0u
 
-let start rootName getNode =
+let start rootTaskName getTaskNode =
     async {
         try
-            match! processGraph rootName getNode |> Async.Catch with
-            | Choice1Of2 _ -> $"All tasks of the worker '%s{rootName}' were completed." |> Log.success
+            let workerName = $"Worker '%s{rootTaskName}'."
+
+            match! processGraph rootTaskName getTaskNode |> Async.Catch with
+            | Choice1Of2 _ -> $"{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with
                 | :? OperationCanceledException ->
-                    let message = $"Worker '%s{rootName}' was stopped."
+                    let message = $"{workerName} Canceled."
                     failwith message
-                | _ -> failwith $"Worker '%s{rootName}' failed: %s{ex.Message}"
+                | _ -> failwith $"{workerName} Failed: %s{ex.Message}"
         with ex ->
             ex.Message |> Log.error
     }

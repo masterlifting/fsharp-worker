@@ -2,7 +2,7 @@ module Worker.Mapper
 
 open System
 open Infrastructure
-open Infrastructure.DSL.AP
+open Infrastructure.DSL.ActivePatterns
 open Infrastructure.Domain.Graph
 open Infrastructure.DSL.Graph
 open Domain.Core

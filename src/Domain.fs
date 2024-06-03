@@ -44,7 +44,7 @@ module Core =
         | Info of string
         | Trace of string
         
-    type HandleTask = (CancellationToken -> Async<Result<TaskResult, AppError>>) option
+    type HandleTask = (CancellationToken -> Async<Result<TaskResult, ApiError>>) option
 
     type Task =
         { Name: string

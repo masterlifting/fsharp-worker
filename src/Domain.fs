@@ -56,8 +56,6 @@ module Core =
 
         interface INodeName with
             member this.Name = this.Name
-    
-
 
     type TaskHandler =
         { Name: string

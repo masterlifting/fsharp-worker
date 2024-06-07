@@ -4,7 +4,7 @@ open System
 open System.Threading
 open Infrastructure.Logging
 open Infrastructure.DSL.Threading
-open Domain.Core
+open Domain.Internal
 
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)

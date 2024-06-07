@@ -5,7 +5,7 @@ open Infrastructure
 open Infrastructure.DSL.ActivePatterns
 open Infrastructure.Domain.Graph
 open Infrastructure.DSL.Graph
-open Domain.Core
+open Domain.Internal
 
 let private defaultWorkdays =
     set
@@ -47,7 +47,7 @@ let private parseTimeSpan (value: string) =
 let private parseLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapSchedule (schedule: Domain.Persistence.Schedule) =
+let private mapSchedule (schedule: Domain.External.Schedule) =
     match schedule.IsEnabled with
     | false -> Ok None
     | true ->
@@ -65,7 +65,7 @@ let private mapSchedule (schedule: Domain.Persistence.Schedule) =
                       Limit = schedule.Limit |> parseLimit
                       TimeShift = schedule.TimeShift }))
 
-let private mapTask (task: Domain.Persistence.Task) (handle: HandleTask) =
+let private mapTask (task: Domain.External.Task) (handle: HandleTask) =
     task.Schedule
     |> mapSchedule
     |> Result.bind (fun schedule ->
@@ -79,13 +79,13 @@ let private mapTask (task: Domain.Persistence.Task) (handle: HandleTask) =
               Schedule = schedule
               Handle = handle }))
 
-let buildCoreGraph (task: Domain.Persistence.Task) handlersGraph =
+let buildCoreGraph (task: Domain.External.Task) handlersGraph =
     let getHandle nodeName graph =
         match findNode nodeName graph with
         | Some handler -> handler.Value.Handle
         | None -> None
 
-    let createNode nodeName (task: Domain.Persistence.Task) innerLoop =
+    let createNode nodeName (task: Domain.External.Task) innerLoop =
         let taskName = nodeName |> buildNodeName <| task.Name
 
         innerLoop (Some taskName) task.Steps
@@ -95,7 +95,7 @@ let buildCoreGraph (task: Domain.Persistence.Task) handlersGraph =
             mapTask task handle
             |> Result.map (fun task -> Node(task, steps)))
 
-    let rec innerLoop nodeName (tasks: Domain.Persistence.Task array) =
+    let rec innerLoop nodeName (tasks: Domain.External.Task array) =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []

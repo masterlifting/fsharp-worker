@@ -1,7 +1,7 @@
 module Worker.Core
 
 open System
-open Domain.Core
+open Domain.Internal
 open Infrastructure.DSL
 open Infrastructure.Logging
 open Infrastructure.DSL.Threading

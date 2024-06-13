@@ -41,7 +41,9 @@ let private toLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit
 
                 let delay = now.Date.AddDays(1.) - now
 
-                $"{message} for today. New limit will be available in {delay}." |> Log.warning
+                let formattedDelay = delay.ToString("dd\\d\\ hh\\h\\ mm\\m\\ ss\\s")
+
+                $"{message} for today. New limit will be available in {formattedDelay}." |> Log.warning
 
                 do! Async.Sleep delay
         | _ -> ()

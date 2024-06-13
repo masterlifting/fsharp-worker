@@ -103,7 +103,7 @@ let rec private handleTask =
                         let message = $"{taskName} Completed. "
 
                         match result with
-                        | Data msg -> $"{message}%A{msg}" |> Log.success
+                        | Success msg -> $"{message}%A{msg}" |> Log.success
                         | Warn msg -> $"{message}%s{msg}" |> Log.warning
                         | Debug msg -> $"{message}%s{msg}" |> Log.debug
                         | Info msg -> $"{message}%s{msg}" |> Log.info
@@ -124,12 +124,12 @@ let rec private handleTask =
 let private processGraph nodeName getNode =
     handleNode nodeName getNode handleTask CancellationToken.None 0u
 
-let start rootTaskName getTaskNode =
+let start rootName getTaskNode =
     async {
         try
-            let workerName = $"Worker '%s{rootTaskName}'."
+            let workerName = $"Worker '%s{rootName}'."
 
-            match! processGraph rootTaskName getTaskNode |> Async.Catch with
+            match! processGraph rootName getTaskNode |> Async.Catch with
             | Choice1Of2 _ -> $"{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with

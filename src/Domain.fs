@@ -16,7 +16,7 @@ module Internal =
           TimeShift: byte }
 
     type TaskResult =
-        | Data of Object
+        | Success of Object
         | Warn of string
         | Debug of string
         | Info of string

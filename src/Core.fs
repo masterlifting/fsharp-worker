@@ -1,14 +1,13 @@
 module Worker.Core
 
 open System
-open Domain.Internal
+open System.Threading
 open Infrastructure.Dsl
 open Infrastructure.Logging
 open Infrastructure.Dsl.Threading
 open Infrastructure.Domain.Graph
 open Infrastructure.Domain.Errors
-open Worker
-open System.Threading
+open Domain.Internal
 
 let rec private handleNode
     nodeName

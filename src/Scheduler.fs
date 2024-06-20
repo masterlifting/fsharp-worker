@@ -9,7 +9,7 @@ open Domain.Internal
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)
 
-let private toWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
+let private tryWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
     async {
         let now = now timeShift
 
@@ -21,13 +21,11 @@ let private toWorkday (cts: CancellationTokenSource) (task: Task) timeShift (wor
                 do! cts.CancelAsync() |> Async.AwaitTask
             else
                 let delay = now.Date.AddDays(1.) - now
-
                 $"{message} Will be started in {delay}." |> Log.warning
-
                 do! Async.Sleep delay
     }
 
-let private toLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit: uint option) count =
+let private tryLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit: uint option) count =
     async {
         match limit with
         | Some limit when count  % (limit + 1u) = 0u ->
@@ -38,18 +36,14 @@ let private toLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit
                 do! cts.CancelAsync() |> Async.AwaitTask
             else
                 let now = now timeShift
-
                 let delay = now.Date.AddDays(1.) - now
-
                 let formattedDelay = delay.ToString("dd\\d\\ hh\\h\\ mm\\m\\ ss\\s")
-
                 $"{message} for today. New limit will be available in {formattedDelay}." |> Log.warning
-
                 do! Async.Sleep delay
         | _ -> ()
     }
 
-let private toStopWork (cts: CancellationTokenSource) (task: Task) timeShift (stopWork: DateTime option) =
+let private tryStopWork (cts: CancellationTokenSource) (task: Task) timeShift (stopWork: DateTime option) =
     async {
         match stopWork with
         | Some stopWork ->
@@ -61,7 +55,7 @@ let private toStopWork (cts: CancellationTokenSource) (task: Task) timeShift (st
         | _ -> ()
     }
 
-let private toStartWork (task: Task) timeShift (startWork: DateTime) =
+let private tryStartWork (task: Task) timeShift (startWork: DateTime) =
     async {
         match startWork - now timeShift with
         | delay when delay > TimeSpan.Zero ->
@@ -75,16 +69,16 @@ let getExpirationToken task count (cts: CancellationTokenSource) =
         match task.Schedule with
         | None -> return cts.Token
         | Some schedule ->
-            do! toLimit cts task schedule.TimeShift schedule.Limit count
+            do! tryLimit cts task schedule.TimeShift schedule.Limit count
 
             if cts.Token |> notCanceled then
-                do! toStopWork cts task schedule.TimeShift schedule.StopWork
+                do! tryStopWork cts task schedule.TimeShift schedule.StopWork
 
             if cts.Token |> notCanceled then
-                do! toWorkday cts task schedule.TimeShift schedule.Workdays
+                do! tryWorkday cts task schedule.TimeShift schedule.Workdays
 
             if cts.Token |> notCanceled then
-                do! toStartWork task schedule.TimeShift schedule.StartWork
+                do! tryStartWork task schedule.TimeShift schedule.StartWork
 
             return cts.Token
     }

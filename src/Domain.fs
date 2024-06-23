@@ -6,6 +6,7 @@ open Infrastructure.Domain.Errors
 
 module Internal =
     open System.Threading
+    open Microsoft.Extensions.Configuration
 
     type Schedule =
         { StartWork: DateTime
@@ -22,7 +23,7 @@ module Internal =
         | Info of string
         | Trace of string
 
-    type HandleTask = (CancellationToken -> Async<Result<TaskResult, ApiError>>) option
+    type HandleTask = (IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, ApiError>>) option
 
     type Task =
         { Name: string

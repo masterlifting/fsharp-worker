@@ -11,7 +11,7 @@ open Domain.Internal
 
 let rec private handleNode
     nodeName
-    (getNode: string -> Async<Result<Node<Task>, InfrastructureError>>)
+    (getNode: string -> Async<Result<Node<Task>, ErrorType>>)
     handleNodeValue
     configuration
     cToken

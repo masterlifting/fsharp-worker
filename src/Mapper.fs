@@ -2,6 +2,7 @@ module Worker.Mapper
 
 open System
 open Infrastructure
+open Infrastructure.Domain.Errors
 open Infrastructure.Dsl.ActivePatterns
 open Infrastructure.Domain.Graph
 open Infrastructure.Dsl.Graph
@@ -31,7 +32,7 @@ let private parseWorkdays (workdays: string) =
                 | "fri" -> Ok DayOfWeek.Friday
                 | "sat" -> Ok DayOfWeek.Saturday
                 | "sun" -> Ok DayOfWeek.Sunday
-                | _ -> Error "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
+                | _ -> Error  <| Parsing "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
             |> Dsl.Seq.roe
             |> Result.map Set.ofList
     | _ -> Ok defaultWorkdays
@@ -41,7 +42,7 @@ let private parseTimeSpan (value: string) =
     | IsString str ->
         match str with
         | IsTimeSpan value -> Ok <| Some value
-        | _ -> Error "Time value is not valid. Expected format: 'dd.hh:mm:ss'."
+        | _ -> Error <| Parsing "Time value is not valid. Expected format: 'dd.hh:mm:ss'."
     | _ -> Ok None
 
 let private parseLimit (limit: int) =

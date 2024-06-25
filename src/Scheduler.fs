@@ -9,7 +9,7 @@ open Domain.Internal
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)
 
-let private tryWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
+let private checkWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
     async {
         let now = now timeShift
 
@@ -25,7 +25,7 @@ let private tryWorkday (cts: CancellationTokenSource) (task: Task) timeShift (wo
                 do! Async.Sleep delay
     }
 
-let private tryLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit: uint option) count =
+let private checkLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit: uint option) count =
     async {
         match limit with
         | Some limit when count  % (limit + 1u) = 0u ->
@@ -69,13 +69,13 @@ let getExpirationToken task count (cts: CancellationTokenSource) =
         match task.Schedule with
         | None -> return cts.Token
         | Some schedule ->
-            do! tryLimit cts task schedule.TimeShift schedule.Limit count
+            do! checkLimit cts task schedule.TimeShift schedule.Limit count
 
             if cts.Token |> notCanceled then
                 do! tryStopWork cts task schedule.TimeShift schedule.StopWork
 
             if cts.Token |> notCanceled then
-                do! tryWorkday cts task schedule.TimeShift schedule.Workdays
+                do! checkWorkday cts task schedule.TimeShift schedule.Workdays
 
             if cts.Token |> notCanceled then
                 do! tryStartWork task schedule.TimeShift schedule.StartWork

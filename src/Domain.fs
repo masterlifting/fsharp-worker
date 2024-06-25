@@ -23,7 +23,7 @@ module Internal =
         | Info of string
         | Trace of string
 
-    type HandleTask = (IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, ErrorType>>) option
+    type HandleTask = (IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>) option
 
     type Task =
         { Name: string

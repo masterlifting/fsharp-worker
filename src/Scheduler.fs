@@ -9,16 +9,6 @@ open Domain.Internal
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)
 
-let private setTaskDurationCts (duration: TimeSpan option) =
-    match duration with
-    | Some duration -> new CancellationTokenSource(duration) |> Some
-    | _ -> None
-
-let private setTaskDelayCts (delay: TimeSpan option) =
-    match delay with
-    | Some delay -> new CancellationTokenSource(delay) |> Some
-    | _ -> None
-
 let private checkWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
     async {
         let now = now timeShift
@@ -77,18 +67,11 @@ let private tryStartWork (task: Task) timeShift (startWork: DateTime) =
         | _ -> ()
     }
 
-let getExpirationToken task count =
+let getExpirationToken task count (cts: CancellationTokenSource) =
     async {
         match task.Schedule with
-        | None ->
-            match setTaskDurationCts task.Duration with
-            | None ->
-                use cts = new CancellationTokenSource()
-                return cts.Token
-            | Some durationCts -> return durationCts.Token
+        | None -> return cts.Token
         | Some schedule ->
-
-            use cts = new CancellationTokenSource()
 
             do! checkLimit cts task schedule.TimeShift schedule.Limit count
 
@@ -101,16 +84,5 @@ let getExpirationToken task count =
             if cts.Token |> notCanceled then
                 do! tryStartWork task schedule.TimeShift schedule.StartWork
 
-            use linkedCts =
-                match setTaskDelayCts schedule.Delay, setTaskDurationCts task.Duration with
-                | Some taskDelayCts, Some taskDurationCts ->
-                    CancellationTokenSource.CreateLinkedTokenSource(taskDelayCts.Token, taskDurationCts.Token)
-                | Some taskDelayCts, _ -> taskDelayCts
-                | _, Some taskDurationCts -> taskDurationCts
-                | _ -> cts
-
-            use resultCts =
-                CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, cts.Token)
-
-            return resultCts.Token
+            return cts.Token
     }

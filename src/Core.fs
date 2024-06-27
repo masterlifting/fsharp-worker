@@ -2,6 +2,7 @@ module Worker.Core
 
 open System
 open System.Threading
+open Microsoft.Extensions.Configuration
 open Infrastructure.Dsl
 open Infrastructure.Logging
 open Infrastructure.Dsl.Threading
@@ -69,38 +70,48 @@ and handleNodes nodeName nodes getNode handleNodeValue configuration cToken =
             do! handleNodes nodeName (nodes |> List.skip skipLength) getNode handleNodeValue configuration cToken
     }
 
+let private fireAndForget taskName (duration: TimeSpan option) configuration (handle: IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>)  =
+    async {
+        $"{taskName} Started." |> Log.trace
+        
+        use cts = 
+            match duration with
+            | Some duration -> new CancellationTokenSource(duration)
+            | None -> new CancellationTokenSource()
+
+        match! handle configuration cts.Token with
+        | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
+        | Ok result ->
+            let message = $"{taskName} Completed. "
+
+            match result with
+            | Success msg -> $"{message}%A{msg}" |> Log.success
+            | Warn msg -> $"{message}%s{msg}" |> Log.warning
+            | Debug msg -> $"{message}%s{msg}" |> Log.debug
+            | Info msg -> $"{message}%s{msg}" |> Log.info
+            | Trace msg -> $"{message}%s{msg}" |> Log.trace
+    } |> Async.Start
+
 let rec private handleTask configuration =
     fun (task: Task) parentToken count ->
         async {
+            use cts = new CancellationTokenSource()
 
-            let! taskToken = Scheduler.getExpirationToken task count
+            let! taskToken = Scheduler.getExpirationToken task count cts
 
-            use cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
+            use linkedCts = CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
             let taskName = $"Task '%s{task.Name}'."
 
-            match cts.IsCancellationRequested with
+            match linkedCts.IsCancellationRequested with
             | true ->
                 $"{taskName} Canceled." |> Log.warning
-                return cts.Token
+                return linkedCts.Token
             | false ->
 
                 match task.Handle with
                 | None -> $"{taskName} Skipped." |> Log.trace
-                | Some handle ->
-                    $"{taskName} Started." |> Log.trace
-
-                    match! handle configuration cts.Token with
-                    | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
-                    | Ok result ->
-                        let message = $"{taskName} Completed. "
-
-                        match result with
-                        | Success msg -> $"{message}%A{msg}" |> Log.success
-                        | Warn msg -> $"{message}%s{msg}" |> Log.warning
-                        | Debug msg -> $"{message}%s{msg}" |> Log.debug
-                        | Info msg -> $"{message}%s{msg}" |> Log.info
-                        | Trace msg -> $"{message}%s{msg}" |> Log.trace
+                | Some handle -> handle |> fireAndForget taskName task.Duration configuration
 
                 match task.Schedule with
                 | None -> ()
@@ -111,7 +122,7 @@ let rec private handleTask configuration =
                         $"{taskName} Next task will be run in {delay}." |> Log.debug
                         do! Async.Sleep delay
 
-                return cts.Token
+                return linkedCts.Token
         }
 
 let private processGraph nodeName getNode configuration =

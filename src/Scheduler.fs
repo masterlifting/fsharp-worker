@@ -9,6 +9,16 @@ open Domain.Internal
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)
 
+let private setTaskDurationCts (duration: TimeSpan option) =
+    match duration with
+    | Some duration -> new CancellationTokenSource(duration) |> Some
+    | _ -> None
+
+let private setTaskDelayCts (delay: TimeSpan option) =
+    match delay with
+    | Some delay -> new CancellationTokenSource(delay) |> Some
+    | _ -> None
+
 let private checkWorkday (cts: CancellationTokenSource) (task: Task) timeShift (workdays: Set<DayOfWeek>) =
     async {
         let now = now timeShift
@@ -28,7 +38,7 @@ let private checkWorkday (cts: CancellationTokenSource) (task: Task) timeShift (
 let private checkLimit (cts: CancellationTokenSource) (task: Task) timeShift (limit: uint option) count =
     async {
         match limit with
-        | Some limit when count  % (limit + 1u) = 0u ->
+        | Some limit when count % (limit + 1u) = 0u ->
             let message = $"Task '%s{task.Name}'. Limit {limit} reached"
 
             if not task.Recursively then
@@ -38,7 +48,10 @@ let private checkLimit (cts: CancellationTokenSource) (task: Task) timeShift (li
                 let now = now timeShift
                 let delay = now.Date.AddDays(1.) - now
                 let formattedDelay = delay.ToString("dd\\d\\ hh\\h\\ mm\\m\\ ss\\s")
-                $"{message} for today. New limit will be available in {formattedDelay}." |> Log.warning
+
+                $"{message} for today. New limit will be available in {formattedDelay}."
+                |> Log.warning
+
                 do! Async.Sleep delay
         | _ -> ()
     }
@@ -64,11 +77,19 @@ let private tryStartWork (task: Task) timeShift (startWork: DateTime) =
         | _ -> ()
     }
 
-let getExpirationToken task count (cts: CancellationTokenSource) =
+let getExpirationToken task count =
     async {
         match task.Schedule with
-        | None -> return cts.Token
+        | None ->
+            match setTaskDurationCts task.Duration with
+            | None ->
+                use cts = new CancellationTokenSource()
+                return cts.Token
+            | Some durationCts -> return durationCts.Token
         | Some schedule ->
+
+            use cts = new CancellationTokenSource()
+
             do! checkLimit cts task schedule.TimeShift schedule.Limit count
 
             if cts.Token |> notCanceled then
@@ -80,5 +101,16 @@ let getExpirationToken task count (cts: CancellationTokenSource) =
             if cts.Token |> notCanceled then
                 do! tryStartWork task schedule.TimeShift schedule.StartWork
 
-            return cts.Token
+            use linkedCts =
+                match setTaskDelayCts schedule.Delay, setTaskDurationCts task.Duration with
+                | Some taskDelayCts, Some taskDurationCts ->
+                    CancellationTokenSource.CreateLinkedTokenSource(taskDelayCts.Token, taskDurationCts.Token)
+                | Some taskDelayCts, _ -> taskDelayCts
+                | _, Some taskDurationCts -> taskDurationCts
+                | _ -> cts
+
+            use resultCts =
+                CancellationTokenSource.CreateLinkedTokenSource(linkedCts.Token, cts.Token)
+
+            return resultCts.Token
     }

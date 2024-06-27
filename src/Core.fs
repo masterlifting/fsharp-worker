@@ -72,30 +72,23 @@ and handleNodes nodeName nodes getNode handleNodeValue configuration cToken =
 let rec private handleTask configuration =
     fun (task: Task) parentToken count ->
         async {
+
+            let! taskToken = Scheduler.getExpirationToken task count
+
+            use cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
+
             let taskName = $"Task '%s{task.Name}'."
 
-            use cts = new CancellationTokenSource()
-
-            let! taskToken = Scheduler.getExpirationToken task count cts
-
-            use linkedCts =
-                CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
-
-            match linkedCts.IsCancellationRequested with
+            match cts.IsCancellationRequested with
             | true ->
                 $"{taskName} Canceled." |> Log.warning
-                return linkedCts.Token
+                return cts.Token
             | false ->
 
                 match task.Handle with
                 | None -> $"{taskName} Skipped." |> Log.trace
                 | Some handle ->
                     $"{taskName} Started." |> Log.trace
-
-                    use cts = new CancellationTokenSource()
-
-                    if task.Duration.IsSome then
-                        cts.CancelAfter task.Duration.Value
 
                     match! handle configuration cts.Token with
                     | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
@@ -118,7 +111,7 @@ let rec private handleTask configuration =
                         $"{taskName} Next task will be run in {delay}." |> Log.debug
                         do! Async.Sleep delay
 
-                return linkedCts.Token
+                return cts.Token
         }
 
 let private processGraph nodeName getNode configuration =
@@ -129,7 +122,7 @@ let start rootName getTaskNode configuration =
         try
             let workerName = $"Worker '%s{rootName}'."
 
-            match!  configuration |> processGraph rootName getTaskNode |> Async.Catch with
+            match! configuration |> processGraph rootName getTaskNode |> Async.Catch with
             | Choice1Of2 _ -> $"{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with

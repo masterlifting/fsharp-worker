@@ -32,7 +32,9 @@ let private parseWorkdays (workdays: string) =
                 | "fri" -> Ok DayOfWeek.Friday
                 | "sat" -> Ok DayOfWeek.Saturday
                 | "sun" -> Ok DayOfWeek.Sunday
-                | _ -> Error  <| Parsing "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
+                | _ ->
+                    Error
+                    <| Parsing "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
             |> Dsl.Seq.roe
             |> Result.map Set.ofList
     | _ -> Ok defaultWorkdays
@@ -81,28 +83,22 @@ let private mapTask (task: Domain.External.Task) (handle: HandleTask) =
               Handle = handle }))
 
 let buildCoreGraph (task: Domain.External.Task) handlersGraph =
-    let getHandle nodeName graph =
-        match findNode nodeName graph with
-        | Some handler -> handler.Value.Handle
-        | None -> None
+    let getHandleFun nodeName graph =
+        graph |> findNode nodeName |> Option.bind (_.Value.Handle)
 
-    let createNode nodeName (task: Domain.External.Task) innerLoop =
+    let createNode innerLoop nodeName (task: Domain.External.Task) =
         let taskName = nodeName |> buildNodeName <| task.Name
 
         innerLoop (Some taskName) task.Steps
         |> Result.bind (fun steps ->
-            let handle = getHandle taskName handlersGraph
+            let handle = handlersGraph |> getHandleFun taskName
 
-            mapTask task handle
-            |> Result.map (fun task -> Node(task, steps)))
+            mapTask task handle |> Result.map (fun task -> Node(task, steps)))
 
     let rec innerLoop nodeName (tasks: Domain.External.Task array) =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ ->
-            tasks
-            |> Array.map (fun task -> createNode nodeName task innerLoop)
-            |> Dsl.Seq.roe
+        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> Dsl.Seq.roe
 
-    createNode None task innerLoop
+    task |> createNode innerLoop None

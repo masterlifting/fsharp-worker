@@ -15,7 +15,7 @@ let rec private handleNode
     (getNode: string -> Async<Result<Node<Task>, Error'>>)
     handleNodeValue
     configuration
-    cToken
+    ct
     count
     =
     async {
@@ -26,14 +26,14 @@ let rec private handleNode
         | Ok node ->
             let nodeValue = { node.Value with Name = nodeName }
 
-            let! cToken = handleNodeValue configuration nodeValue cToken count
-            do! handleNodes nodeName node.Children getNode handleNodeValue configuration cToken
+            let! ct = handleNodeValue configuration nodeValue ct count
+            do! handleNodes nodeName node.Children getNode handleNodeValue configuration ct
 
-            if nodeValue.Recursively && cToken |> notCanceled then
-                do! handleNode nodeName getNode handleNodeValue configuration cToken count
+            if nodeValue.Recursively && ct |> notCanceled then
+                do! handleNode nodeName getNode handleNodeValue configuration ct count
     }
 
-and handleNodes nodeName nodes getNode handleNodeValue configuration cToken =
+and handleNodes nodeName nodes getNode handleNodeValue configuration ct =
     async {
         if nodes.Length > 0 then
             let nodeHandlers, skipLength =
@@ -44,13 +44,13 @@ and handleNodes nodeName nodes getNode handleNodeValue configuration cToken =
                 | parallelNodes when parallelNodes.Length < 2 ->
 
                     let sequentialNodes =
-                        nodes |> List.skip 1 |> List.takeWhile (fun node -> not node.Value.Parallel)
+                        nodes |> List.skip 1 |> List.takeWhile (_.Value.Parallel >> not)
 
                     let tasks =
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            handleNode nodeName getNode handleNodeValue configuration cToken 0u)
+                            handleNode nodeName getNode handleNodeValue configuration ct 0u)
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -61,13 +61,13 @@ and handleNodes nodeName nodes getNode handleNodeValue configuration cToken =
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            handleNode nodeName getNode handleNodeValue configuration cToken 0u)
+                            handleNode nodeName getNode handleNodeValue configuration ct 0u)
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
-            do! handleNodes nodeName (nodes |> List.skip skipLength) getNode handleNodeValue configuration cToken
+            do! handleNodes nodeName (nodes |> List.skip skipLength) getNode handleNodeValue configuration ct
     }
 
 let private fireAndForget taskName (duration: TimeSpan option) configuration (handle: IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>)  =

@@ -3,9 +3,9 @@ module Worker.Mapper
 open System
 open Infrastructure
 open Infrastructure.Domain.Errors
-open Infrastructure.Dsl.ActivePatterns
+open Infrastructure.DSL.AP
 open Infrastructure.Domain.Graph
-open Infrastructure.Dsl.Graph
+open Infrastructure.DSL.Graph
 open Domain.Internal
 
 let private defaultWorkdays =
@@ -35,7 +35,7 @@ let private parseWorkdays (workdays: string) =
                 | _ ->
                     Error
                     <| Parsing "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
-            |> Dsl.Seq.roe
+            |> DSL.Seq.roe
             |> Result.map Set.ofList
     | _ -> Ok defaultWorkdays
 
@@ -99,6 +99,6 @@ let buildCoreGraph (task: Domain.External.Task) handlersGraph =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> Dsl.Seq.roe
+        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> DSL.Seq.roe
 
     task |> createNode innerLoop None

@@ -3,7 +3,7 @@ module internal Worker.Scheduler
 open System
 open System.Threading
 open Infrastructure.Logging
-open Infrastructure.Dsl.Threading
+open Infrastructure.DSL.Threading
 open Domain.Internal
 
 let private now timeShift =

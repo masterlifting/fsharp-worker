@@ -3,9 +3,9 @@ module Worker.Core
 open System
 open System.Threading
 open Microsoft.Extensions.Configuration
-open Infrastructure.Dsl
+open Infrastructure.DSL
 open Infrastructure.Logging
-open Infrastructure.Dsl.Threading
+open Infrastructure.DSL.Threading
 open Infrastructure.Domain.Graph
 open Infrastructure.Domain.Errors
 open Domain.Internal

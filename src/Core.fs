@@ -80,7 +80,7 @@ let private fireAndForget taskName (duration: TimeSpan option) configuration (ha
             | None -> new CancellationTokenSource()
 
         match! handle configuration cts.Token with
-        | Error error -> $"{taskName} Failed: %s{error.Message}" |> Log.error
+        | Error error -> $"{taskName} Failed. %s{error.Message}" |> Log.error
         | Ok result ->
             let message = $"{taskName} Completed. "
 

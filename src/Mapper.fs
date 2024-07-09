@@ -3,9 +3,9 @@ module Worker.Mapper
 open System
 open Infrastructure
 open Infrastructure.Domain.Errors
+open Infrastructure.DSL
 open Infrastructure.DSL.AP
 open Infrastructure.Domain.Graph
-open Infrastructure.DSL.Graph
 open Domain.Internal
 
 let private defaultWorkdays =
@@ -84,10 +84,10 @@ let private mapTask (task: Domain.External.Task) (handle: HandleTask) =
 
 let buildCoreGraph (task: Domain.External.Task) handlersGraph =
     let getHandleFun nodeName graph =
-        graph |> findNode nodeName |> Option.bind (_.Value.Handle)
+        graph |> Graph.findNode nodeName |> Option.bind (_.Value.Handle)
 
     let createNode innerLoop nodeName (task: Domain.External.Task) =
-        let taskName = nodeName |> buildNodeName <| task.Name
+        let taskName = nodeName |> Graph.buildNodeName <| task.Name
 
         innerLoop (Some taskName) task.Steps
         |> Result.bind (fun steps ->

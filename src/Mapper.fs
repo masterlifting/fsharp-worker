@@ -34,7 +34,7 @@ let private parseWorkdays (workdays: string) =
                 | "sun" -> Ok DayOfWeek.Sunday
                 | _ ->
                     Error
-                    <| Parsing "Workday is not valid. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
+                    <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
             |> DSL.Seq.roe
             |> Result.map Set.ofList
     | _ -> Ok defaultWorkdays
@@ -44,7 +44,7 @@ let private parseTimeSpan (value: string) =
     | IsString str ->
         match str with
         | IsTimeSpan value -> Ok <| Some value
-        | _ -> Error <| Parsing "Time value is not valid. Expected format: 'dd.hh:mm:ss'."
+        | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
     | _ -> Ok None
 
 let private parseLimit (limit: int) =

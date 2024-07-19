@@ -35,7 +35,7 @@ let private parseWorkdays (workdays: string) =
                 | _ ->
                     Error
                     <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
-            |> DSL.Seq.roe
+            |> Seq.roe
             |> Result.map Set.ofList
     | _ -> Ok defaultWorkdays
 
@@ -99,6 +99,6 @@ let buildCoreGraph (task: Domain.External.Task) handlersGraph =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> DSL.Seq.roe
+        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> Seq.roe
 
     task |> createNode innerLoop None

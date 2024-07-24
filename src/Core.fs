@@ -85,7 +85,7 @@ let private fireAndForget taskName (duration: TimeSpan option) configuration (ha
             let message = $"{taskName} Completed. "
 
             match result with
-            | Success msg -> $"{message}%A{msg}" |> Log.success
+            | Success result -> $"{message}%A{result}" |> Log.success
             | Warn msg -> $"{message}%s{msg}" |> Log.warning
             | Debug msg -> $"{message}%s{msg}" |> Log.debug
             | Info msg -> $"{message}%s{msg}" |> Log.info

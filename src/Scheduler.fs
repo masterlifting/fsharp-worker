@@ -2,9 +2,8 @@ module internal Worker.Scheduler
 
 open System
 open System.Threading
-open Infrastructure.Logging
-open Infrastructure.DSL.Threading
-open Domain.Internal
+open Infrastructure
+open Worker.Domain.Internal
 
 let private now timeShift =
     DateTime.UtcNow.AddHours(timeShift |> float)

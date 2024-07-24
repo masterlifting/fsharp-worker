@@ -1,12 +1,10 @@
-module Worker.Mapper
+[<RequireQualifiedAccess>]
+module Worker.Graph
 
 open System
 open Infrastructure
-open Infrastructure.Domain.Errors
-open Infrastructure.DSL
-open Infrastructure.DSL.AP
 open Infrastructure.Domain.Graph
-open Domain.Internal
+open Worker.Domain.Internal
 
 let private defaultWorkdays =
     set
@@ -20,7 +18,7 @@ let private defaultWorkdays =
 
 let private parseWorkdays (workdays: string) =
     match workdays with
-    | IsString str ->
+    | AP.IsString str ->
         match str.Split(",") with
         | data ->
             data
@@ -41,9 +39,9 @@ let private parseWorkdays (workdays: string) =
 
 let private parseTimeSpan (value: string) =
     match value with
-    | IsString str ->
+    | AP.IsString str ->
         match str with
-        | IsTimeSpan value -> Ok <| Some value
+        | AP.IsTimeSpan value -> Ok <| Some value
         | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
     | _ -> Ok None
 
@@ -82,8 +80,8 @@ let private mapTask (task: Domain.External.Task) (handle: HandleTask) =
               Schedule = schedule
               Handle = handle }))
 
-let buildCoreGraph (task: Domain.External.Task) handlersGraph =
-    let getHandleFun nodeName graph =
+let build (task: Domain.External.Task) handlersGraph =
+    let getHandle nodeName graph =
         graph |> Graph.findNode nodeName |> Option.bind (_.Value.Handle)
 
     let createNode innerLoop nodeName (task: Domain.External.Task) =
@@ -91,7 +89,7 @@ let buildCoreGraph (task: Domain.External.Task) handlersGraph =
 
         innerLoop (Some taskName) task.Steps
         |> Result.bind (fun steps ->
-            let handle = handlersGraph |> getHandleFun taskName
+            let handle = handlersGraph |> getHandle taskName
 
             mapTask task handle |> Result.map (fun task -> Node(task, steps)))
 

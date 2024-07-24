@@ -3,12 +3,9 @@ module Worker.Core
 open System
 open System.Threading
 open Microsoft.Extensions.Configuration
-open Infrastructure.DSL
-open Infrastructure.Logging
-open Infrastructure.DSL.Threading
+open Infrastructure
 open Infrastructure.Domain.Graph
-open Infrastructure.Domain.Errors
-open Domain.Internal
+open Worker.Domain.Internal
 
 let rec private handleNode
     nodeName

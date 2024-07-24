@@ -1,8 +1,8 @@
 module Worker.Domain
 
 open System
+open Infrastructure
 open Infrastructure.Domain.Graph
-open Infrastructure.Domain.Errors
 
 module Internal =
     open System.Threading

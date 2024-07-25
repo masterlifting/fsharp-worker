@@ -23,7 +23,7 @@ module Internal =
         | Info of string
         | Trace of string
 
-    type HandleTask = (IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>) option
+    type HandleTask = IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>
 
     type Task =
         { Name: string
@@ -31,17 +31,34 @@ module Internal =
           Recursively: bool
           Duration: TimeSpan option
           Schedule: Schedule option
-          Handle: HandleTask }
+          Handle: HandleTask option}
 
         interface INodeName with
             member this.Name = this.Name
 
     type TaskHandler =
         { Name: string
-          Handle: HandleTask }
+          Handle: HandleTask option}
 
         interface INodeName with
             member this.Name = this.Name
+
+    type GetTask =
+        string -> Async<Result<Node<Task>, Error'>>
+
+    type WorkerDeps =
+        { getTask: GetTask
+          Configuration: IConfigurationRoot }
+    
+    type HandleNodeDeps =
+        { TaskName: string
+          getTask: GetTask
+          handleTask: uint -> CancellationToken -> Task -> Async<CancellationToken>}
+
+    type internal FireAndForgetDeps =
+        { Configuration: IConfigurationRoot
+          Duration: TimeSpan option
+          handleTask: HandleTask }
 
 module External =
 

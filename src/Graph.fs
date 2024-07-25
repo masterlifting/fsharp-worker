@@ -66,7 +66,7 @@ let private mapSchedule (schedule: Domain.External.Schedule) =
                       Limit = schedule.Limit |> parseLimit
                       TimeShift = schedule.TimeShift }))
 
-let private mapTask (task: Domain.External.Task) (handle: HandleTask) =
+let private mapTask (task: Domain.External.Task) (handle: HandleTask option) =
     task.Schedule
     |> mapSchedule
     |> Result.bind (fun schedule ->

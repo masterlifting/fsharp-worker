@@ -3,8 +3,7 @@ module Worker.Graph
 
 open System
 open Infrastructure
-open Infrastructure.Domain.Graph
-open Worker.Domain.Internal
+open Worker.Domain
 
 let private defaultWorkdays =
     set
@@ -91,7 +90,7 @@ let build (task: Domain.External.Task) handlersGraph =
         |> Result.bind (fun steps ->
             let handle = handlersGraph |> getHandle taskName
 
-            mapTask task handle |> Result.map (fun task -> Node(task, steps)))
+            mapTask task handle |> Result.map (fun task -> Graph.Node(task, steps)))
 
     let rec innerLoop nodeName (tasks: Domain.External.Task array) =
         match tasks with

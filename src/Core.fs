@@ -4,7 +4,7 @@ open System
 open System.Threading
 open Infrastructure
 open Infrastructure.Logging
-open Worker.Domain.Internal
+open Worker.Domain
 
 let rec private handleNode count ct (deps: HandleNodeDeps)=
     async {

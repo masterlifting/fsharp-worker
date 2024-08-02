@@ -47,7 +47,7 @@ let private parseTimeSpan (value: string) =
 let private parseLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapSchedule (schedule: Domain.External.Schedule) =
+let private mapSchedule (schedule: External.Schedule) =
     match schedule.IsEnabled with
     | false -> Ok None
     | true ->
@@ -65,7 +65,7 @@ let private mapSchedule (schedule: Domain.External.Schedule) =
                       Limit = schedule.Limit |> parseLimit
                       TimeShift = schedule.TimeShift }))
 
-let private mapTask (task: Domain.External.Task) (handle: HandleTask option) =
+let private mapTask (task: External.Task) (handle: HandleTask option) =
     task.Schedule
     |> mapSchedule
     |> Result.bind (fun schedule ->
@@ -79,11 +79,11 @@ let private mapTask (task: Domain.External.Task) (handle: HandleTask option) =
               Schedule = schedule
               Handle = handle }))
 
-let build (task: Domain.External.Task) handlersGraph =
+let build (task: External.Task) handlersGraph =
     let getHandle nodeName graph =
         graph |> Graph.findNode nodeName |> Option.bind (_.Value.Handle)
 
-    let createNode innerLoop nodeName (task: Domain.External.Task) =
+    let createNode innerLoop nodeName (task: External.Task) =
         let taskName = nodeName |> Graph.buildNodeName <| task.Name
 
         innerLoop (Some taskName) task.Steps
@@ -92,7 +92,7 @@ let build (task: Domain.External.Task) handlersGraph =
 
             mapTask task handle |> Result.map (fun task -> Graph.Node(task, steps)))
 
-    let rec innerLoop nodeName (tasks: Domain.External.Task array) =
+    let rec innerLoop nodeName (tasks: External.Task array) =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []

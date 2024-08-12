@@ -11,7 +11,7 @@ type Schedule =
       Workdays: DayOfWeek Set
       Delay: TimeSpan option
       Limit: uint option
-      TimeShift: byte }
+      TimeShift: int8 }
 
 type TaskResult =
     | Success of Object
@@ -20,7 +20,7 @@ type TaskResult =
     | Info of string
     | Trace of string
 
-type HandleTask = IConfigurationRoot -> CancellationToken -> Async<Result<TaskResult, Error'>>
+type HandleTask = (IConfigurationRoot * Schedule option * CancellationToken) -> Async<Result<TaskResult, Error'>>
 
 type Task =
     { Name: string
@@ -54,6 +54,7 @@ type HandleNodeDeps =
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot
       Duration: TimeSpan option
+      Schedule: Schedule option
       handleTask: HandleTask }
 
 module External =
@@ -65,7 +66,7 @@ module External =
         member val StartWork: Nullable<DateTime> = Nullable() with get, set
         member val StopWork: Nullable<DateTime> = Nullable() with get, set
         member val Workdays: string = String.Empty with get, set
-        member val TimeShift: byte = 0uy with get, set
+        member val TimeShift: int8 = 0y with get, set
 
     type Task() =
         member val Name: string = String.Empty with get, set

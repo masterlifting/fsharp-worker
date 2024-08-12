@@ -67,7 +67,7 @@ let private tryStartWork (task: Task) timeShift (startWork: DateTime) =
         | _ -> ()
     }
 
-let getExpirationToken task count (cts: CancellationTokenSource) =
+let getExpirationToken (task: Task) count (cts: CancellationTokenSource) =
     async {
         match task.Schedule with
         | None -> return cts.Token

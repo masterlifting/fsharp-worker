@@ -79,7 +79,7 @@ let private mapTask (task: External.Task) (handle: HandleTask option) =
               Schedule = schedule
               Handle = handle }))
 
-let build (task: External.Task) handlersGraph =
+let build (task: External.Task) taskHandlers =
     let getHandle nodeName graph =
         graph |> Graph.findNode nodeName |> Option.bind (_.Value.Handle)
 
@@ -88,7 +88,7 @@ let build (task: External.Task) handlersGraph =
 
         innerLoop (Some taskName) task.Steps
         |> Result.bind (fun steps ->
-            let handle = handlersGraph |> getHandle taskName
+            let handle = taskHandlers |> getHandle taskName
 
             mapTask task handle |> Result.map (fun task -> Graph.Node(task, steps)))
 

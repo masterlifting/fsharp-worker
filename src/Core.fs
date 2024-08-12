@@ -73,7 +73,7 @@ let private fireAndForget deps taskName  =
             | Some duration -> new CancellationTokenSource(duration)
             | None -> new CancellationTokenSource()
 
-        match! deps.handleTask deps.Configuration cts.Token with
+        match! deps.handleTask (deps.Configuration, deps.Schedule,cts.Token) with
         | Error error -> $"{taskName} Failed. %s{error.Message}" |> Log.error
         | Ok result ->
             let message = $"{taskName} Completed. "
@@ -110,6 +110,7 @@ let rec private handleTask configuration =
                     |> fireAndForget 
                         { Configuration = configuration
                           Duration = task.Duration
+                          Schedule = task.Schedule
                           handleTask = handle}
 
                 match task.Schedule with

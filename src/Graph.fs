@@ -65,7 +65,7 @@ let private mapSchedule (schedule: External.Schedule) =
                       Limit = schedule.Limit |> parseLimit
                       TimeShift = schedule.TimeShift }))
 
-let private mapTask (task: External.Task) (handle: HandleTask option) =
+let private mapTask (task: External.TaskGraph) handler =
     task.Schedule
     |> mapSchedule
     |> Result.bind (fun schedule ->
@@ -77,25 +77,25 @@ let private mapTask (task: External.Task) (handle: HandleTask option) =
               Recursively = task.Recursively
               Duration = duration
               Schedule = schedule
-              Handle = handle }))
+              Handler = handler }))
 
-let build (task: External.Task) taskHandlers =
-    let getHandle nodeName graph =
-        graph |> Graph.findNode nodeName |> Option.bind (_.Value.Handle)
+let create rootNode graph =
+    let getTaskHandler nodeName node =
+        node |> Graph.findNode nodeName |> Option.bind (_.Value.Task)
 
-    let createNode innerLoop nodeName (task: External.Task) =
-        let taskName = nodeName |> Graph.buildNodeName <| task.Name
+    let createNode nodeName innerLoop (taskGraph: External.TaskGraph) =
+        let taskName = nodeName |> Graph.buildNodeName <| taskGraph.Name
 
-        innerLoop (Some taskName) task.Steps
+        innerLoop (Some taskName) taskGraph.Steps
         |> Result.bind (fun steps ->
-            let handle = taskHandlers |> getHandle taskName
+            let handler = rootNode |> getTaskHandler taskName
 
-            mapTask task handle |> Result.map (fun task -> Graph.Node(task, steps)))
+            mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, steps)))
 
-    let rec innerLoop nodeName (tasks: External.Task array) =
+    let rec innerLoop name tasks =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> tasks |> Array.map (createNode innerLoop nodeName) |> Seq.roe
+        | _ -> tasks |> Array.map (createNode name innerLoop) |> Seq.roe
 
-    task |> createNode innerLoop None
+    graph |> createNode None innerLoop

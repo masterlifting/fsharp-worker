@@ -9,14 +9,14 @@ open Worker.Domain
 let rec private handleNode count ct (deps: HandleNodeDeps)=
     async {
         let count = count + uint 1
-        let taskName = deps.TaskName
+        let nodeName = deps.NodeName
 
-        match! deps.getTask taskName with
-        | Error error -> $"Task '%s{taskName}'. Failed: %s{error.Message}" |> Log.error
+        match! deps.getNode nodeName with
+        | Error error -> $"Task '%s{nodeName}'. Failed: %s{error.Message}" |> Log.error
         | Ok node ->
-            let task = { node.Value with Name = taskName }
+            let task = { node.Value with Name = nodeName }
 
-            let! ct = task |> deps.handleTask count ct
+            let! ct = task |> deps.handleNode count ct
             do! node.Children |> handleNodes deps ct
 
             if task.Recursively && ct |> notCanceled then
@@ -27,7 +27,7 @@ and handleNodes deps ct nodes=
     async {
         if nodes.Length > 0 then
             
-            let nodeName = deps.TaskName
+            let nodeName = deps.NodeName
             
             let nodeHandlers, skipLength =
 
@@ -43,7 +43,7 @@ and handleNodes deps ct nodes=
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with TaskName = nodeName } |> handleNode 0u ct)
+                            { deps with NodeName = nodeName } |> handleNode 0u ct)
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -54,7 +54,7 @@ and handleNodes deps ct nodes=
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with TaskName = nodeName } |> handleNode 0u ct)
+                            { deps with NodeName = nodeName } |> handleNode 0u ct)
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
@@ -66,14 +66,16 @@ and handleNodes deps ct nodes=
 
 let private fireAndForget deps taskName  =
     async {
-        $"{taskName} Started." |> Log.trace
+        $"%s{taskName} Started." |> Log.trace
         
         use cts = 
             match deps.Duration with
             | Some duration -> new CancellationTokenSource(duration)
             | None -> new CancellationTokenSource()
+            
+        let run() = deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
 
-        match! deps.handleTask (deps.Configuration, deps.Schedule,cts.Token) with
+        match! run() with
         | Error error -> $"{taskName} Failed. %s{error.Message}" |> Log.error
         | Ok result ->
             let message = $"{taskName} Completed. "
@@ -103,15 +105,15 @@ let rec private handleTask configuration =
                 return linkedCts.Token
             | false ->
 
-                match task.Handle with
+                match task.Handler with
                 | None -> $"{taskName} Skipped." |> Log.trace
-                | Some handle -> 
+                | Some taskHandler -> 
                     taskName 
                     |> fireAndForget 
                         { Configuration = configuration
                           Duration = task.Duration
                           Schedule = task.Schedule
-                          handleTask = handle}
+                          taskHandler = taskHandler}
 
                 match task.Schedule with
                 | None -> ()
@@ -125,11 +127,11 @@ let rec private handleTask configuration =
                 return linkedCts.Token
         }
 
-let private processGraph nodeName (deps: WorkerDeps) =
+let private processGraph nodeName deps =
     handleNode 0u CancellationToken.None
-        { TaskName = nodeName
-          getTask = deps.getTask
-          handleTask = handleTask <| deps.Configuration }
+        { NodeName = nodeName
+          getNode = deps.getTask
+          handleNode = handleTask <| deps.Configuration }
 
 let start deps name =
     async {

@@ -48,7 +48,7 @@ let private parseLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
 let private mapSchedule (schedule: External.Schedule) =
-    match schedule.IsEnabled with
+    match schedule.Enabled with
     | false -> Ok None
     | true ->
         schedule.Workdays

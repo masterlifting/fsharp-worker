@@ -47,10 +47,10 @@ let private parseTimeSpan (value: string) =
 let private parseLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapSchedule (schedule: External.Schedule) =
-    match schedule.Enabled with
-    | false -> Ok None
-    | true ->
+let private mapSchedule (schedule: External.Schedule option) =
+    match schedule with
+    | None -> Ok None
+    | Some schedule ->
         schedule.Workdays
         |> parseWorkdays
         |> Result.bind (fun workdays ->
@@ -86,11 +86,11 @@ let create rootNode graph =
     let createNode nodeName innerLoop (taskGraph: External.TaskGraph) =
         let taskName = nodeName |> Graph.buildNodeName <| taskGraph.Name
 
-        innerLoop (Some taskName) taskGraph.Steps
-        |> Result.bind (fun steps ->
+        innerLoop (Some taskName) taskGraph.Tasks
+        |> Result.bind (fun tasks ->
             let handler = rootNode |> getTaskHandler taskName
 
-            mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, steps)))
+            mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, tasks)))
 
     let rec innerLoop name tasks =
         match tasks with

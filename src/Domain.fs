@@ -60,7 +60,6 @@ type internal FireAndForgetDeps =
 module External =
 
     type Schedule() =
-        member val Enabled: bool = false with get, set
         member val Delay: string = String.Empty with get, set
         member val Limit: int = 0 with get, set
         member val StartWork: Nullable<DateTime> = Nullable() with get, set
@@ -73,8 +72,8 @@ module External =
         member val Parallel: bool = false with get, set
         member val Recursively: bool = false with get, set
         member val Duration: string = String.Empty with get, set
-        member val Schedule: Schedule = Schedule() with get, set
-        member val Steps: TaskGraph[] = [||] with get, set
+        member val Schedule: Schedule option = None with get, set
+        member val Tasks: TaskGraph[] = [||] with get, set
 
         interface Graph.INodeName with
             member this.Name = this.Name

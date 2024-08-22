@@ -9,9 +9,7 @@ type Schedule =
     { StartWork: DateTime
       StopWork: DateTime option
       Workdays: DayOfWeek Set
-      Delay: TimeSpan option
-      Limit: uint option
-      TimeShift: int8 }
+      TimeShift: int8}
 
 type TaskResult =
     | Success of Object
@@ -25,8 +23,9 @@ type TaskHandler = IConfigurationRoot * Schedule option * CancellationToken -> A
 type Task =
     { Name: string
       Parallel: bool
-      Recursively: bool
+      Recursively: TimeSpan option
       Duration: TimeSpan option
+      Limit: uint option 
       Schedule: Schedule option
       Handler: TaskHandler option }
 
@@ -60,8 +59,6 @@ type internal FireAndForgetDeps =
 module External =
 
     type Schedule() =
-        member val Delay: string = String.Empty with get, set
-        member val Limit: int = 0 with get, set
         member val StartWork: DateTime option = None with get, set
         member val StopWork: DateTime option = None with get, set
         member val Workdays: string = String.Empty with get, set
@@ -71,8 +68,9 @@ module External =
         member val Name: string = String.Empty with get, set
         member val Enabled: bool = true with get, set
         member val Parallel: bool = false with get, set
-        member val Recursively: bool = false with get, set
+        member val Recursively: string = String.Empty with get, set
         member val Duration: string = String.Empty with get, set
+        member val Limit: int = 0 with get, set
         member val Schedule: Schedule option = None with get, set
         member val Tasks: TaskGraph[] = [||] with get, set
 

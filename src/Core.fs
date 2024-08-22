@@ -19,7 +19,7 @@ let rec private handleNode count ct (deps: HandleNodeDeps)=
             let! ct = task |> deps.handleNode count ct
             do! node.Children |> handleNodes deps ct
 
-            if task.Recursively && ct |> notCanceled then
+            if task.Recursively.IsSome && ct |> notCanceled then
                 do! handleNode count ct deps
     }
 
@@ -115,14 +115,11 @@ let rec private handleTask configuration =
                           Schedule = task.Schedule
                           taskHandler = taskHandler}
 
-                match task.Schedule with
+                match task.Recursively with
+                | Some delay -> 
+                    $"{taskName} Next task will be run in {delay}." |> Log.debug
+                    do! Async.Sleep delay
                 | None -> ()
-                | Some schedule ->
-                    match schedule.Delay with
-                    | None -> ()
-                    | Some delay ->
-                        $"{taskName} Next task will be run in {delay}." |> Log.debug
-                        do! Async.Sleep delay
 
                 return linkedCts.Token
         }

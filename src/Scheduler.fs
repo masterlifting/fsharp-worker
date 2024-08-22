@@ -16,10 +16,11 @@ let private checkWorkday (cts: CancellationTokenSource) (task: Task) timeShift (
         if now.DayOfWeek |> Set.contains >> not <| workdays then
             let message = $"Task '%s{task.Name}'. Today is not a working day."
 
-            if not task.Recursively then
+            match task.Recursively with
+            | None ->
                 message |> Log.warning
                 do! cts.CancelAsync() |> Async.AwaitTask
-            else
+            | Some _ ->
                 let delay = now.Date.AddDays(1.) - now
                 $"{message} Will be started in {delay}." |> Log.warning
                 do! Async.Sleep delay
@@ -31,10 +32,11 @@ let private checkLimit (cts: CancellationTokenSource) (task: Task) timeShift (li
         | Some limit when count % (limit + 1u) = 0u ->
             let message = $"Task '%s{task.Name}'. Limit {limit} reached"
 
-            if not task.Recursively then
+            match task.Recursively with
+            | None ->
                 $"{message}." |> Log.warning
                 do! cts.CancelAsync() |> Async.AwaitTask
-            else
+            | Some _ ->
                 let now = now timeShift
                 let delay = now.Date.AddDays(1.) - now
                 let formattedDelay = delay.ToString("dd\\d\\ hh\\h\\ mm\\m\\ ss\\s")
@@ -73,7 +75,7 @@ let getExpirationToken (task: Task) count (cts: CancellationTokenSource) =
         | None -> return cts.Token
         | Some schedule ->
 
-            do! checkLimit cts task schedule.TimeShift schedule.Limit count
+            do! checkLimit cts task schedule.TimeShift task.Limit count
 
             if cts.Token |> notCanceled then
                 do! tryStopWork cts task schedule.TimeShift schedule.StopWork

@@ -58,8 +58,8 @@ let private mapSchedule (schedule: External.Schedule option) =
             |> parseTimeSpan
             |> Result.map (fun delay ->
                 Some
-                    { StartWork = Option.ofNullable schedule.StartWork |> Option.defaultValue DateTime.UtcNow
-                      StopWork = Option.ofNullable schedule.StopWork
+                    { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
+                      StopWork = schedule.StopWork
                       Workdays = workdays
                       Delay = delay
                       Limit = schedule.Limit |> parseLimit
@@ -77,7 +77,7 @@ let private mapTask (task: External.TaskGraph) handler =
               Recursively = task.Recursively
               Duration = duration
               Schedule = schedule
-              Handler = handler }))
+              Handler = if task.Enabled then handler else None }))
 
 let create rootNode graph =
     let getTaskHandler nodeName node =

@@ -62,13 +62,14 @@ module External =
     type Schedule() =
         member val Delay: string = String.Empty with get, set
         member val Limit: int = 0 with get, set
-        member val StartWork: Nullable<DateTime> = Nullable() with get, set
-        member val StopWork: Nullable<DateTime> = Nullable() with get, set
+        member val StartWork: DateTime option = None with get, set
+        member val StopWork: DateTime option = None with get, set
         member val Workdays: string = String.Empty with get, set
         member val TimeShift: int8 = 0y with get, set
 
     type TaskGraph() =
         member val Name: string = String.Empty with get, set
+        member val Enabled: bool = true with get, set
         member val Parallel: bool = false with get, set
         member val Recursively: bool = false with get, set
         member val Duration: string = String.Empty with get, set

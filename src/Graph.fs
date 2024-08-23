@@ -44,7 +44,7 @@ let private parseTimeSpan (value: string) =
         | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
     | _ -> Ok None
 
-let private parseLimit (limit: int) =
+let private setLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
 let private mapSchedule (schedule: External.Schedule option) =
@@ -69,14 +69,18 @@ let private mapTask (task: External.TaskGraph) handler =
         |> Result.bind (fun duration ->
             task.Recursively
             |> parseTimeSpan
-            |> Result.map (fun recursively ->
-                { Name = task.Name
-                  Parallel = task.Parallel
-                  Recursively = recursively
-                  Duration = duration
-                  Limit = task.Limit |> parseLimit
-                  Schedule = schedule
-                  Handler = if task.Enabled then handler else None })))
+            |> Result.bind (fun recursively ->
+                match task.Enabled, handler with
+                | true, None -> Error <| NotFound $"Required handler of the task '{task.Name}'."
+                | _, handler -> 
+                    Ok <|
+                    { Name = task.Name
+                      Parallel = task.Parallel
+                      Recursively = recursively
+                      Duration = duration
+                      Limit = task.Limit |> setLimit
+                      Schedule = schedule
+                      Handler = handler })))
 
 let create rootNode graph =
     let getTaskHandler nodeName node =

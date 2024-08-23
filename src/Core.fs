@@ -12,7 +12,7 @@ let rec private handleNode count ct (deps: HandleNodeDeps)=
         let nodeName = deps.NodeName
 
         match! deps.getNode nodeName with
-        | Error error -> $"Task '%s{nodeName}'. Failed: %s{error.Message}" |> Log.error
+        | Error error -> $"Task '%s{nodeName}'. Failed -> %s{error.Message}" |> Log.error
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
@@ -76,7 +76,7 @@ let private fireAndForget deps taskName  =
         let run() = deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
 
         match! run() with
-        | Error error -> $"{taskName} Failed. %s{error.Message}" |> Log.error
+        | Error error -> $"{taskName} Failed -> %s{error.Message}" |> Log.error
         | Ok result ->
             let message = $"{taskName} Completed. "
 
@@ -142,7 +142,10 @@ let start deps name =
                 | :? OperationCanceledException ->
                     let message = $"{workerName} Canceled."
                     failwith message
-                | _ -> failwith $"{workerName} Failed: %s{ex.Message}"
+                | _ -> failwith $"{workerName} Failed -> %s{ex.Message}"
         with ex ->
             ex.Message |> Log.error
+
+        // Wait for the logger to finish writing logs
+        do! Async.Sleep 100
     }

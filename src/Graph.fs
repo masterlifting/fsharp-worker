@@ -40,49 +40,47 @@ let private parseTimeSpan (value: string) =
     match value with
     | AP.IsString str ->
         match str with
-        | AP.IsTimeSpan value -> Ok <| Some value
+        | AP.IsTimeSpan value -> Ok value
         | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
-    | _ -> Ok None
+    | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
+
+let private parseRecursively (recursively: External.TaskRecursion) =
+    recursively.Delay
+    |> parseTimeSpan
+    |> Result.map(fun delay ->
+        { Delay = delay
+          Await = recursively.Await })
 
 let private setLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapSchedule (schedule: External.Schedule option) =
-    match schedule with
-    | None -> Ok None
-    | Some schedule ->
-        schedule.Workdays
-        |> parseWorkdays
-        |> Result.map (fun workdays ->
-            Some
-            <| { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
-                 StopWork = schedule.StopWork
-                 Workdays = workdays
-                 TimeShift = schedule.TimeShift })
+let private mapSchedule (schedule: External.Schedule) =
+    schedule.Workdays
+    |> parseWorkdays
+    |> Result.map (fun workdays ->
+        Some <| 
+            { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
+              StopWork = schedule.StopWork
+              Workdays = workdays
+              TimeShift = schedule.TimeShift })
+
+let private parseHandler taskEnabled (handler: TaskHandler option) taskName =
+    match taskEnabled, handler with
+    | true, None -> Error <| NotFound $"Required handler of the task '%s{taskName}'."
+    | true, Some handler -> Ok <| Some handler
+    | false, _ -> Ok None
+
 
 let private mapTask (task: External.TaskGraph) handler =
-    task.Schedule
-    |> mapSchedule
-    |> Result.bind (fun schedule ->
-        task.Duration
-        |> parseTimeSpan
-        |> Result.bind (fun duration ->
-            task.Recursively
-            |> parseTimeSpan
-            |> Result.bind (fun recursively ->
-                let result =
-                    { Name = task.Name
-                      Parallel = task.Parallel
-                      Recursively = recursively
-                      Duration = duration
-                      Limit = task.Limit |> setLimit
-                      Schedule = schedule
-                      Handler = None }
+    let schedule = task.Schedule |> Option.map mapSchedule
+    let duration = task.Duration |> Option.map parseTimeSpan
+    let recursively = task.Recursively |> Option.map parseRecursively
+    let handler = task.Name |> parseHandler task.Enabled handler
 
-                match task.Enabled, handler with
-                | true, None -> Error <| NotFound $"Required handler of the task '{task.Name}'."
-                | true, Some handler -> Ok { result with Handler = Some handler }
-                | false, _ -> Ok result)))
+
+
+   
+    
 
 let create rootNode graph =
     let getTaskHandler nodeName node =

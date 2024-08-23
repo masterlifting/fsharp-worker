@@ -54,11 +54,11 @@ let private mapSchedule (schedule: External.Schedule option) =
         schedule.Workdays
         |> parseWorkdays
         |> Result.map (fun workdays ->
-            Some <| 
-            { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
-              StopWork = schedule.StopWork
-              Workdays = workdays
-              TimeShift = schedule.TimeShift })
+            Some
+            <| { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
+                 StopWork = schedule.StopWork
+                 Workdays = workdays
+                 TimeShift = schedule.TimeShift })
 
 let private mapTask (task: External.TaskGraph) handler =
     task.Schedule
@@ -70,17 +70,19 @@ let private mapTask (task: External.TaskGraph) handler =
             task.Recursively
             |> parseTimeSpan
             |> Result.bind (fun recursively ->
-                match task.Enabled, handler with
-                | true, None -> Error <| NotFound $"Required handler of the task '{task.Name}'."
-                | _, handler -> 
-                    Ok <|
+                let result =
                     { Name = task.Name
                       Parallel = task.Parallel
                       Recursively = recursively
                       Duration = duration
                       Limit = task.Limit |> setLimit
                       Schedule = schedule
-                      Handler = handler })))
+                      Handler = None }
+
+                match task.Enabled, handler with
+                | true, None -> Error <| NotFound $"Required handler of the task '{task.Name}'."
+                | true, Some handler -> Ok { result with Handler = Some handler }
+                | false, _ -> Ok result)))
 
 let create rootNode graph =
     let getTaskHandler nodeName node =

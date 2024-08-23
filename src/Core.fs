@@ -6,7 +6,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode count ct (deps: HandleNodeDeps)=
+let rec private handleNode count ct (deps: HandleNodeDeps) =
     async {
         let count = count + uint 1
         let nodeName = deps.NodeName
@@ -23,12 +23,12 @@ let rec private handleNode count ct (deps: HandleNodeDeps)=
                 do! handleNode count ct deps
     }
 
-and handleNodes deps ct nodes=
+and handleNodes deps ct nodes =
     async {
         if nodes.Length > 0 then
-            
+
             let nodeName = deps.NodeName
-            
+
             let nodeHandlers, skipLength =
 
                 let parallelNodes = nodes |> List.takeWhile (_.Value.Parallel)
@@ -60,22 +60,23 @@ and handleNodes deps ct nodes=
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
-            
+
             do! nodes |> List.skip skipLength |> handleNodes deps ct
     }
 
-let private fireAndForget deps taskName  =
+let private startTask deps taskName =
     async {
         $"%s{taskName} Started." |> Log.trace
-        
-        use cts = 
+
+        use cts =
             match deps.Duration with
             | Some duration -> new CancellationTokenSource(duration)
             | None -> new CancellationTokenSource()
-            
-        let run() = deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
 
-        match! run() with
+        let run () =
+            deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
+
+        match! run () with
         | Error error -> $"{taskName} Failed -> %s{error.Message}" |> Log.error
         | Ok result ->
             let message = $"{taskName} Completed. "
@@ -86,7 +87,7 @@ let private fireAndForget deps taskName  =
             | Debug msg -> $"{message}%s{msg}" |> Log.debug
             | Info msg -> $"{message}%s{msg}" |> Log.info
             | Trace msg -> $"{message}%s{msg}" |> Log.trace
-    } |> Async.Start
+    }
 
 let rec private handleTask configuration =
     fun count parentToken (task: Task) ->
@@ -95,7 +96,8 @@ let rec private handleTask configuration =
 
             let! taskToken = Scheduler.getExpirationToken task count cts
 
-            use linkedCts = CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
+            use linkedCts =
+                CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
             let taskName = $"Task '%s{task.Name}'."
 
@@ -107,16 +109,21 @@ let rec private handleTask configuration =
 
                 match task.Handler with
                 | None -> $"{taskName} Skipped." |> Log.trace
-                | Some taskHandler -> 
-                    taskName 
-                    |> fireAndForget 
-                        { Configuration = configuration
-                          Duration = task.Duration
-                          Schedule = task.Schedule
-                          taskHandler = taskHandler}
+                | Some taskHandler ->
+                    let startTask =
+                        taskName
+                        |> startTask
+                            { Configuration = configuration
+                              Duration = task.Duration
+                              Schedule = task.Schedule
+                              taskHandler = taskHandler }
+
+                    match task.Parallel with
+                    | true -> startTask |> Async.Start
+                    | false -> do! startTask
 
                 match task.Recursively with
-                | Some delay -> 
+                | Some delay ->
                     $"{taskName} Next task will be run in {delay}." |> Log.debug
                     do! Async.Sleep delay
                 | None -> ()
@@ -125,7 +132,9 @@ let rec private handleTask configuration =
         }
 
 let private processGraph nodeName deps =
-    handleNode 0u CancellationToken.None
+    handleNode
+        0u
+        CancellationToken.None
         { NodeName = nodeName
           getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }
@@ -147,5 +156,5 @@ let start deps name =
             ex.Message |> Log.error
 
         // Wait for the logger to finish writing logs
-        do! Async.Sleep 100
+        do! Async.Sleep 1000
     }

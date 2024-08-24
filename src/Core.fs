@@ -64,7 +64,7 @@ and handleNodes deps ct nodes =
             do! nodes |> List.skip skipLength |> handleNodes deps ct
     }
 
-let private startTask deps taskName =
+let private runTask deps taskName =
     async {
         $"%s{taskName} Started." |> Log.trace
 
@@ -106,21 +106,20 @@ let rec private handleTask configuration =
                 $"{taskName} Canceled." |> Log.warning
                 return linkedCts.Token
             | false ->
-
                 match task.Handler with
                 | None -> $"{taskName} Skipped." |> Log.trace
                 | Some taskHandler ->
-                    let startTask =
+                    let runTask =
                         taskName
-                        |> startTask
+                        |> runTask
                             { Configuration = configuration
                               Duration = task.Duration
                               Schedule = task.Schedule
                               taskHandler = taskHandler }
 
-                    match task.Parallel with
-                    | true -> startTask |> Async.Start
-                    | false -> do! startTask
+                    match task.Await with
+                    | true  -> do! runTask
+                    | false -> runTask |> Async.Start
 
                 match task.Recursively with
                 | Some delay ->

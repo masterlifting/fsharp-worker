@@ -20,19 +20,14 @@ type TaskResult =
 
 type TaskHandler = IConfigurationRoot * Schedule option * CancellationToken -> Async<Result<TaskResult, Error'>>
 
-type TaskRecursion = 
-    {
-    Delay: TimeSpan
-    Await: bool
-}
-
 type Task =
     { Name: string
       Parallel: bool
-      Recursively: TaskRecursion option
+      Recursively: TimeSpan option
       Duration: TimeSpan option
       Limit: uint option 
       Schedule: Schedule option
+      Await: bool
       Handler: TaskHandler option }
 
     interface Graph.INodeName with
@@ -70,15 +65,14 @@ module External =
         member val Workdays: string = String.Empty with get, set
         member val TimeShift: int8 = 0y with get, set
 
-    type TaskRecursion() =
-        member val Delay: string = String.Empty with get, set
-        member val Await: bool = false with get, set
+    type TaskEnabled() =
+        member val Await: bool = true with get, set
 
     type TaskGraph() =
         member val Name: string = String.Empty with get, set
-        member val Enabled: bool = false with get, set
+        member val Enabled: TaskEnabled option = None with get, set
         member val Parallel: bool = false with get, set
-        member val Recursively: TaskRecursion option  = None with get, set
+        member val Recursively: string option  = None with get, set
         member val Duration: string option = None with get, set
         member val Limit: int = 0 with get, set
         member val Schedule: Schedule option = None with get, set

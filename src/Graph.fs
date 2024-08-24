@@ -5,7 +5,7 @@ open System
 open Infrastructure
 open Worker.Domain
 
-let private defaultWorkdays =
+let private DefaultWorkdays =
     set
         [ DayOfWeek.Monday
           DayOfWeek.Tuesday
@@ -34,7 +34,7 @@ let private parseWorkdays (workdays: string) =
                     <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
             |> Seq.roe
             |> Result.map Set.ofList
-    | _ -> Ok defaultWorkdays
+    | _ -> Ok DefaultWorkdays
 
 let private parseTimeSpan (value: string) =
     match value with
@@ -44,44 +44,48 @@ let private parseTimeSpan (value: string) =
         | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
     | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
 
-let private parseRecursively (recursively: External.TaskRecursion) =
-    recursively.Delay
-    |> parseTimeSpan
-    |> Result.map(fun delay ->
-        { Delay = delay
-          Await = recursively.Await })
+let private parseHandler (taskName, taskEnabled, (handler: TaskHandler option)) =
+    match taskEnabled, handler with
+    | Some _, None -> Error <| NotFound $"Required handler of the task '%s{taskName}'."
+    | Some _, Some handler -> Ok <| Some handler
+    | None, _ -> Ok None
+
+let private parseSchedule (schedule: External.Schedule) =
+    schedule.Workdays
+    |> parseWorkdays
+    |> Result.map (fun workdays ->
+        { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
+          StopWork = schedule.StopWork
+          Workdays = workdays
+          TimeShift = schedule.TimeShift })
 
 let private setLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapSchedule (schedule: External.Schedule) =
-    schedule.Workdays
-    |> parseWorkdays
-    |> Result.map (fun workdays ->
-        Some <| 
-            { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
-              StopWork = schedule.StopWork
-              Workdays = workdays
-              TimeShift = schedule.TimeShift })
-
-let private parseHandler taskEnabled (handler: TaskHandler option) taskName =
-    match taskEnabled, handler with
-    | true, None -> Error <| NotFound $"Required handler of the task '%s{taskName}'."
-    | true, Some handler -> Ok <| Some handler
-    | false, _ -> Ok None
-
-
 let private mapTask (task: External.TaskGraph) handler =
-    let schedule = task.Schedule |> Option.map mapSchedule
-    let duration = task.Duration |> Option.map parseTimeSpan
-    let recursively = task.Recursively |> Option.map parseRecursively
-    let handler = task.Name |> parseHandler task.Enabled handler
 
-
-
-   
+    let recursively = task.Recursively |> Option.toResult parseTimeSpan
+    let duration = task.Duration |> Option.toResult parseTimeSpan
+    let schedule = task.Schedule |> Option.toResult parseSchedule
+    let handler =  parseHandler (task.Name, task.Enabled, handler)
     
-
+    recursively
+    |> Result.bind (fun recursively ->
+        duration
+        |> Result.bind (fun duration ->
+            schedule
+            |> Result.bind (fun schedule ->
+                handler
+                |> Result.map (fun handler ->
+                    { Name = task.Name
+                      Parallel = task.Parallel
+                      Recursively = recursively
+                      Duration = duration
+                      Limit = task.Limit |> setLimit
+                      Await = task.Enabled |> Option.map (_.Await) |> Option.defaultValue true
+                      Schedule = schedule
+                      Handler = handler }))))
+  
 let create rootNode graph =
     let getTaskHandler nodeName node =
         node |> Graph.findNode nodeName |> Option.bind (_.Value.Task)

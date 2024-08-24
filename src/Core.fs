@@ -117,7 +117,7 @@ let rec private handleTask configuration =
                               Schedule = task.Schedule
                               taskHandler = taskHandler }
 
-                    match task.Await with
+                    match task.Wait with
                     | true  -> do! runTask
                     | false -> runTask |> Async.Start
 

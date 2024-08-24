@@ -22,12 +22,12 @@ type TaskHandler = IConfigurationRoot * Schedule option * CancellationToken -> A
 
 type Task =
     { Name: string
-      Parallel: bool
       Recursively: TimeSpan option
+      Parallel: bool
       Duration: TimeSpan option
       Limit: uint option 
+      Wait: bool
       Schedule: Schedule option
-      Await: bool
       Handler: TaskHandler option }
 
     interface Graph.INodeName with
@@ -65,16 +65,14 @@ module External =
         member val Workdays: string = String.Empty with get, set
         member val TimeShift: int8 = 0y with get, set
 
-    type TaskEnabled() =
-        member val Await: bool = true with get, set
-
     type TaskGraph() =
         member val Name: string = String.Empty with get, set
-        member val Enabled: TaskEnabled option = None with get, set
-        member val Parallel: bool = false with get, set
+        member val Enabled: bool = false with get, set
         member val Recursively: string option  = None with get, set
+        member val Parallel: bool = false with get, set
         member val Duration: string option = None with get, set
         member val Limit: int = 0 with get, set
+        member val Wait: bool = false with get, set
         member val Schedule: Schedule option = None with get, set
         member val Tasks: TaskGraph[] = [||] with get, set
 

@@ -46,9 +46,9 @@ let private parseTimeSpan (value: string) =
 
 let private parseHandler (taskName, taskEnabled, (handler: TaskHandler option)) =
     match taskEnabled, handler with
-    | Some _, None -> Error <| NotFound $"Required handler of the task '%s{taskName}'."
-    | Some _, Some handler -> Ok <| Some handler
-    | None, _ -> Ok None
+    | true, None -> Error <| Operation { Message = $"Task '{taskName}' is enabled but handler is not defined."; Code = ErrorReason.buildLine(__SOURCE_DIRECTORY__, __SOURCE_FILE__, __LINE__) }
+    | true, Some handler -> Ok <| Some handler
+    | false, _ -> Ok None
 
 let private parseSchedule (schedule: External.Schedule) =
     schedule.Workdays
@@ -82,7 +82,7 @@ let private mapTask (task: External.TaskGraph) handler =
                       Recursively = recursively
                       Duration = duration
                       Limit = task.Limit |> setLimit
-                      Await = task.Enabled |> Option.map (_.Await) |> Option.defaultValue true
+                      Wait = task.Wait
                       Schedule = schedule
                       Handler = handler }))))
   

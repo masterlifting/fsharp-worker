@@ -8,22 +8,22 @@ open Worker.Domain
 
 let rec private handleNode count ct (deps: HandleNodeDeps) =
     async {
-        let count = count + uint 1
         let nodeName = deps.NodeName
 
         match! deps.getNode nodeName with
-        | Error error -> $"Task '%s{nodeName}'. Failed -> %s{error.Message}" |> Log.error
+        | Error error -> $"Task %i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.error
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
             let! ct = task |> deps.handleNode count ct
-            do! node.Children |> handleNodes deps ct
+            do! node.Children |> handleNodes count deps ct
 
             if task.Recursively.IsSome && ct |> notCanceled then
+                let count = count + 1u
                 do! handleNode count ct deps
     }
 
-and handleNodes deps ct nodes =
+and handleNodes count deps ct nodes =
     async {
         if nodes.Length > 0 then
 
@@ -43,7 +43,7 @@ and handleNodes deps ct nodes =
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode 0u ct)
+                            { deps with NodeName = nodeName } |> handleNode count ct)
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -54,19 +54,19 @@ and handleNodes deps ct nodes =
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode 0u ct)
+                            { deps with NodeName = nodeName } |> handleNode count ct)
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
 
-            do! nodes |> List.skip skipLength |> handleNodes deps ct
+            do! nodes |> List.skip skipLength |> handleNodes count deps ct
     }
 
 let private runTask deps taskName =
     async {
-        $"%s{taskName} Started." |> Log.trace
+        $"%s{taskName} Started." |> Log.debug
 
         use cts =
             match deps.Duration with
@@ -99,7 +99,7 @@ let rec private handleTask configuration =
             use linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
-            let taskName = $"Task '%s{task.Name}'."
+            let taskName = $"Task '%i{count}.%s{task.Name}'."
 
             match linkedCts.IsCancellationRequested with
             | true ->
@@ -118,12 +118,12 @@ let rec private handleTask configuration =
                               taskHandler = taskHandler }
 
                     match task.Wait with
-                    | true  -> do! runTask
+                    | true -> do! runTask
                     | false -> runTask |> Async.Start
 
                 match task.Recursively with
                 | Some delay ->
-                    $"{taskName} Next task will be run in {delay}." |> Log.debug
+                    $"{taskName} Next task will be run in {delay}." |> Log.trace
                     do! Async.Sleep delay
                 | None -> ()
 
@@ -132,7 +132,7 @@ let rec private handleTask configuration =
 
 let private processGraph nodeName deps =
     handleNode
-        0u
+        1u
         CancellationToken.None
         { NodeName = nodeName
           getNode = deps.getTask

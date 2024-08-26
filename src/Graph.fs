@@ -46,7 +46,7 @@ let private parseTimeSpan (value: string) =
 
 let private parseHandler (taskName, taskEnabled, (handler: TaskHandler option)) =
     match taskEnabled, handler with
-    | true, None -> Error <| Operation { Message = $"Task '{taskName}' is enabled but handler is not defined."; Code = ErrorReason.buildLine(__SOURCE_DIRECTORY__, __SOURCE_FILE__, __LINE__) }
+    | true, None -> Error <| NotFound $"Handler for task '{taskName}'."
     | true, Some handler -> Ok <| Some handler
     | false, _ -> Ok None
 
@@ -62,13 +62,13 @@ let private parseSchedule (schedule: External.Schedule) =
 let private setLimit (limit: int) =
     if limit <= 0 then None else Some <| uint limit
 
-let private mapTask (task: External.TaskGraph) handler =
+let private mapTask fullName (task: External.TaskGraph) handler =
 
     let recursively = task.Recursively |> Option.toResult parseTimeSpan
     let duration = task.Duration |> Option.toResult parseTimeSpan
     let schedule = task.Schedule |> Option.toResult parseSchedule
-    let handler =  parseHandler (task.Name, task.Enabled, handler)
-    
+    let handler = parseHandler (fullName, task.Enabled, handler)
+
     recursively
     |> Result.bind (fun recursively ->
         duration
@@ -85,7 +85,7 @@ let private mapTask (task: External.TaskGraph) handler =
                       Wait = task.Wait
                       Schedule = schedule
                       Handler = handler }))))
-  
+
 let create rootNode graph =
     let getTaskHandler nodeName node =
         node |> Graph.findNode nodeName |> Option.bind (_.Value.Task)
@@ -97,7 +97,8 @@ let create rootNode graph =
         |> Result.bind (fun tasks ->
             let handler = rootNode |> getTaskHandler taskName
 
-            mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, tasks)))
+            mapTask taskName taskGraph handler
+            |> Result.map (fun task -> Graph.Node(task, tasks)))
 
     let rec innerLoop name tasks =
         match tasks with

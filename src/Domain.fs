@@ -9,7 +9,7 @@ type Schedule =
     { StartWork: DateTime
       StopWork: DateTime option
       Workdays: DayOfWeek Set
-      TimeShift: int8}
+      TimeShift: int8 }
 
 type TaskResult =
     | Success of Object
@@ -25,7 +25,7 @@ type Task =
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan option
-      Limit: uint option 
+      Limit: uint option
       Wait: bool
       Schedule: Schedule option
       Handler: TaskHandler option }
@@ -68,7 +68,7 @@ module External =
     type TaskGraph() =
         member val Name: string = String.Empty with get, set
         member val Enabled: bool = false with get, set
-        member val Recursively: string option  = None with get, set
+        member val Recursively: string option = None with get, set
         member val Parallel: bool = false with get, set
         member val Duration: string option = None with get, set
         member val Limit: int = 0 with get, set

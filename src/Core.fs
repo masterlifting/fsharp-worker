@@ -77,16 +77,16 @@ let private runTask deps taskName =
             deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
 
         match! run () with
-        | Error error -> $"{taskName} Failed -> %s{error.Message}" |> Log.error
+        | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.error
         | Ok result ->
-            let message = $"{taskName} Completed. "
+            let message = $"%s{taskName} Completed. "
 
             match result with
-            | Success result -> $"{message}%A{result}" |> Log.success
-            | Warn msg -> $"{message}%s{msg}" |> Log.warning
-            | Debug msg -> $"{message}%s{msg}" |> Log.debug
-            | Info msg -> $"{message}%s{msg}" |> Log.info
-            | Trace msg -> $"{message}%s{msg}" |> Log.trace
+            | Success result -> $"%s{message}%A{result}" |> Log.success
+            | Warn msg -> $"%s{message}%s{msg}" |> Log.warning
+            | Debug msg -> $"%s{message}%s{msg}" |> Log.debug
+            | Info msg -> $"%s{message}%s{msg}" |> Log.info
+            | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
 let rec private handleTask configuration =
@@ -94,20 +94,20 @@ let rec private handleTask configuration =
         async {
             use cts = new CancellationTokenSource()
 
-            let! taskToken = Scheduler.getExpirationToken task count cts
+            let taskName = $"Task '%i{count}.%s{task.Name}'."
+
+            let! taskToken = taskName |> Scheduler.getExpirationToken task.Schedule task.Recursively cts
 
             use linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
-            let taskName = $"Task '%i{count}.%s{task.Name}'."
-
             match linkedCts.IsCancellationRequested with
             | true ->
-                $"{taskName} Canceled." |> Log.warning
+                $"%s{taskName} Canceled." |> Log.warning
                 return linkedCts.Token
             | false ->
                 match task.Handler with
-                | None -> $"{taskName} Skipped." |> Log.trace
+                | None -> $"%s{taskName} Skipped." |> Log.trace
                 | Some taskHandler ->
                     let runTask =
                         taskName
@@ -123,7 +123,7 @@ let rec private handleTask configuration =
 
                 match task.Recursively with
                 | Some delay ->
-                    $"{taskName} Next task will be run in {delay}." |> Log.trace
+                    $"%s{taskName} Next task will be run in {delay}." |> Log.trace
                     do! Async.Sleep delay
                 | None -> ()
 
@@ -144,13 +144,13 @@ let start deps name =
             let workerName = $"Worker '%s{name}'."
 
             match! processGraph name deps |> Async.Catch with
-            | Choice1Of2 _ -> $"{workerName} Completed." |> Log.success
+            | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with
                 | :? OperationCanceledException ->
-                    let message = $"{workerName} Canceled."
+                    let message = $"%s{workerName} Canceled."
                     failwith message
-                | _ -> failwith $"{workerName} Failed -> %s{ex.Message}"
+                | _ -> failwith $"%s{workerName} Failed -> %s{ex.Message}"
         with ex ->
             ex.Message |> Log.error
 

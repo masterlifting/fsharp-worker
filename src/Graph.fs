@@ -59,9 +59,6 @@ let private parseSchedule (schedule: External.Schedule) =
           Workdays = workdays
           TimeShift = schedule.TimeShift })
 
-let private setLimit (limit: int) =
-    if limit <= 0 then None else Some <| uint limit
-
 let private mapTask fullName (task: External.TaskGraph) handler =
 
     let recursively = task.Recursively |> Option.toResult parseTimeSpan
@@ -81,7 +78,6 @@ let private mapTask fullName (task: External.TaskGraph) handler =
                       Parallel = task.Parallel
                       Recursively = recursively
                       Duration = duration
-                      Limit = task.Limit |> setLimit
                       Wait = task.Wait
                       Schedule = schedule
                       Handler = handler }))))

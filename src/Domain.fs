@@ -25,7 +25,6 @@ type Task =
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan option
-      Limit: uint option
       Wait: bool
       Schedule: Schedule option
       Handler: TaskHandler option }
@@ -71,7 +70,6 @@ module External =
         member val Recursively: string option = None with get, set
         member val Parallel: bool = false with get, set
         member val Duration: string option = None with get, set
-        member val Limit: int = 0 with get, set
         member val Wait: bool = false with get, set
         member val Schedule: Schedule option = None with get, set
         member val Tasks: TaskGraph[] = [||] with get, set

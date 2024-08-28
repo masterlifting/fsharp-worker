@@ -29,7 +29,7 @@ type Task =
       Duration: TimeSpan option
       Wait: bool
       Schedule: Schedule option
-      Handler: TaskHandler }
+      Handler: TaskHandler option }
 
     interface Graph.INodeName with
         member this.Name = this.Name

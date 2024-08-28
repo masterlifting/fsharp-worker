@@ -101,24 +101,25 @@ let private mapTask (task: External.TaskGraph) handler =
               Handler = handler }
     }
 
-let rec private createNode' (taskGraph: External.TaskGraph) taskHandlerRes (nodes: Graph.Node<Task> list)=
-    match taskHandlerRes with
-    | Ok None -> 
-    | Ok (Some handler) -> mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, nodes))
-    | Error error -> Error error
-
 let create rootNode graph =
-    let createNode nodeName innerLoop (taskGraph: External.TaskGraph) =
-        let taskName = nodeName |> Graph.buildNodeName <| taskGraph.Name
-        let taskHandler = rootNode |> Graph.findNode taskName |> Option.bind (_.Value.Task) |> validateHandler taskName taskGraph.Enabled
+    
+    let toTaskNode (task: External.TaskGraph) handler=
+        Result.bind(fun nodes ->
+            handler
+            |> Result.bind (mapTask task >> Result.map (fun task -> Graph.Node(task, nodes))))
 
-        innerLoop (Some taskName) taskGraph.Tasks
-        |> Result.bind (createNode' taskGraph taskHandler)
+    let createResult nodeName toTaskNodes (graph: External.TaskGraph) =
+        let taskName = nodeName |> Graph.buildNodeName <| graph.Name
+        let taskHandler = rootNode |> Graph.findNode taskName |> Option.bind (_.Value.Task) |> validateHandler taskName graph.Enabled
 
-    let rec innerLoop name graphTasks =
-        match graphTasks with
+        graph.Tasks 
+        |> toTaskNodes (Some taskName)
+        |> toTaskNode graph taskHandler
+
+    let rec toTaskNodes name tasks =
+        match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> graphTasks |> Array.map (createNode name innerLoop) |> Seq.roe
+        | _ -> tasks |> Array.map (createResult name toTaskNodes) |> Seq.roe
 
-    graph |> createNode None innerLoop
+    graph |> createResult None toTaskNodes

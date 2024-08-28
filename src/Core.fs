@@ -68,7 +68,7 @@ let private runTask deps taskName =
     async {
         $"%s{taskName} Started." |> Log.debug
 
-        let cts =
+        use cts =
             match deps.Duration with
             | Some duration -> new CancellationTokenSource(duration)
             | None -> new CancellationTokenSource()
@@ -101,22 +101,23 @@ let rec private handleTask configuration =
             let linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
-            match linkedCts.IsCancellationRequested with
-            | true ->
+            if linkedCts.IsCancellationRequested then
                 $"%s{taskName} Canceled." |> Log.warning
-                return linkedCts.Token
-            | false ->
-                let runTask =
-                    taskName
-                    |> runTask
-                        { Configuration = configuration
-                          Duration = task.Duration
-                          Schedule = task.Schedule
-                          taskHandler = task.Handler }
+            else
+                match task.Handler with
+                | None -> $"%s{taskName} Skipped." |> Log.trace
+                | Some handler ->
+                    let runTask =
+                        taskName
+                        |> runTask
+                            { Configuration = configuration
+                              Duration = task.Duration
+                              Schedule = task.Schedule
+                              taskHandler = handler }
 
-                match task.Wait with
-                | true -> do! runTask
-                | false -> runTask |> Async.Start
+                    match task.Wait with
+                    | true -> do! runTask
+                    | false -> runTask |> Async.Start
 
                 match task.Recursively with
                 | Some delay ->
@@ -124,7 +125,7 @@ let rec private handleTask configuration =
                     do! Async.Sleep delay
                 | None -> ()
 
-                return linkedCts.Token
+            return linkedCts.Token
         }
 
 let private processGraph nodeName deps =

@@ -15,7 +15,7 @@ let private DefaultWorkdays =
           DayOfWeek.Saturday
           DayOfWeek.Sunday ]
 
-let private parseWorkdays (workdays: string) =
+let private parseWorkdays workdays =
     match workdays with
     | AP.IsString str ->
         match str.Split(",") with
@@ -36,7 +36,42 @@ let private parseWorkdays (workdays: string) =
             |> Result.map Set.ofList
     | _ -> Ok DefaultWorkdays
 
-let private parseTimeSpan (value: string) =
+let private parseDateOnly day =
+    if String.IsNullOrEmpty day then
+        Ok <| DateOnly.FromDateTime(DateTime.UtcNow)
+    else
+        match day with
+        | AP.IsDateOnly value -> Ok value
+        | _ -> Error <| NotSupported "DateOnly. Expected format: 'yyyy-MM-dd'."
+
+let private parseTimeOnly time =
+    if String.IsNullOrEmpty time then
+        Ok <| TimeOnly.FromDateTime(DateTime.UtcNow)
+    else
+        match time with
+        | AP.IsTimeOnly value -> Ok value
+        | _ -> Error <| NotSupported "TimeOnly. Expected format: 'hh:mm:ss'."
+
+let private validatedModel = ModelBuilder()
+
+let private mapSchedule (schedule: External.Schedule) =
+    validatedModel {
+        let! workdays = schedule.Workdays |> parseWorkdays
+        let! startDate = schedule.StartDate |> parseDateOnly
+        let! stopDate = schedule.StopDate |> Option.toResult parseDateOnly
+        let! startTime = schedule.StartTime |> parseTimeOnly
+        let! stopTime = schedule.StopTime |> Option.toResult parseTimeOnly
+
+        return
+            { StartDate = startDate
+              StopDate = stopDate
+              StartTime = startTime
+              StopTime = stopTime
+              Workdays = workdays
+              TimeShift = schedule.TimeShift }
+    }
+
+let private parseTimeSpan value =
     match value with
     | AP.IsString str ->
         match str with
@@ -44,62 +79,46 @@ let private parseTimeSpan (value: string) =
         | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
     | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
 
-let private parseHandler (taskName, taskEnabled, (handler: TaskHandler option)) =
+let private validateHandler taskName taskEnabled (handler: TaskHandler option) =
     match taskEnabled, handler with
     | true, None -> Error <| NotFound $"Handler for task '{taskName}'."
     | true, Some handler -> Ok <| Some handler
     | false, _ -> Ok None
 
-let private parseSchedule (schedule: External.Schedule) =
-    schedule.Workdays
-    |> parseWorkdays
-    |> Result.map (fun workdays ->
-        { StartWork = schedule.StartWork |> Option.defaultValue DateTime.UtcNow
-          StopWork = schedule.StopWork
-          Workdays = workdays
-          TimeShift = schedule.TimeShift })
+let private mapTask (task: External.TaskGraph) handler =
+    validatedModel {
+        let! recursively = task.Recursively |> Option.toResult parseTimeSpan
+        let! duration = task.Duration |> Option.toResult parseTimeSpan
+        let! schedule = task.Schedule |> Option.toResult mapSchedule
 
-let private mapTask fullName (task: External.TaskGraph) handler =
+        return
+            { Name = task.Name
+              Parallel = task.Parallel
+              Recursively = recursively
+              Duration = duration
+              Wait = task.Wait
+              Schedule = schedule
+              Handler = handler }
+    }
 
-    let recursively = task.Recursively |> Option.toResult parseTimeSpan
-    let duration = task.Duration |> Option.toResult parseTimeSpan
-    let schedule = task.Schedule |> Option.toResult parseSchedule
-    let handler = parseHandler (fullName, task.Enabled, handler)
-
-    recursively
-    |> Result.bind (fun recursively ->
-        duration
-        |> Result.bind (fun duration ->
-            schedule
-            |> Result.bind (fun schedule ->
-                handler
-                |> Result.map (fun handler ->
-                    { Name = task.Name
-                      Parallel = task.Parallel
-                      Recursively = recursively
-                      Duration = duration
-                      Wait = task.Wait
-                      Schedule = schedule
-                      Handler = handler }))))
+let rec private createNode' (taskGraph: External.TaskGraph) taskHandlerRes (nodes: Graph.Node<Task> list)=
+    match taskHandlerRes with
+    | Ok None -> 
+    | Ok (Some handler) -> mapTask taskGraph handler |> Result.map (fun task -> Graph.Node(task, nodes))
+    | Error error -> Error error
 
 let create rootNode graph =
-    let getTaskHandler nodeName node =
-        node |> Graph.findNode nodeName |> Option.bind (_.Value.Task)
-
     let createNode nodeName innerLoop (taskGraph: External.TaskGraph) =
         let taskName = nodeName |> Graph.buildNodeName <| taskGraph.Name
+        let taskHandler = rootNode |> Graph.findNode taskName |> Option.bind (_.Value.Task) |> validateHandler taskName taskGraph.Enabled
 
         innerLoop (Some taskName) taskGraph.Tasks
-        |> Result.bind (fun tasks ->
-            let handler = rootNode |> getTaskHandler taskName
+        |> Result.bind (createNode' taskGraph taskHandler)
 
-            mapTask taskName taskGraph handler
-            |> Result.map (fun task -> Graph.Node(task, tasks)))
-
-    let rec innerLoop name tasks =
-        match tasks with
+    let rec innerLoop name graphTasks =
+        match graphTasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> tasks |> Array.map (createNode name innerLoop) |> Seq.roe
+        | _ -> graphTasks |> Array.map (createNode name innerLoop) |> Seq.roe
 
     graph |> createNode None innerLoop

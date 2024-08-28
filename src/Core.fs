@@ -68,7 +68,7 @@ let private runTask deps taskName =
     async {
         $"%s{taskName} Started." |> Log.debug
 
-        use cts =
+        let cts =
             match deps.Duration with
             | Some duration -> new CancellationTokenSource(duration)
             | None -> new CancellationTokenSource()
@@ -92,13 +92,13 @@ let private runTask deps taskName =
 let rec private handleTask configuration =
     fun count parentToken (task: Task) ->
         async {
-            use cts = new CancellationTokenSource()
+            let cts = new CancellationTokenSource()
 
             let taskName = $"Task '%i{count}.%s{task.Name}'."
 
             let! taskToken = taskName |> Scheduler.getExpirationToken task.Schedule task.Recursively cts
 
-            use linkedCts =
+            let linkedCts =
                 CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
 
             match linkedCts.IsCancellationRequested with
@@ -106,24 +106,21 @@ let rec private handleTask configuration =
                 $"%s{taskName} Canceled." |> Log.warning
                 return linkedCts.Token
             | false ->
-                match task.Handler with
-                | None -> $"%s{taskName} Skipped." |> Log.trace
-                | Some taskHandler ->
-                    let runTask =
-                        taskName
-                        |> runTask
-                            { Configuration = configuration
-                              Duration = task.Duration
-                              Schedule = task.Schedule
-                              taskHandler = taskHandler }
+                let runTask =
+                    taskName
+                    |> runTask
+                        { Configuration = configuration
+                          Duration = task.Duration
+                          Schedule = task.Schedule
+                          taskHandler = task.Handler }
 
-                    match task.Wait with
-                    | true -> do! runTask
-                    | false -> runTask |> Async.Start
+                match task.Wait with
+                | true -> do! runTask
+                | false -> runTask |> Async.Start
 
                 match task.Recursively with
                 | Some delay ->
-                    $"%s{taskName} Next task will be run in {delay}." |> Log.trace
+                    $"%s{taskName} Next task will be run in {fromTimeSpan delay}." |> Log.trace
                     do! Async.Sleep delay
                 | None -> ()
 

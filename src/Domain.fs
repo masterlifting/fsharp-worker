@@ -6,8 +6,10 @@ open System.Threading
 open Microsoft.Extensions.Configuration
 
 type Schedule =
-    { StartWork: DateTime
-      StopWork: DateTime option
+    { StartDate: DateOnly
+      StopDate: DateOnly option
+      StartTime: TimeOnly
+      StopTime: TimeOnly option
       Workdays: DayOfWeek Set
       TimeShift: int8 }
 
@@ -27,7 +29,7 @@ type Task =
       Duration: TimeSpan option
       Wait: bool
       Schedule: Schedule option
-      Handler: TaskHandler option }
+      Handler: TaskHandler }
 
     interface Graph.INodeName with
         member this.Name = this.Name
@@ -59,8 +61,10 @@ type internal FireAndForgetDeps =
 module External =
 
     type Schedule() =
-        member val StartWork: DateTime option = None with get, set
-        member val StopWork: DateTime option = None with get, set
+        member val StartDate: string = String.Empty with get, set
+        member val StopDate: string option = None with get, set
+        member val StartTime: string = String.Empty with get, set
+        member val StopTime: string option = None with get, set
         member val Workdays: string = String.Empty with get, set
         member val TimeShift: int8 = 0y with get, set
 

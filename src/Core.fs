@@ -6,7 +6,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode count ct (deps: HandleNodeDeps) =
+let rec private handleNode count scheduler (deps: HandleNodeDeps) =
     async {
         let nodeName = deps.NodeName
 
@@ -15,15 +15,19 @@ let rec private handleNode count ct (deps: HandleNodeDeps) =
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
-            let! ct = task |> deps.handleNode count ct
-            do! node.Children |> handleNodes count deps ct
+            let! scheduler = task |> deps.handleNode count scheduler
+            do! node.Children |> handleNodes count deps scheduler
 
-            if task.Recursively.IsSome && ct |> notCanceled then
+            match task.Recursively, scheduler with
+            | Some _, Scheduler.Continue
+            | Some _, Scheduler.Start
+            | Some _, Scheduler.StopAfter _ ->
                 let count = count + 1u
-                do! handleNode count ct deps
+                do! handleNode count scheduler deps
+            | _ -> ()
     }
 
-and handleNodes count deps ct nodes =
+and handleNodes count deps scheduler nodes =
     async {
         if nodes.Length > 0 then
 
@@ -43,7 +47,7 @@ and handleNodes count deps ct nodes =
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count ct)
+                            { deps with NodeName = nodeName } |> handleNode count scheduler)
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -54,14 +58,14 @@ and handleNodes count deps ct nodes =
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count ct)
+                            { deps with NodeName = nodeName } |> handleNode count scheduler)
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
 
-            do! nodes |> List.skip skipLength |> handleNodes count deps ct
+            do! nodes |> List.skip skipLength |> handleNodes count deps scheduler
     }
 
 let private runTask deps taskName =
@@ -90,20 +94,17 @@ let private runTask deps taskName =
     }
 
 let rec private handleTask configuration =
-    fun count parentToken (task: Task) ->
+    fun count parentScheduler (task: Task) ->
         async {
-            let cts = new CancellationTokenSource()
-
             let taskName = $"Task '%i{count}.%s{task.Name}'."
 
-            let! taskToken = taskName |> Scheduler.getExpirationToken task.Schedule task.Recursively cts
+            let scheduler =
+                taskName |> Scheduler.set parentScheduler task.Schedule task.Recursively
 
-            let linkedCts =
-                CancellationTokenSource.CreateLinkedTokenSource(parentToken, taskToken)
-
-            if linkedCts.IsCancellationRequested then
-                $"%s{taskName} Canceled." |> Log.warning
-            else
+            match scheduler with
+            | Scheduler.Start
+            | Scheduler.StopAfter _
+            | Scheduler.Continue ->
                 match task.Handler with
                 | None -> $"%s{taskName} Skipped." |> Log.trace
                 | Some handler ->
@@ -124,14 +125,18 @@ let rec private handleTask configuration =
                     $"%s{taskName} Next task will be run in {fromTimeSpan delay}." |> Log.trace
                     do! Async.Sleep delay
                 | None -> ()
+            | Scheduler.Stop -> $"%s{taskName} Stopped." |> Log.warning
+            | Scheduler.Wait delay ->
+                $"%s{taskName} Paused for %s{fromTimeSpan delay}." |> Log.warning
+                do! Async.Sleep delay
 
-            return linkedCts.Token
+            return scheduler
         }
 
 let private processGraph nodeName deps =
     handleNode
         1u
-        CancellationToken.None
+        Scheduler.Start
         { NodeName = nodeName
           getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }

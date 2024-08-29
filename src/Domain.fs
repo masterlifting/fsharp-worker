@@ -5,6 +5,21 @@ open Infrastructure
 open System.Threading
 open Microsoft.Extensions.Configuration
 
+
+type StopReason =
+    | NotWorkday
+    | StopDateReached
+    | StopTimeReached
+
+
+[<RequireQualifiedAccess>]
+type Scheduler =
+    | Start
+    | Stop of StopReason
+    | StopAfter of DateTime
+    | Continue
+    | Wait of TimeSpan
+
 type Schedule =
     { StartDate: DateOnly
       StopDate: DateOnly option
@@ -50,7 +65,7 @@ type WorkerDeps =
 type HandleNodeDeps =
     { NodeName: string
       getNode: GetTask
-      handleNode: uint -> CancellationToken -> Task -> Async<CancellationToken> }
+      handleNode: uint -> Scheduler -> Task -> Async<Scheduler> }
 
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot

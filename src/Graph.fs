@@ -102,24 +102,27 @@ let private mapTask (task: External.TaskGraph) handler =
     }
 
 let create rootNode graph =
-    
-    let toTaskNode (task: External.TaskGraph) handler=
-        Result.bind(fun nodes ->
+
+    let toNode task handler =
+        Result.bind (fun nodes ->
             handler
             |> Result.bind (mapTask task >> Result.map (fun task -> Graph.Node(task, nodes))))
 
-    let createResult nodeName toTaskNodes (graph: External.TaskGraph) =
+    let createResult nodeName toListNodes (graph: External.TaskGraph) =
         let taskName = nodeName |> Graph.buildNodeName <| graph.Name
-        let taskHandler = rootNode |> Graph.findNode taskName |> Option.bind (_.Value.Task) |> validateHandler taskName graph.Enabled
 
-        graph.Tasks 
-        |> toTaskNodes (Some taskName)
-        |> toTaskNode graph taskHandler
+        let taskHandler =
+            rootNode
+            |> Graph.findNode taskName
+            |> Option.bind (_.Value.Task)
+            |> validateHandler taskName graph.Enabled
 
-    let rec toTaskNodes name tasks =
+        graph.Tasks |> toListNodes (Some taskName) |> toNode graph taskHandler
+
+    let rec toListNodes name tasks =
         match tasks with
         | [||] -> Ok []
         | null -> Ok []
-        | _ -> tasks |> Array.map (createResult name toTaskNodes) |> Seq.roe
+        | _ -> tasks |> Array.map (createResult name toListNodes) |> Seq.roe
 
-    graph |> createResult None toTaskNodes
+    graph |> createResult None toListNodes

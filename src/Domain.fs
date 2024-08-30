@@ -14,21 +14,21 @@ type Schedule =
       TimeShift: int8 }
 
 type SchedulerStopReason =
-    | NotWorkday
-    | StopDateReached
-    | StopTimeReached
+    | NotWorkday of DayOfWeek
+    | StopDateReached of DateOnly
+    | StopTimeReached of TimeOnly
 
     member this.Message =
         match this with
-        | NotWorkday -> "Not workday"
-        | StopDateReached -> "Stop date reached"
-        | StopTimeReached -> "Stop time reached"
+        | NotWorkday day -> $"Not workday: {day}"
+        | StopDateReached date -> $"Stop date reached: {date}"
+        | StopTimeReached time -> $"Stop time reached: {time}"
 
 type Scheduler =
-    | Ready of Schedule option
-    | ReadyAfter of TimeSpan * Schedule option
-    | Expired of SchedulerStopReason * Schedule option
-    | ExpiredAfter of DateTime * Schedule option
+    | Started of Schedule option
+    | StartIn of TimeSpan * Schedule option
+    | Stopped of SchedulerStopReason * Schedule option
+    | StopIn of TimeSpan * Schedule option
 
 type TaskResult =
     | Success of Object

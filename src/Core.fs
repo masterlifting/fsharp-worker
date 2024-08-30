@@ -18,11 +18,9 @@ let rec private handleNode count schedule (deps: HandleNodeDeps) =
             let! schedule = task |> deps.handleNode count schedule
             do! node.Children |> handleNodes count deps schedule
 
-            match task.Recursively with
-            | Some _ ->
+            if task.Recursively.IsSome then
                 let count = count + 1u
                 do! handleNode count schedule deps
-            | _ -> ()
     }
 
 and handleNodes count deps schedule nodes =
@@ -66,14 +64,14 @@ and handleNodes count deps schedule nodes =
             do! nodes |> List.skip skipLength |> handleNodes count deps schedule
     }
 
-let private runTask deps taskName =
+let private runHandler deps taskName =
     async {
         $"%s{taskName} Started." |> Log.debug
 
         use cts =
             match deps.Duration with
             | Some duration -> new CancellationTokenSource(duration)
-            | None -> new CancellationTokenSource()
+            | None -> new CancellationTokenSource(TimeSpan.FromMinutes 5.)
 
         let run () =
             deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
@@ -91,26 +89,26 @@ let private runTask deps taskName =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private run task configuration taskName =
+let private tryStart task configuration taskName =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
         | Some handler ->
-            let runTask =
+            let run =
                 taskName
-                |> runTask
+                |> runHandler
                     { Configuration = configuration
                       Duration = task.Duration
                       Schedule = task.Schedule
                       taskHandler = handler }
 
-            match task.Wait with
-            | true -> do! runTask
-            | false -> runTask |> Async.Start
+            if task.Wait then do! run else run |> Async.Start
 
         match task.Recursively with
         | Some delay ->
-            $"%s{taskName} Next task will be run in {fromTimeSpan delay}." |> Log.trace
+            $"%s{taskName} Next iteration will be started in %s{fromTimeSpan delay}."
+            |> Log.trace
+
             do! Async.Sleep delay
         | None -> ()
     }
@@ -120,20 +118,23 @@ let rec private handleTask configuration =
         async {
             let taskName = $"Task '%i{count}.%s{task.Name}'."
 
-            match! Scheduler.set parentSchedule task.Schedule task.Recursively with
-            | Expired(reason, schedule) ->
-                $"%s{taskName} Stopped -> %s{reason.Message}" |> Log.warning
+            match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
+            | Stopped(reason, schedule) ->
+                $"%s{taskName} Stopped. %s{reason.Message}" |> Log.error
                 return schedule
-            | ExpiredAfter(stopDateTime, schedule) ->
-                $"%s{taskName} Stopped after %s{fromDateTime stopDateTime}." |> Log.warning
+            | StopIn(delay, schedule) ->
+                if (delay < TimeSpan.FromMinutes 10.) then
+                    $"%s{taskName} Will be stopped in %s{fromTimeSpan delay}." |> Log.warning
+
+                do! taskName |> tryStart task configuration
                 return schedule
-            | ReadyAfter(delay, schedule) ->
-                $"%s{taskName} Will start in %s{fromTimeSpan delay}." |> Log.warning
+            | StartIn(delay, schedule) ->
+                $"%s{taskName} Will be started in %s{fromTimeSpan delay}." |> Log.warning
                 do! Async.Sleep delay
-                do! taskName |> run task configuration
+                do! taskName |> tryStart task configuration
                 return schedule
-            | Ready schedule ->
-                do! taskName |> run task configuration
+            | Started schedule ->
+                do! taskName |> tryStart task configuration
                 return schedule
         }
 

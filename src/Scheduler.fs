@@ -14,7 +14,7 @@ let private checkWorkday recursively schedule =
             let delay = now.Date.AddDays 1. - now
             StartIn(delay, Some schedule)
         else
-            Stopped <| (NotWorkday now.DayOfWeek, Some schedule)
+            Stopped(NotWorkday now.DayOfWeek, Some schedule)
     else
         Started(Some schedule)
 
@@ -58,9 +58,9 @@ let private tryStartWork schedule =
 
 let private merge parent child =
     match parent, child with
+    | None, None -> None
     | Some parent, None -> Some parent
     | None, Some child -> Some child
-    | None, None -> None
     | Some parent, Some child ->
         { parent with
             Workdays = parent.Workdays |> Set.union child.Workdays }

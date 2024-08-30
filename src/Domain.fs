@@ -5,21 +5,6 @@ open Infrastructure
 open System.Threading
 open Microsoft.Extensions.Configuration
 
-
-type StopReason =
-    | NotWorkday
-    | StopDateReached
-    | StopTimeReached
-
-
-[<RequireQualifiedAccess>]
-type Scheduler =
-    | Start
-    | Stop of StopReason
-    | StopAfter of DateTime
-    | Continue
-    | Wait of TimeSpan
-
 type Schedule =
     { StartDate: DateOnly
       StopDate: DateOnly option
@@ -27,6 +12,23 @@ type Schedule =
       StopTime: TimeOnly option
       Workdays: DayOfWeek Set
       TimeShift: int8 }
+
+type SchedulerStopReason =
+    | NotWorkday
+    | StopDateReached
+    | StopTimeReached
+
+    member this.Message =
+        match this with
+        | NotWorkday -> "Not workday"
+        | StopDateReached -> "Stop date reached"
+        | StopTimeReached -> "Stop time reached"
+
+type Scheduler =
+    | Ready of Schedule option
+    | ReadyAfter of TimeSpan * Schedule option
+    | Expired of SchedulerStopReason * Schedule option
+    | ExpiredAfter of DateTime * Schedule option
 
 type TaskResult =
     | Success of Object
@@ -65,7 +67,7 @@ type WorkerDeps =
 type HandleNodeDeps =
     { NodeName: string
       getNode: GetTask
-      handleNode: uint -> Scheduler -> Task -> Async<Scheduler> }
+      handleNode: uint -> Schedule option -> Task -> Async<Schedule option> }
 
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot

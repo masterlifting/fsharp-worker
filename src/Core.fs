@@ -6,7 +6,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode count scheduler (deps: HandleNodeDeps) =
+let rec private handleNode count schedule (deps: HandleNodeDeps) =
     async {
         let nodeName = deps.NodeName
 
@@ -15,19 +15,17 @@ let rec private handleNode count scheduler (deps: HandleNodeDeps) =
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
-            let! scheduler = task |> deps.handleNode count scheduler
-            do! node.Children |> handleNodes count deps scheduler
+            let! schedule = task |> deps.handleNode count schedule
+            do! node.Children |> handleNodes count deps schedule
 
-            match task.Recursively, scheduler with
-            | Some _, Scheduler.Continue
-            | Some _, Scheduler.Start
-            | Some _, Scheduler.StopAfter _ ->
+            match task.Recursively with
+            | Some _ ->
                 let count = count + 1u
-                do! handleNode count scheduler deps
+                do! handleNode count schedule deps
             | _ -> ()
     }
 
-and handleNodes count deps scheduler nodes =
+and handleNodes count deps schedule nodes =
     async {
         if nodes.Length > 0 then
 
@@ -47,7 +45,7 @@ and handleNodes count deps scheduler nodes =
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count scheduler)
+                            { deps with NodeName = nodeName } |> handleNode count schedule)
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -58,14 +56,14 @@ and handleNodes count deps scheduler nodes =
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count scheduler)
+                            { deps with NodeName = nodeName } |> handleNode count schedule)
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
 
-            do! nodes |> List.skip skipLength |> handleNodes count deps scheduler
+            do! nodes |> List.skip skipLength |> handleNodes count deps schedule
     }
 
 let private runTask deps taskName =
@@ -93,50 +91,56 @@ let private runTask deps taskName =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
+let private run task configuration taskName =
+    async {
+        match task.Handler with
+        | None -> $"%s{taskName} Skipped." |> Log.trace
+        | Some handler ->
+            let runTask =
+                taskName
+                |> runTask
+                    { Configuration = configuration
+                      Duration = task.Duration
+                      Schedule = task.Schedule
+                      taskHandler = handler }
+
+            match task.Wait with
+            | true -> do! runTask
+            | false -> runTask |> Async.Start
+
+        match task.Recursively with
+        | Some delay ->
+            $"%s{taskName} Next task will be run in {fromTimeSpan delay}." |> Log.trace
+            do! Async.Sleep delay
+        | None -> ()
+    }
+
 let rec private handleTask configuration =
-    fun count parentScheduler (task: Task) ->
+    fun count parentSchedule (task: Task) ->
         async {
             let taskName = $"Task '%i{count}.%s{task.Name}'."
 
-            let scheduler =
-                taskName |> Scheduler.set parentScheduler task.Schedule task.Recursively
-
-            match scheduler with
-            | Scheduler.Start
-            | Scheduler.StopAfter _
-            | Scheduler.Continue ->
-                match task.Handler with
-                | None -> $"%s{taskName} Skipped." |> Log.trace
-                | Some handler ->
-                    let runTask =
-                        taskName
-                        |> runTask
-                            { Configuration = configuration
-                              Duration = task.Duration
-                              Schedule = task.Schedule
-                              taskHandler = handler }
-
-                    match task.Wait with
-                    | true -> do! runTask
-                    | false -> runTask |> Async.Start
-
-                match task.Recursively with
-                | Some delay ->
-                    $"%s{taskName} Next task will be run in {fromTimeSpan delay}." |> Log.trace
-                    do! Async.Sleep delay
-                | None -> ()
-            | Scheduler.Stop -> $"%s{taskName} Stopped." |> Log.warning
-            | Scheduler.Wait delay ->
-                $"%s{taskName} Paused for %s{fromTimeSpan delay}." |> Log.warning
+            match! Scheduler.set parentSchedule task.Schedule task.Recursively with
+            | Expired(reason, schedule) ->
+                $"%s{taskName} Stopped -> %s{reason.Message}" |> Log.warning
+                return schedule
+            | ExpiredAfter(stopDateTime, schedule) ->
+                $"%s{taskName} Stopped after %s{fromDateTime stopDateTime}." |> Log.warning
+                return schedule
+            | ReadyAfter(delay, schedule) ->
+                $"%s{taskName} Will start in %s{fromTimeSpan delay}." |> Log.warning
                 do! Async.Sleep delay
-
-            return scheduler
+                do! taskName |> run task configuration
+                return schedule
+            | Ready schedule ->
+                do! taskName |> run task configuration
+                return schedule
         }
 
 let private processGraph nodeName deps =
     handleNode
         1u
-        Scheduler.Start
+        None
         { NodeName = nodeName
           getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }

@@ -6,7 +6,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode count schedule (deps: HandleNodeDeps) =
+let rec private handleNode (count, schedule) (deps: HandleNodeDeps) =
     async {
         let nodeName = deps.NodeName
 
@@ -16,14 +16,14 @@ let rec private handleNode count schedule (deps: HandleNodeDeps) =
             let task = { node.Value with Name = nodeName }
 
             let! schedule = task |> deps.handleNode count schedule
-            do! node.Children |> handleNodes count deps schedule
+            do! node.Children |> handleNodes (count, deps, schedule)
 
             if task.Recursively.IsSome then
                 let count = count + 1u
-                do! handleNode count schedule deps
+                do! handleNode (count, schedule) deps
     }
 
-and handleNodes count deps schedule nodes =
+and handleNodes (count, deps, schedule) nodes =
     async {
         if nodes.Length > 0 then
 
@@ -43,7 +43,7 @@ and handleNodes count deps schedule nodes =
                         [ nodes[0] ] @ sequentialNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count schedule)
+                            { deps with NodeName = nodeName } |> handleNode (count, schedule))
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -54,14 +54,14 @@ and handleNodes count deps schedule nodes =
                         parallelNodes
                         |> List.map (fun task ->
                             let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode count schedule)
+                            { deps with NodeName = nodeName } |> handleNode (count, schedule))
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
 
             do! nodeHandlers |> Async.Ignore
 
-            do! nodes |> List.skip skipLength |> handleNodes count deps schedule
+            do! nodes |> List.skip skipLength |> handleNodes (count, deps, schedule)
     }
 
 let private runHandler deps taskName =
@@ -134,8 +134,7 @@ let rec private handleTask configuration =
 
 let private processGraph nodeName deps =
     handleNode
-        1u
-        None
+        (1u, None)
         { NodeName = nodeName
           getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }

@@ -6,9 +6,9 @@ open System.Threading
 open Microsoft.Extensions.Configuration
 
 type Schedule =
-    { StartDate: DateOnly
+    { StartDate: DateOnly option
       StopDate: DateOnly option
-      StartTime: TimeOnly
+      StartTime: TimeOnly option
       StopTime: TimeOnly option
       Workdays: DayOfWeek Set
       TimeShift: int8 }
@@ -78,9 +78,9 @@ type internal FireAndForgetDeps =
 module External =
 
     type Schedule() =
-        member val StartDate: string = String.Empty with get, set
+        member val StartDate: string option = None with get, set
         member val StopDate: string option = None with get, set
-        member val StartTime: string = String.Empty with get, set
+        member val StartTime: string option = None with get, set
         member val StopTime: string option = None with get, set
         member val Workdays: string = String.Empty with get, set
         member val TimeShift: int8 = 0y with get, set

@@ -42,7 +42,12 @@ let private tryStopWork recursively (now: DateTime) schedule =
         | None -> Started(Some schedule)
 
 let private tryStartWork (now: DateTime) schedule =
-    let startDateTime = schedule.StartDate.ToDateTime(schedule.StartTime)
+    let startDateTime =
+        match schedule.StartDate, schedule.StartTime with
+        | Some startDate, Some startTime -> startDate.ToDateTime startTime
+        | Some startDate, None -> startDate.ToDateTime TimeOnly.MinValue
+        | None, Some startTime -> now.Date.Add(startTime.ToTimeSpan())
+        | None, None -> now
 
     if startDateTime > now then
         let delay = startDateTime - now

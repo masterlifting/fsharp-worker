@@ -25,9 +25,9 @@ The `TaskGraph` represents a task and its configuration. It includes the followi
 
 The `Schedule` represents the scheduling configuration for a task. It includes the following properties:
 
-- `StartDate`: The start date of the task.
+- `StartDate`: (Optional) The start date of the task. If not specified, the task will start immediately.
 - `StopDate`: (Optional) The stop date of the task.
-- `StartTime`: The start time of the task.
+- `StartTime`: (Optional )The start time of the task. If not specified, the task will start immediately.
 - `StopTime`: (Optional) The stop time of the task.
 - `Workdays`: The days of the week when the task should work (e.g., "mon,tue,wed,thu,fri").
 - `TimeShift`: Number of hours to shift the task execution time to UTC (default is 0).

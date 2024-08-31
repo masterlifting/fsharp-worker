@@ -8,22 +8,20 @@ open Worker.Domain
 let private parseWorkdays workdays =
     match workdays with
     | AP.IsString str ->
-        match str.Split(",") with
-        | data ->
-            data
-            |> Array.map (function
-                | "mon" -> Ok DayOfWeek.Monday
-                | "tue" -> Ok DayOfWeek.Tuesday
-                | "wed" -> Ok DayOfWeek.Wednesday
-                | "thu" -> Ok DayOfWeek.Thursday
-                | "fri" -> Ok DayOfWeek.Friday
-                | "sat" -> Ok DayOfWeek.Saturday
-                | "sun" -> Ok DayOfWeek.Sunday
-                | _ ->
-                    Error
-                    <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
-            |> Seq.roe
-            |> Result.map Set.ofList
+        str.Split ','
+        |> Array.map (function
+            | "mon" -> Ok DayOfWeek.Monday
+            | "tue" -> Ok DayOfWeek.Tuesday
+            | "wed" -> Ok DayOfWeek.Wednesday
+            | "thu" -> Ok DayOfWeek.Thursday
+            | "fri" -> Ok DayOfWeek.Friday
+            | "sat" -> Ok DayOfWeek.Saturday
+            | "sun" -> Ok DayOfWeek.Sunday
+            | _ ->
+                Error
+                <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
+        |> Seq.roe
+        |> Result.map Set.ofList
     | _ ->
         Ok
         <| set
@@ -37,28 +35,22 @@ let private parseWorkdays workdays =
 
 let private parseDateOnly day =
     match day with
-    | AP.IsString day ->
-        match day with
-        | AP.IsDateOnly value -> Ok value
-        | _ -> Error <| NotSupported "DateOnly. Expected format: 'yyyy-MM-dd'."
-    | _ -> Ok <| DateOnly.FromDateTime(DateTime.UtcNow)
+    | AP.IsDateOnly value -> Ok value
+    | _ -> Error <| NotSupported "DateOnly. Expected format: 'yyyy-MM-dd'."
 
 let private parseTimeOnly time =
     match time with
-    | AP.IsString time ->
-        match time with
-        | AP.IsTimeOnly value -> Ok value
-        | _ -> Error <| NotSupported "TimeOnly. Expected format: 'hh:mm:ss'."
-    | _ -> Ok <| TimeOnly.FromDateTime(DateTime.UtcNow)
+    | AP.IsTimeOnly value -> Ok value
+    | _ -> Error <| NotSupported "TimeOnly. Expected format: 'hh:mm:ss'."
 
 let private validatedModel = ModelBuilder()
 
 let private mapSchedule (schedule: External.Schedule) =
     validatedModel {
         let! workdays = schedule.Workdays |> parseWorkdays
-        let! startDate = schedule.StartDate |> parseDateOnly
+        let! startDate = schedule.StartDate |> Option.toResult parseDateOnly
         let! stopDate = schedule.StopDate |> Option.toResult parseDateOnly
-        let! startTime = schedule.StartTime |> parseTimeOnly
+        let! startTime = schedule.StartTime |> Option.toResult parseTimeOnly
         let! stopTime = schedule.StopTime |> Option.toResult parseTimeOnly
 
         return
@@ -70,17 +62,14 @@ let private mapSchedule (schedule: External.Schedule) =
               TimeShift = schedule.TimeShift }
     }
 
-let private parseTimeSpan value =
-    match value with
-    | AP.IsString str ->
-        match str with
-        | AP.IsTimeSpan value -> Ok value
-        | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
+let private parseTimeSpan timeSpan =
+    match timeSpan with
+    | AP.IsTimeSpan value -> Ok value
     | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
 
 let private validateHandler taskName taskEnabled (handler: TaskHandler option) =
     match taskEnabled, handler with
-    | true, None -> Error <| NotFound $"Handler for task '{taskName}'."
+    | true, None -> Error <| NotFound $"Handler for task '%s{taskName}'."
     | true, Some handler -> Ok <| Some handler
     | false, _ -> Ok None
 
@@ -116,7 +105,7 @@ let create rootNode graph =
 
     let rec toListNodes name tasks =
         match tasks with
-        | [||] -> Ok []
+        | [||]
         | null -> Ok []
         | _ -> tasks |> Array.map (createResult name toListNodes) |> Seq.roe
 

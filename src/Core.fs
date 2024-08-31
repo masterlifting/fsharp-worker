@@ -11,7 +11,7 @@ let rec private handleNode (count, schedule) (deps: HandleNodeDeps) =
         let nodeName = deps.NodeName
 
         match! deps.getNode nodeName with
-        | Error error -> $"Task %i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.critical
+        | Error error -> $"%i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
@@ -110,7 +110,7 @@ let private tryStart task configuration taskName =
 let rec private handleTask configuration =
     fun count parentSchedule (task: Task) ->
         async {
-            let taskName = $"Task '%i{count}.%s{task.Name}'."
+            let taskName = $"%i{count}.'%s{task.Name}'."
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped(reason, schedule) ->
@@ -118,7 +118,7 @@ let rec private handleTask configuration =
                 return schedule
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
-                    $"%s{taskName} Will be stopped in %s{fromTimeSpan delay}." |> Log.warning
+                    $"%s{taskName} Will be stopped in %s{fromTimeSpan delay}." |> Log.debug
 
                 do! taskName |> tryStart task configuration
                 return schedule

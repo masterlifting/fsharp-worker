@@ -43,7 +43,7 @@ type Task =
     { Name: string
       Recursively: TimeSpan option
       Parallel: bool
-      Duration: TimeSpan option
+      Duration: TimeSpan
       Wait: bool
       Schedule: Schedule option
       Handler: TaskHandler option }
@@ -71,9 +71,9 @@ type HandleNodeDeps =
 
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot
-      Duration: TimeSpan option
+      Duration: TimeSpan
       Schedule: Schedule option
-      taskHandler: TaskHandler }
+      startHandler: TaskHandler }
 
 module External =
 

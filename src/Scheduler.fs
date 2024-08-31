@@ -3,11 +3,7 @@ module internal Worker.Scheduler
 open System
 open Worker.Domain
 
-let private now (timeShift: int8) =
-    DateTime.UtcNow.AddHours(timeShift |> float)
-
-let private checkWorkday recursively schedule =
-    let now = now schedule.TimeShift
+let private checkWorkday recursively (now: DateTime) schedule =
 
     if now.DayOfWeek |> Set.contains >> not <| schedule.Workdays then
         if recursively then
@@ -18,8 +14,7 @@ let private checkWorkday recursively schedule =
     else
         Started(Some schedule)
 
-let private tryStopWork recursively schedule =
-    let now = now schedule.TimeShift
+let private tryStopWork recursively (now: DateTime) schedule =
 
     match schedule.StopDate with
     | Some stopDate ->
@@ -46,8 +41,7 @@ let private tryStopWork recursively schedule =
                 Stopped(StopTimeReached stopTime, Some schedule)
         | None -> Started(Some schedule)
 
-let private tryStartWork schedule =
-    let now = now schedule.TimeShift
+let private tryStartWork (now: DateTime) schedule =
     let startDateTime = schedule.StartDate.ToDateTime(schedule.StartTime)
 
     if startDateTime > now then
@@ -62,17 +56,42 @@ let private merge parent child =
     | Some parent, None -> Some parent
     | None, Some child -> Some child
     | Some parent, Some child ->
+        let workdays = parent.Workdays |> Set.union child.Workdays
+
+        let startDate =
+            if child.StartDate > parent.StartDate then
+                child.StartDate
+            else
+                parent.StartDate
+
+        let stopDate =
+            match parent.StopDate, child.StopDate with
+            | Some parentStopDate, Some childStopDate ->
+                Some(
+                    if childStopDate < parentStopDate then
+                        childStopDate
+                    else
+                        parentStopDate
+                )
+            | Some parentStopDate, None -> Some parentStopDate
+            | None, Some childStopDate -> Some childStopDate
+            | None, None -> None
+
         { parent with
-            Workdays = parent.Workdays |> Set.union child.Workdays }
+            Workdays = workdays
+            StartDate = startDate
+            StopDate = stopDate }
         |> Some
 
 let set parentSchedule schedule recursively =
     match parentSchedule |> merge <| schedule with
     | None -> Started None
     | Some schedule ->
-        [ schedule |> checkWorkday recursively
-          schedule |> tryStopWork recursively
-          schedule |> tryStartWork ]
+        let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)
+
+        [ schedule |> checkWorkday recursively now
+          schedule |> tryStopWork recursively now
+          schedule |> tryStartWork now ]
         |> List.minBy (function
             | Stopped _ -> 0
             | StartIn _ -> 1

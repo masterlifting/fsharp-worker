@@ -5,16 +5,6 @@ open System
 open Infrastructure
 open Worker.Domain
 
-let private DefaultWorkdays =
-    set
-        [ DayOfWeek.Monday
-          DayOfWeek.Tuesday
-          DayOfWeek.Wednesday
-          DayOfWeek.Thursday
-          DayOfWeek.Friday
-          DayOfWeek.Saturday
-          DayOfWeek.Sunday ]
-
 let private parseWorkdays workdays =
     match workdays with
     | AP.IsString str ->
@@ -34,23 +24,32 @@ let private parseWorkdays workdays =
                     <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
             |> Seq.roe
             |> Result.map Set.ofList
-    | _ -> Ok DefaultWorkdays
+    | _ ->
+        Ok
+        <| set
+            [ DayOfWeek.Monday
+              DayOfWeek.Tuesday
+              DayOfWeek.Wednesday
+              DayOfWeek.Thursday
+              DayOfWeek.Friday
+              DayOfWeek.Saturday
+              DayOfWeek.Sunday ]
 
 let private parseDateOnly day =
-    if String.IsNullOrEmpty day then
-        Ok <| DateOnly.FromDateTime(DateTime.UtcNow)
-    else
+    match day with
+    | AP.IsString day ->
         match day with
         | AP.IsDateOnly value -> Ok value
         | _ -> Error <| NotSupported "DateOnly. Expected format: 'yyyy-MM-dd'."
+    | _ -> Ok <| DateOnly.FromDateTime(DateTime.UtcNow)
 
 let private parseTimeOnly time =
-    if String.IsNullOrEmpty time then
-        Ok <| TimeOnly.FromDateTime(DateTime.UtcNow)
-    else
+    match time with
+    | AP.IsString time ->
         match time with
         | AP.IsTimeOnly value -> Ok value
         | _ -> Error <| NotSupported "TimeOnly. Expected format: 'hh:mm:ss'."
+    | _ -> Ok <| TimeOnly.FromDateTime(DateTime.UtcNow)
 
 let private validatedModel = ModelBuilder()
 
@@ -95,7 +94,7 @@ let private mapTask (task: External.TaskGraph) handler =
             { Name = task.Name
               Parallel = task.Parallel
               Recursively = recursively
-              Duration = duration
+              Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)
               Wait = task.Wait
               Schedule = schedule
               Handler = handler }
@@ -104,20 +103,16 @@ let private mapTask (task: External.TaskGraph) handler =
 let create rootNode graph =
 
     let toNode task handler =
-        Result.bind (fun nodes ->
-            handler
-            |> Result.bind (mapTask task >> Result.map (fun task -> Graph.Node(task, nodes))))
+        Result.bind (fun nodes -> mapTask task handler |> Result.map (fun task -> Graph.Node(task, nodes)))
 
     let createResult nodeName toListNodes (graph: External.TaskGraph) =
         let taskName = nodeName |> Graph.buildNodeName <| graph.Name
 
-        let taskHandler =
-            rootNode
-            |> Graph.findNode taskName
-            |> Option.bind (_.Value.Task)
-            |> validateHandler taskName graph.Enabled
-
-        graph.Tasks |> toListNodes (Some taskName) |> toNode graph taskHandler
+        rootNode
+        |> Graph.findNode taskName
+        |> Option.bind (_.Value.Task)
+        |> validateHandler taskName graph.Enabled
+        |> Result.bind (fun handler -> graph.Tasks |> toListNodes (Some taskName) |> toNode graph handler)
 
     let rec toListNodes name tasks =
         match tasks with

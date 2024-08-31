@@ -11,7 +11,7 @@ let rec private handleNode count schedule (deps: HandleNodeDeps) =
         let nodeName = deps.NodeName
 
         match! deps.getNode nodeName with
-        | Error error -> $"Task %i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.error
+        | Error error -> $"Task %i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
             let task = { node.Value with Name = nodeName }
 
@@ -37,7 +37,7 @@ and handleNodes count deps schedule nodes =
                 | parallelNodes when parallelNodes.Length < 2 ->
 
                     let sequentialNodes =
-                        nodes |> List.skip 1 |> List.takeWhile (_.Value.Parallel >> not)
+                        nodes |> List.skip 1 |> List.takeWhile (not << _.Value.Parallel)
 
                     let tasks =
                         [ nodes[0] ] @ sequentialNodes
@@ -68,16 +68,10 @@ let private runHandler deps taskName =
     async {
         $"%s{taskName} Started." |> Log.debug
 
-        use cts =
-            match deps.Duration with
-            | Some duration -> new CancellationTokenSource(duration)
-            | None -> new CancellationTokenSource(TimeSpan.FromMinutes 5.)
+        use cts = new CancellationTokenSource(deps.Duration)
 
-        let run () =
-            deps.taskHandler (deps.Configuration, deps.Schedule, cts.Token)
-
-        match! run () with
-        | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.error
+        match! deps.startHandler (deps.Configuration, deps.Schedule, cts.Token) with
+        | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.critical
         | Ok result ->
             let message = $"%s{taskName} Completed. "
 
@@ -100,7 +94,7 @@ let private tryStart task configuration taskName =
                     { Configuration = configuration
                       Duration = task.Duration
                       Schedule = task.Schedule
-                      taskHandler = handler }
+                      startHandler = handler }
 
             if task.Wait then do! run else run |> Async.Start
 
@@ -120,7 +114,7 @@ let rec private handleTask configuration =
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped(reason, schedule) ->
-                $"%s{taskName} Stopped. %s{reason.Message}" |> Log.error
+                $"%s{taskName} Stopped. %s{reason.Message}" |> Log.critical
                 return schedule
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
@@ -160,7 +154,7 @@ let start deps name =
                     failwith message
                 | _ -> failwith $"%s{workerName} Failed -> %s{ex.Message}"
         with ex ->
-            ex.Message |> Log.error
+            ex.Message |> Log.critical
 
         // Wait for the logger to finish writing logs
         do! Async.Sleep 1000

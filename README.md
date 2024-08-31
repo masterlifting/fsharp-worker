@@ -4,26 +4,28 @@
 
 ## Overview
 
-The F# Worker is a powerful tool for handling a graph of tasks and executing them either in parallel or in sequence using scheduling.
+The F# Worker is a powerful tool for managing a graph of tasks and executing them either in parallel or in sequence using scheduling.
 
 ## Usage
 
 To use the F# Worker, you need to provide the following:
 
 ```yaml
-Step: 
+TaskGraph: 
   Name: Name of the task
-  Parallel: If true, the task will be executed in parallel with following parallel tasks, otherwise the task will be executed in sequence
-  Recursively: If true, the task will be executed recursively, otherwise the task will be executed only once
-  Duration: Duration of the task. We should handle Cancelation token into the handler of the task
+  Enabled: If true, the task is active
+  Recursively: If specified, the task will be executed recursively based on the provided condition
+  Parallel: If true, the task will be executed in parallel with other parallel tasks; otherwise, it will be executed in sequence
+  Duration: If specified, the task will run for the provided duration
+  Wait: If true, the task will wait for dependent tasks to complete
+  Schedule: (Optional) The schedule configuration for the task
+  Tasks: An array of nested TaskGraph elements to define task dependencies
 
 Schedule:
-  IsEnabled: If true, the task will be scheduled, otherwise the task will be executed immediately
-  StartWork: Date and Time when the task should start working (if not specified, the task will start working immediately). Example - "2020-01-01T00:00:00"
-  StopWork: Date and Time when the task should stop working (if not specified, the task will work infinitely). Example - "2020-01-01T00:00:00"
-  WorkDays: Days of the week when the task should work (if not specified, the task will work every day). Example - "mon,tue,wed,thu,fri,sat,sun"
-  Delay: Delay between the task executions. Example -  "00:00:01" - 1 second
-  Limit: Number of executions of the task. If not specified, the task will work infinitely.  After the limit is reached, the task will be stopped
-  TimeShift: Number of hours to shift the task execution time to UTC. (by default is 0)
-
+  StartDate: The start date of the task
+  StopDate: (Optional) The stop date of the task
+  StartTime: The start time of the task
+  StopTime: (Optional) The stop time of the task
+  Workdays: The days of the week when the task should work (e.g., "mon,tue,wed,thu,fri")
+  TimeShift: Number of hours to shift the task execution time to UTC (default is 0)
 ```

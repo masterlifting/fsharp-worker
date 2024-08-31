@@ -4,8 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <None Include=".gitignore" />
-    <None Include="README.md" />
     <Compile Include="Domain.fs" />
     <Compile Include="Graph.fs" />
     <Compile Include="Scheduler.fs" />

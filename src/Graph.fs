@@ -20,7 +20,7 @@ let private parseWorkdays workdays =
             | _ ->
                 Error
                 <| NotSupported "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'.")
-        |> Seq.roe
+        |> Result.choose
         |> Result.map Set.ofList
     | _ ->
         Ok
@@ -107,6 +107,6 @@ let create rootNode graph =
         match tasks with
         | [||]
         | null -> Ok []
-        | _ -> tasks |> Array.map (createResult name toListNodes) |> Seq.roe
+        | _ -> tasks |> Array.map (createResult name toListNodes) |> Result.choose
 
     graph |> createResult None toListNodes

@@ -39,9 +39,10 @@ To use the F# Worker, you need to provide the following dependencies:
 ```fsharp
 type GetTask = string -> Async<Result<Graph.Node<Task>, Error'>>
 
-type WorkerDeps =
-  { getTask: GetTask
-    Configuration: IConfigurationRoot }
+type WorkerConfiguration =
+    { Name: string
+      Configuration: IConfigurationRoot 
+      getTask: GetTask }
 ```
 
 ## Worker Execution
@@ -49,16 +50,21 @@ type WorkerDeps =
 You can start the worker with the following example:
 
 ```fsharp
-"Scheduler"
-|> Worker.Core.start
-  { getTask = taskHandlers |> TasksStorage.getTask configuration
-    Configuration = configuration }
-|> Async.RunSynchronously
+    let workerConfig =
+        { Name = rootTask.Name
+          Configuration = configuration
+          getTask = taskHandlers |> TasksStorage.getTask configuration }
+
+    workerConfig |> Worker.Core.start |> Async.RunSynchronously
 ```
 
 In this example:
 
-- "Scheduler" is the name of the task graph to be processed.
-- `Worker.Core.start` initializes the worker with the provided dependencies.
-- `TasksStorage.getTask` retrieves the task handler based on the provided configuration.
-- The worker is then run synchronously using `Async.RunSynchronously`.
+- `rootTask` is the root task of the task graph and task handlers graph.
+- `configuration` is the configuration of the application where the worker is running.
+- `taskHandlers` is a list of task handlers that can be used to execute tasks.
+- `TasksStorage.getTask` is a function that retrieves a task by name from the task graph.
+- `Worker.Core.start` is a function that starts the worker.
+
+### Example
+- https://github.com/masterlifting/embassy-access/blob/notifications/src/embassy-access-worker/Program.fs

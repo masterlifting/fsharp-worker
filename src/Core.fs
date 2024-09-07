@@ -139,12 +139,12 @@ let private processGraph nodeName deps =
           getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }
 
-let start deps name =
+let start config =
     async {
         try
-            let workerName = $"Worker '%s{name}'."
+            let workerName = $"Worker '%s{config.Name}'."
 
-            match! processGraph name deps |> Async.Catch with
+            match! processGraph config.Name config |> Async.Catch with
             | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with

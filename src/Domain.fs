@@ -60,9 +60,10 @@ type TaskNode =
 
 type GetTask = string -> Async<Result<Graph.Node<Task>, Error'>>
 
-type WorkerDeps =
-    { getTask: GetTask
-      Configuration: IConfigurationRoot }
+type WorkerConfiguration =
+    { Name: string
+      Configuration: IConfigurationRoot 
+      getTask: GetTask }
 
 type HandleNodeDeps =
     { NodeName: string

@@ -1,9 +1,9 @@
 module Worker.Domain
 
 open System
-open Infrastructure
 open System.Threading
 open Microsoft.Extensions.Configuration
+open Infrastructure
 
 type Schedule =
     { StartDate: DateOnly option
@@ -37,7 +37,7 @@ type TaskResult =
     | Info of string
     | Trace of string
 
-type TaskHandler = IConfigurationRoot * Schedule option * CancellationToken -> Async<Result<TaskResult, Error'>>
+type TaskHandler = IConfigurationRoot * CancellationToken -> Async<Result<TaskResult, Error'>>
 
 type Task =
     { Name: string
@@ -73,7 +73,6 @@ type HandleNodeDeps =
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot
       Duration: TimeSpan
-      Schedule: Schedule option
       startHandler: TaskHandler }
 
 module External =

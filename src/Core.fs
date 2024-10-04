@@ -6,7 +6,7 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode (count, schedule) (deps: HandleNodeDeps) =
+let rec private handleNode (count, schedule) deps =
     async {
         let nodeName = deps.NodeName
 
@@ -70,7 +70,7 @@ let private runHandler deps taskName =
 
         use cts = new CancellationTokenSource(deps.Duration)
 
-        match! deps.startHandler (deps.Configuration, deps.Schedule, cts.Token) with
+        match! deps.startHandler (deps.Configuration, cts.Token) with
         | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.critical
         | Ok result ->
             let message = $"%s{taskName} Completed. "
@@ -93,7 +93,6 @@ let private tryStart task configuration taskName =
                 |> runHandler
                     { Configuration = configuration
                       Duration = task.Duration
-                      Schedule = task.Schedule
                       startHandler = handler }
 
             if task.Wait then do! run else run |> Async.Start

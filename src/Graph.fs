@@ -110,3 +110,21 @@ let create rootNode graph =
         | _ -> tasks |> Array.map (createResult name toListNodes) |> Result.choose
 
     graph |> createResult None toListNodes
+
+let map graph =
+
+    let toNode task =
+        Result.bind (fun nodes -> mapTask task None |> Result.map (fun task -> Graph.Node(task, nodes)))
+
+    let createResult nodeName toListNodes (graph: External.TaskGraph) =
+        
+        let taskName = nodeName |> Graph.buildNodeName <| graph.Name
+        graph.Tasks |> toListNodes (Some taskName) |> toNode graph
+
+    let rec toListNodes name tasks =
+        match tasks with
+        | [||]
+        | null -> Ok []
+        | _ -> tasks |> Array.map (createResult name toListNodes) |> Result.choose
+
+    graph |> createResult None toListNodes

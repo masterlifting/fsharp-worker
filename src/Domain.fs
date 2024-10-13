@@ -31,7 +31,7 @@ type Scheduler =
     | StopIn of TimeSpan * Schedule option
 
 type TaskResult =
-    | Success of Object
+    | Success of obj
     | Warn of string
     | Debug of string
     | Info of string

@@ -117,7 +117,7 @@ let map graph =
         Result.bind (fun nodes -> mapTask task None |> Result.map (fun task -> Graph.Node(task, nodes)))
 
     let createResult nodeName toListNodes (graph: External.TaskGraph) =
-        
+
         let taskName = nodeName |> Graph.buildNodeName <| graph.Name
         graph.Tasks |> toListNodes (Some taskName) |> toNode graph
 

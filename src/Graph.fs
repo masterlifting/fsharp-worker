@@ -43,10 +43,10 @@ let private parseTimeOnly time =
     | AP.IsTimeOnly value -> Ok value
     | _ -> Error <| NotSupported "TimeOnly. Expected format: 'hh:mm:ss'."
 
-let private validatedModel = ModelBuilder()
+let private scheduleResult = ResultBuilder()
 
 let private mapSchedule (schedule: External.Schedule) =
-    validatedModel {
+    scheduleResult {
         let! workdays = schedule.Workdays |> parseWorkdays
         let! startDate = schedule.StartDate |> Option.toResult parseDateOnly
         let! stopDate = schedule.StopDate |> Option.toResult parseDateOnly
@@ -74,7 +74,7 @@ let private validateHandler taskName taskEnabled (handler: TaskHandler option) =
     | false, _ -> Ok None
 
 let private mapTask (task: External.TaskGraph) handler =
-    validatedModel {
+    scheduleResult {
         let! recursively = task.Recursively |> Option.toResult parseTimeSpan
         let! duration = task.Duration |> Option.toResult parseTimeSpan
         let! schedule = task.Schedule |> Option.toResult mapSchedule

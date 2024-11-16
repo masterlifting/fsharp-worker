@@ -11,7 +11,7 @@ type Schedule =
       StartTime: TimeOnly option
       StopTime: TimeOnly option
       Workdays: DayOfWeek Set
-      TimeShift: int8 }
+      TimeZone: int8 }
 
 type SchedulerStopReason =
     | NotWorkday of DayOfWeek
@@ -83,7 +83,7 @@ module External =
         member val StartTime: string option = None with get, set
         member val StopTime: string option = None with get, set
         member val Workdays: string = String.Empty with get, set
-        member val TimeShift: int8 = 0y with get, set
+        member val TimeZone: int8 = 0y with get, set
 
     type TaskGraph() =
         member val Name: string = String.Empty with get, set

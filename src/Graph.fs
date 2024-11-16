@@ -59,7 +59,7 @@ let private mapSchedule (schedule: External.Schedule) =
               StartTime = startTime
               StopTime = stopTime
               Workdays = workdays
-              TimeShift = schedule.TimeShift }
+              TimeZone = schedule.TimeZone }
     }
 
 let private parseTimeSpan timeSpan =

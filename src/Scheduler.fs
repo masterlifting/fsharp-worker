@@ -92,7 +92,7 @@ let set parentSchedule schedule recursively =
     match parentSchedule |> merge <| schedule with
     | None -> Started None
     | Some schedule ->
-        let now = DateTime.UtcNow.AddHours(schedule.TimeShift |> float)
+        let now = DateTime.UtcNow.AddHours(schedule.TimeZone |> float)
 
         [ schedule |> checkWorkday recursively now
           schedule |> tryStopWork recursively now

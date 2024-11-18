@@ -5,7 +5,7 @@ open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure
 
-type Schedule =
+type WorkerSchedule =
     { StartDate: DateOnly option
       StopDate: DateOnly option
       StartTime: TimeOnly option
@@ -13,7 +13,7 @@ type Schedule =
       Workdays: DayOfWeek Set
       TimeZone: int8 }
 
-type SchedulerStopReason =
+type WorkerSchedulerStopReason =
     | NotWorkday of DayOfWeek
     | StopDateReached of DateOnly
     | StopTimeReached of TimeOnly
@@ -24,56 +24,58 @@ type SchedulerStopReason =
         | StopDateReached date -> $"Stop date reached: {date}"
         | StopTimeReached time -> $"Stop time reached: {time}"
 
-type Scheduler =
-    | Started of Schedule option
-    | StartIn of TimeSpan * Schedule option
-    | Stopped of SchedulerStopReason * Schedule option
-    | StopIn of TimeSpan * Schedule option
+type WorkerScheduler =
+    | NotScheduled
+    | Started of WorkerSchedule
+    | StartIn of TimeSpan * WorkerSchedule
+    | Stopped of WorkerSchedulerStopReason * WorkerSchedule
+    | StopIn of TimeSpan * WorkerSchedule
 
-type TaskResult =
+type WorkerTaskResult =
     | Success of obj
     | Warn of string
     | Debug of string
     | Info of string
     | Trace of string
 
-type TaskHandler = IConfigurationRoot * CancellationToken -> Async<Result<TaskResult, Error'>>
+type WorkerTaskHandler = IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
 
-type Task =
+type WorkerTask =
     { Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
       Wait: bool
-      Schedule: Schedule option
-      Handler: TaskHandler option }
+      Schedule: WorkerSchedule option
+      Handler: (IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
 
     interface Graph.INodeName with
         member this.Name = this.Name
 
-type TaskNode =
+type WorkerTaskNode =
     { Name: string
-      Task: TaskHandler option }
+      Task: WorkerTaskHandler option }
 
     interface Graph.INodeName with
         member this.Name = this.Name
 
-type GetTask = string -> Async<Result<Graph.Node<Task>, Error'>>
+type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTask>, Error'>>
 
 type WorkerConfiguration =
     { Name: string
       Configuration: IConfigurationRoot
-      getTask: GetTask }
+      getTask: GetWorkerTask }
 
-type HandleNodeDeps =
+type WorkerNodeDeps =
     { NodeName: string
-      getNode: GetTask
-      handleNode: uint -> Schedule option -> Task -> Async<Schedule option> }
+      getNode: GetWorkerTask
+      handleNode: uint -> WorkerSchedule option -> WorkerTask -> Async<WorkerSchedule option> }
 
 type internal FireAndForgetDeps =
     { Configuration: IConfigurationRoot
+      Schedule: WorkerSchedule
       Duration: TimeSpan
-      startHandler: TaskHandler }
+      startHandler: IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>> }
 
 module External =
 

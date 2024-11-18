@@ -8,11 +8,11 @@ let private checkWorkday recursively (now: DateTime) schedule =
     if now.DayOfWeek |> Set.contains >> not <| schedule.Workdays then
         if recursively then
             let delay = now.Date.AddDays 1. - now
-            StartIn(delay, Some schedule)
+            StartIn(delay, schedule)
         else
-            Stopped(NotWorkday now.DayOfWeek, Some schedule)
+            Stopped(NotWorkday now.DayOfWeek, schedule)
     else
-        Started(Some schedule)
+        Started schedule
 
 let private tryStopWork recursively (now: DateTime) schedule =
 
@@ -23,9 +23,9 @@ let private tryStopWork recursively (now: DateTime) schedule =
 
         if stopDateTime >= now then
             let delay = stopDateTime - now
-            StopIn(delay, Some schedule)
+            StopIn(delay, schedule)
         else
-            Stopped(StopDateReached stopDate, Some schedule)
+            Stopped(StopDateReached stopDate, schedule)
     | None ->
         match schedule.StopTime with
         | Some stopTime ->
@@ -33,13 +33,13 @@ let private tryStopWork recursively (now: DateTime) schedule =
 
             if stopDateTime >= now then
                 let delay = stopDateTime - now
-                StopIn(delay, Some schedule)
+                StopIn(delay, schedule)
             else if recursively then
                 let delay = now.Date.AddDays 1. - now
-                StartIn(delay, Some schedule)
+                StartIn(delay, schedule)
             else
-                Stopped(StopTimeReached stopTime, Some schedule)
-        | None -> Started(Some schedule)
+                Stopped(StopTimeReached stopTime, schedule)
+        | None -> Started schedule
 
 let private tryStartWork (now: DateTime) schedule =
     let startDateTime =
@@ -51,9 +51,9 @@ let private tryStartWork (now: DateTime) schedule =
 
     if startDateTime > now then
         let delay = startDateTime - now
-        StartIn(delay, Some schedule)
+        StartIn(delay, schedule)
     else
-        Started(Some schedule)
+        Started schedule
 
 let private merge parent child =
     match parent, child with
@@ -90,7 +90,7 @@ let private merge parent child =
 
 let set parentSchedule schedule recursively =
     match parentSchedule |> merge <| schedule with
-    | None -> Started None
+    | None -> NotScheduled
     | Some schedule ->
         let now = DateTime.UtcNow.AddHours(schedule.TimeZone |> float)
 
@@ -101,4 +101,5 @@ let set parentSchedule schedule recursively =
             | Stopped _ -> 0
             | StartIn _ -> 1
             | StopIn _ -> 2
-            | Started _ -> 3)
+            | Started _ -> 3
+            | NotScheduled -> 4)

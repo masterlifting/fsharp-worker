@@ -67,7 +67,7 @@ let private parseTimeSpan timeSpan =
     | AP.IsTimeSpan value -> Ok value
     | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
 
-let private validateHandler taskName taskEnabled (handler: TaskHandler option) =
+let private validateHandler taskName taskEnabled (handler: WorkerTaskHandler option) =
     match taskEnabled, handler with
     | true, None -> Error <| NotFound $"Handler for task '%s{taskName}'."
     | true, Some handler -> Ok <| Some handler
@@ -99,7 +99,7 @@ let create rootNode graph =
 
         rootNode
         |> Graph.findNode taskName
-        |> Option.bind (_.Value.Task)
+        |> Option.bind _.Value.Task
         |> validateHandler taskName graph.Enabled
         |> Result.bind (fun handler -> graph.Tasks |> toListNodes (Some taskName) |> toNode graph handler)
 

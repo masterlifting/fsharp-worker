@@ -31,7 +31,7 @@ and handleNodes (count, deps, schedule) nodes =
 
             let nodeHandlers, skipLength =
 
-                let parallelNodes = nodes |> List.takeWhile (_.Value.Parallel)
+                let parallelNodes = nodes |> List.takeWhile _.Value.Parallel
 
                 match parallelNodes with
                 | parallelNodes when parallelNodes.Length < 2 ->
@@ -70,7 +70,7 @@ let private runHandler deps taskName =
 
         use cts = new CancellationTokenSource(deps.Duration)
 
-        match! deps.startHandler (deps.Configuration, cts.Token) with
+        match! deps.startHandler (deps.Configuration, deps.Schedule, cts.Token) with
         | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.critical
         | Ok result ->
             let message = $"%s{taskName} Completed. "
@@ -83,7 +83,7 @@ let private runHandler deps taskName =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart task configuration taskName =
+let private tryStart task schedule configuration taskName =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
@@ -92,6 +92,7 @@ let private tryStart task configuration taskName =
                 taskName
                 |> runHandler
                     { Configuration = configuration
+                      Schedule = schedule
                       Duration = task.Duration
                       startHandler = handler }
 
@@ -107,28 +108,33 @@ let private tryStart task configuration taskName =
     }
 
 let rec private handleTask configuration =
-    fun count parentSchedule (task: Task) ->
+    fun count parentSchedule (task: WorkerTask) ->
         async {
             let taskName = $"%i{count}.'%s{task.Name}'."
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped(reason, schedule) ->
                 $"%s{taskName} Stopped. %s{reason.Message}" |> Log.critical
-                return schedule
+                return Some schedule
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
                     $"%s{taskName} Will be stopped in %s{fromTimeSpan delay}." |> Log.debug
 
-                do! taskName |> tryStart task configuration
-                return schedule
+                do! taskName |> tryStart task schedule configuration
+                return Some schedule
             | StartIn(delay, schedule) ->
                 $"%s{taskName} Will be started in %s{fromTimeSpan delay}." |> Log.warning
                 do! Async.Sleep delay
-                do! taskName |> tryStart task configuration
-                return schedule
+                do! taskName |> tryStart task schedule configuration
+                return Some schedule
             | Started schedule ->
-                do! taskName |> tryStart task configuration
-                return schedule
+                do! taskName |> tryStart task schedule configuration
+                return Some schedule
+            | NotScheduled ->
+                if task.Handler.IsSome then
+                    $"%s{taskName} Has a handler but is not scheduled." |> Log.warning
+
+                return None
         }
 
 let private processGraph nodeName deps =

@@ -132,7 +132,7 @@ let rec private handleTask configuration =
                 return Some schedule
             | NotScheduled ->
                 if task.Handler.IsSome then
-                    $"%s{taskName} Has a handler but is not scheduled." |> Log.warning
+                    $"%s{taskName} Set schedule for the task. Task will be skipped." |> Log.critical
 
                 return None
         }

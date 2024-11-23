@@ -38,7 +38,8 @@ type WorkerTaskResult =
     | Info of string
     | Trace of string
 
-type WorkerTaskHandler = IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
+type WorkerTaskHandler =
+    IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
 
 type WorkerTask =
     { Name: string
@@ -47,10 +48,12 @@ type WorkerTask =
       Duration: TimeSpan
       Wait: bool
       Schedule: WorkerSchedule option
-      Handler: (IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
+      Handler:
+          (IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
 
     interface Graph.INodeName with
         member this.Name = this.Name
+        member this.setName name = { this with Name = name }
 
 type WorkerTaskNode =
     { Name: string
@@ -58,6 +61,7 @@ type WorkerTaskNode =
 
     interface Graph.INodeName with
         member this.Name = this.Name
+        member this.setName name = { this with Name = name }
 
 type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTask>, Error'>>
 
@@ -99,3 +103,7 @@ module External =
 
         interface Graph.INodeName with
             member this.Name = this.Name
+
+            member this.setName name =
+                this.Name <- name
+                this

@@ -6,28 +6,23 @@ open Infrastructure
 open Infrastructure.Logging
 open Worker.Domain
 
-let rec private handleNode (count, schedule) deps =
+let rec private handleNode (name, count, schedule) deps =
     async {
-        let nodeName = deps.NodeName
-
-        match! deps.getNode nodeName with
-        | Error error -> $"%i{count}.'%s{nodeName}'. Failed -> %s{error.Message}" |> Log.critical
+        match! deps.getNode name with
+        | Error error -> $"%i{count}.'%s{name}'. Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
-            let task = { node.Value with Name = nodeName }
 
-            let! schedule = task |> deps.handleNode count schedule
-            do! node.Children |> handleNodes (count, deps, schedule)
+            let! schedule = node.Value |> deps.handleNode count schedule
+            do! name |> Some |> node.Children |> handleNodes (count, deps, schedule)
 
-            if task.Recursively.IsSome then
+            if node.Value.Recursively.IsSome then
                 let count = count + 1u
-                do! handleNode (count, schedule) deps
+                do! handleNode (name, count, schedule) deps
     }
 
 and handleNodes (count, deps, schedule) nodes =
     async {
         if nodes.Length > 0 then
-
-            let nodeName = deps.NodeName
 
             let nodeHandlers, skipLength =
 
@@ -41,9 +36,7 @@ and handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         [ nodes[0] ] @ sequentialNodes
-                        |> List.map (fun task ->
-                            let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode (count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.Value.Name, count, schedule))
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -52,9 +45,7 @@ and handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         parallelNodes
-                        |> List.map (fun task ->
-                            let nodeName = Some nodeName |> Graph.buildNodeName <| task.Value.Name
-                            { deps with NodeName = nodeName } |> handleNode (count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.Value.Name, count, schedule))
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
@@ -139,9 +130,8 @@ let rec private handleTask configuration =
 
 let private processGraph nodeName deps =
     handleNode
-        (1u, None)
-        { NodeName = nodeName
-          getNode = deps.getTask
+        (nodeName, 1u, None)
+        { getNode = deps.getTask
           handleNode = handleTask <| deps.Configuration }
 
 let start config =

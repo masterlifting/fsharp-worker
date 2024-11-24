@@ -71,8 +71,7 @@ type WorkerConfiguration =
       getTask: GetWorkerTask }
 
 type WorkerNodeDeps =
-    { NodeName: string
-      getNode: GetWorkerTask
+    { getNode: GetWorkerTask
       handleNode: uint -> WorkerSchedule option -> WorkerTask -> Async<WorkerSchedule option> }
 
 type internal FireAndForgetDeps =

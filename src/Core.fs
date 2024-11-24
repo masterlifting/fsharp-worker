@@ -13,7 +13,7 @@ let rec private handleNode (name, count, schedule) deps =
         | Ok node ->
 
             let! schedule = node.Value |> deps.handleNode count schedule
-            do! name |> Some |> node.Children |> handleNodes (count, deps, schedule)
+            do! node.Children |> handleNodes (count, deps, schedule)
 
             if node.Value.Recursively.IsSome then
                 let count = count + 1u
@@ -91,7 +91,7 @@ let private tryStart task schedule configuration taskName =
 
         match task.Recursively with
         | Some delay ->
-            $"%s{taskName} Next iteration will be started in %s{fromTimeSpan delay}."
+            $"%s{taskName} Next iteration will be started in %s{delay |> fromTimeSpan}."
             |> Log.trace
 
             do! Async.Sleep delay
@@ -109,12 +109,12 @@ let rec private handleTask configuration =
                 return Some schedule
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
-                    $"%s{taskName} Will be stopped in %s{fromTimeSpan delay}." |> Log.debug
+                    $"%s{taskName} Will be stopped in %s{delay |> fromTimeSpan}." |> Log.debug
 
                 do! taskName |> tryStart task schedule configuration
                 return Some schedule
             | StartIn(delay, schedule) ->
-                $"%s{taskName} Will be started in %s{fromTimeSpan delay}." |> Log.warning
+                $"%s{taskName} Will be started in %s{delay |> fromTimeSpan}." |> Log.warning
                 do! Async.Sleep delay
                 do! taskName |> tryStart task schedule configuration
                 return Some schedule

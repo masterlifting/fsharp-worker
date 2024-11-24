@@ -80,7 +80,8 @@ let private mapTask (task: External.TaskGraph) handler =
         let! schedule = task.Schedule |> Option.toResult mapSchedule
 
         return
-            { Name = task.Name
+            { Id = task.Id |> Graph.NodeIdValue
+              Name = task.Name
               Parallel = task.Parallel
               Recursively = recursively
               Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)

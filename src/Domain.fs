@@ -42,7 +42,8 @@ type WorkerTaskHandler =
     IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
 
 type WorkerTask =
-    { Name: string
+    { Id: Graph.NodeId
+      Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
@@ -52,16 +53,19 @@ type WorkerTask =
           (IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
 
     interface Graph.INodeName with
+        member this.Id = this.Id
         member this.Name = this.Name
-        member this.setName name = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }
 
 type WorkerTaskNode =
-    { Name: string
+    { Id: Graph.NodeId
+      Name: string
       Task: WorkerTaskHandler option }
 
     interface Graph.INodeName with
+        member this.Id = this.Id
         member this.Name = this.Name
-        member this.setName name = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }
 
 type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTask>, Error'>>
 
@@ -91,6 +95,7 @@ module External =
         member val TimeZone: int8 = 0y with get, set
 
     type TaskGraph() =
+        member val Id: Guid = Guid.Empty with get, set
         member val Name: string = String.Empty with get, set
         member val Enabled: bool = false with get, set
         member val Recursively: string option = None with get, set
@@ -101,8 +106,10 @@ module External =
         member val Tasks: TaskGraph[] = [||] with get, set
 
         interface Graph.INodeName with
+            member this.Id = this.Id |> Graph.NodeIdValue
             member this.Name = this.Name
 
-            member this.setName name =
+            member this.set(id, name) =
+                this.Id <- id.Value
                 this.Name <- name
                 this

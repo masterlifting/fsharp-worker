@@ -36,7 +36,7 @@ and handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         [ nodes[0] ] @ sequentialNodes
-                        |> List.map (fun task -> deps |> handleNode (task.Value.Name, count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.FullName, count, schedule))
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -45,7 +45,7 @@ and handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         parallelNodes
-                        |> List.map (fun task -> deps |> handleNode (task.Value.Name, count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.FullName, count, schedule))
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)

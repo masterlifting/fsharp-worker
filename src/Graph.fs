@@ -99,7 +99,7 @@ let create rootNode graph =
         let taskName = nodeName |> Graph.buildNodeName <| graph.Name
 
         rootNode
-        |> Graph.findNode taskName
+        |> Graph.DFS.tryFindByName taskName
         |> Option.bind _.Value.Task
         |> validateHandler taskName graph.Enabled
         |> Result.bind (fun handler -> graph.Tasks |> toListNodes (Some taskName) |> toNode graph handler)

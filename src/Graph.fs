@@ -90,11 +90,28 @@ let private mapTask (task: External.TaskGraph) handler =
               Handler = handler }
     }
 
-let rec mapToGraph (taskGraph: External.TaskGraph) : Graph.Node<External.TaskGraph> =
-    Graph.Node(taskGraph, taskGraph.Tasks |> Array.map mapToGraph |> Array.toList)
+let rec createGraph (node: External.TaskGraph) =
+    let children =
+        match node.Tasks with
+        | [||]
+        | null -> []
+        | _ -> node.Tasks |> Array.toList
+
+    Graph.Node(node, children |> List.map createGraph)
     
+let validate (workerGraph: Graph.Node<WorkerTask>)  taskGraph =
+    
+    let rec innerLoop (taskGraph: Graph.Node<External.TaskGraph>) =
+        let taskName = taskGraph.FullName
+        let workerTask = workerGraph |> Graph.BFS.tryFindByName taskName
+
+        match workerTask with
+        | None -> Error <| NotFound $"Task '{taskName}' not found."
+        | Some _ -> taskGraph.Children |> List.map innerLoop |> Result.map (fun _ -> Ok())
+    
+    innerLoop taskGraph |> Result.choose
 let create workerGraph taskGraph =
-    
+
     let toNode task handler =
         Result.bind (fun nodes -> mapTask task handler |> Result.map (fun task -> Graph.Node(task, nodes)))
 
@@ -133,5 +150,3 @@ let map taskGraph =
         | _ -> tasks |> Array.map (createResult name toListNodes) |> Result.choose
 
     taskGraph |> createResult None toListNodes
-
-

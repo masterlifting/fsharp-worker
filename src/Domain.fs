@@ -55,7 +55,7 @@ type WorkerTask =
     interface Graph.INodeName with
         member this.Id = this.Id
         member this.Name = this.Name
-        member this.setFullName name = { this with Name = name }
+        member this.setName name = { this with Name = name }
 
 type WorkerTaskNode =
     { Id: Graph.NodeId
@@ -65,7 +65,7 @@ type WorkerTaskNode =
     interface Graph.INodeName with
         member this.Id = this.Id
         member this.Name = this.Name
-        member this.setFullName name = { this with Name = name }
+        member this.setName name = { this with Name = name }
 
 type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTask>, Error'>>
 
@@ -109,6 +109,6 @@ module External =
             member this.Id = this.Id |> Graph.NodeIdValue
             member this.Name = this.Name
 
-            member this.setFullName name =
+            member this.setName name =
                 this.Name <- name
                 this

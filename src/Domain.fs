@@ -95,7 +95,7 @@ module External =
         member val TimeZone: int8 = 0y with get, set
 
     type TaskGraph() =
-        member val Id: Guid = Guid.NewGuid() with get, set
+        member val Id: Guid = Guid.Empty with get, set
         member val Name: string = String.Empty with get, set
         member val Enabled: bool = false with get, set
         member val Recursively: string option = None with get, set

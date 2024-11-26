@@ -57,7 +57,7 @@ type WorkerTask =
         member this.Name = this.Name
         member this.setName name = { this with Name = name }
 
-type WorkerTaskNode =
+type WorkerHandler =
     { Id: Graph.NodeId
       Name: string
       Task: WorkerTaskHandler option }

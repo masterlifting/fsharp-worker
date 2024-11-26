@@ -55,13 +55,13 @@ and handleNodes (count, deps, schedule) nodes =
             do! nodes |> List.skip skipLength |> handleNodes (count, deps, schedule)
     }
 
-let private runHandler deps taskName =
+let private runHandler taskName deps =
     async {
         $"%s{taskName} Started." |> Log.debug
 
         use cts = new CancellationTokenSource(deps.Duration)
 
-        match! deps.startHandler (deps.Configuration, deps.Schedule, cts.Token) with
+        match! deps.startHandler (deps.Task, deps.Configuration, cts.Token) with
         | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.critical
         | Ok result ->
             let message = $"%s{taskName} Completed. "
@@ -74,17 +74,17 @@ let private runHandler deps taskName =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart task schedule configuration taskName =
+let private tryStart taskName schedule configuration task =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
         | Some handler ->
             let run =
-                taskName
-                |> runHandler
-                    { Configuration = configuration
-                      Schedule = schedule
+                runHandler
+                    taskName
+                    { Task = task.toOut schedule
                       Duration = task.Duration
+                      Configuration = configuration
                       startHandler = handler }
 
             if task.Wait then do! run else run |> Async.Start
@@ -99,7 +99,7 @@ let private tryStart task schedule configuration taskName =
     }
 
 let rec private handleTask configuration =
-    fun count parentSchedule (task: WorkerTask) ->
+    fun count parentSchedule (task: WorkerTaskIn) ->
         async {
             let taskName = $"%i{count}.'%s{task.Name}'."
 
@@ -111,19 +111,20 @@ let rec private handleTask configuration =
                 if (delay < TimeSpan.FromMinutes 10.) then
                     $"%s{taskName} Will be stopped in %s{delay |> fromTimeSpan}." |> Log.debug
 
-                do! taskName |> tryStart task schedule configuration
+                do! task |> tryStart taskName schedule configuration
                 return Some schedule
             | StartIn(delay, schedule) ->
                 $"%s{taskName} Will be started in %s{delay |> fromTimeSpan}." |> Log.warning
                 do! Async.Sleep delay
-                do! taskName |> tryStart task schedule configuration
+                do! task |> tryStart taskName schedule configuration
                 return Some schedule
             | Started schedule ->
-                do! taskName |> tryStart task schedule configuration
+                do! task |> tryStart taskName schedule configuration
                 return Some schedule
             | NotScheduled ->
                 if task.Handler.IsSome then
-                    $"%s{taskName} Set schedule for the task. Task will be skipped." |> Log.critical
+                    $"%s{taskName} Handling was skipped due to the schedule was not found."
+                    |> Log.warning
 
                 return None
         }

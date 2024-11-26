@@ -38,10 +38,18 @@ type WorkerTaskResult =
     | Info of string
     | Trace of string
 
-type WorkerTaskHandler =
-    IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
+type WorkerTaskOut =
+    { Id: Graph.NodeId
+      Name: string
+      Recursively: TimeSpan option
+      Parallel: bool
+      Duration: TimeSpan
+      Schedule: WorkerSchedule }
 
-type WorkerTask =
+type WorkerTaskHandler =
+    WorkerTaskOut * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
+
+type WorkerTaskIn =
     { Id: Graph.NodeId
       Name: string
       Recursively: TimeSpan option
@@ -49,8 +57,15 @@ type WorkerTask =
       Duration: TimeSpan
       Wait: bool
       Schedule: WorkerSchedule option
-      Handler:
-          (IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
+      Handler: WorkerTaskHandler option }
+
+    member this.toOut schedule =
+        { Id = this.Id
+          Name = this.Name
+          Recursively = this.Recursively
+          Parallel = this.Parallel
+          Duration = this.Duration
+          Schedule = schedule }
 
     interface Graph.INodeName with
         member this.Id = this.Id
@@ -67,7 +82,7 @@ type WorkerHandler =
         member this.Name = this.Name
         member this.setName name = { this with Name = name }
 
-type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTask>, Error'>>
+type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTaskIn>, Error'>>
 
 type WorkerConfiguration =
     { Name: string
@@ -76,13 +91,13 @@ type WorkerConfiguration =
 
 type WorkerNodeDeps =
     { getNode: GetWorkerTask
-      handleNode: uint -> WorkerSchedule option -> WorkerTask -> Async<WorkerSchedule option> }
+      handleNode: uint -> WorkerSchedule option -> WorkerTaskIn -> Async<WorkerSchedule option> }
 
 type internal FireAndForgetDeps =
-    { Configuration: IConfigurationRoot
-      Schedule: WorkerSchedule
+    { Task: WorkerTaskOut
       Duration: TimeSpan
-      startHandler: IConfigurationRoot * WorkerSchedule * CancellationToken -> Async<Result<WorkerTaskResult, Error'>> }
+      Configuration: IConfigurationRoot
+      startHandler: WorkerTaskHandler }
 
 module External =
 

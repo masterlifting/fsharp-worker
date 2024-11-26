@@ -67,12 +67,6 @@ let private parseTimeSpan timeSpan =
     | AP.IsTimeSpan value -> Ok value
     | _ -> Error <| NotSupported "TimeSpan. Expected format: 'dd.hh:mm:ss'."
 
-let private validateHandler taskName taskEnabled (handler: WorkerTaskHandler option) =
-    match taskEnabled, handler with
-    | true, None -> Error <| NotFound $"Handler for task '%s{taskName}'."
-    | true, Some handler -> Ok <| Some handler
-    | false, _ -> Ok None
-
 let private toWorkerTask handler (task: External.TaskGraph) =
     scheduleResult {
         let! recursively = task.Recursively |> Option.toResult parseTimeSpan
@@ -90,27 +84,29 @@ let private toWorkerTask handler (task: External.TaskGraph) =
               Handler = handler }
     }
 
-let rec createTaskGraph (node: External.TaskGraph) =
-    let children =
-        match node.Tasks with
-        | [||]
-        | null -> []
-        | _ -> node.Tasks |> Array.toList |> List.map createTaskGraph
+let merge (handlers: Graph.Node<WorkerHandler>) taskGraph =
 
-    Graph.Node(node, children)
+    let rec mergeLoop taskName (taskGraph: External.TaskGraph) =
+        let fullTaskNme = taskGraph.Name |> Graph.buildNodeName taskName
 
-let merge handlersGraph (taskGraph: Graph.Node<External.TaskGraph>) =
-
-    let rec mergeLoop (handler: Graph.Node<WorkerHandler>) =
-        match taskGraph |> Graph.BFS.tryFindByName handler.FullName with
-        | None -> handler.FullName |> NotFound |> Error
-        | Some taskGraphNode ->
-            taskGraphNode.Value
+        match handlers |> Graph.BFS.tryFindByName fullTaskNme with
+        | None ->
+            match taskGraph.Enabled with
+            | true ->
+                taskGraph
+                |> toWorkerTask None
+                |> Result.map (fun workerTask -> Graph.Node(workerTask, []))
+            | false -> $"{fullTaskNme} handler" |> NotFound |> Error
+        | Some handler ->
+            taskGraph
             |> toWorkerTask handler.Value.Task
             |> Result.bind (fun workerTask ->
-                handler.Children
-                |> List.map mergeLoop
-                |> Result.choose
-                |> Result.map (fun children -> Graph.Node(workerTask, children)))
+                match taskGraph.Tasks with
+                | null -> Graph.Node(workerTask, []) |> Ok
+                | tasks ->
+                    tasks
+                    |> Array.map (mergeLoop (Some fullTaskNme))
+                    |> Result.choose
+                    |> Result.map (fun children -> Graph.Node(workerTask, children)))
 
-    handlersGraph |> mergeLoop
+    taskGraph |> mergeLoop None

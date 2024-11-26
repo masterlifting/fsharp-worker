@@ -95,7 +95,6 @@ module External =
         member val TimeZone: int8 = 0y with get, set
 
     type TaskGraph() =
-        member val Id: Guid = Guid.Empty with get, set
         member val Name: string = String.Empty with get, set
         member val Enabled: bool = false with get, set
         member val Recursively: string option = None with get, set
@@ -104,11 +103,3 @@ module External =
         member val Wait: bool = false with get, set
         member val Schedule: Schedule option = None with get, set
         member val Tasks: TaskGraph[] = [||] with get, set
-
-        interface Graph.INodeName with
-            member this.Id = this.Id |> Graph.NodeIdValue
-            member this.Name = this.Name
-
-            member this.setName name =
-                this.Name <- name
-                this

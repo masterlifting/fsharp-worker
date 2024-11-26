@@ -18,7 +18,7 @@ let private parseWorkdays workdays =
             | "sat" -> Ok DayOfWeek.Saturday
             | "sun" -> Ok DayOfWeek.Sunday
             | _ ->
-                "Workday. Expected values: 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'."
+                "Workday. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
                 |> NotSupported
                 |> Error)
         |> Result.choose
@@ -44,10 +44,10 @@ let private parseTimeOnly time =
     | AP.IsTimeOnly value -> Ok value
     | _ -> "TimeOnly. Expected format: 'hh:mm:ss'." |> NotSupported |> Error
 
-let private scheduleResult = ResultBuilder()
+let private result = ResultBuilder()
 
 let private mapSchedule (schedule: External.Schedule) =
-    scheduleResult {
+    result {
         let! workdays = schedule.Workdays |> parseWorkdays
         let! startDate = schedule.StartDate |> Option.toResult parseDateOnly
         let! stopDate = schedule.StopDate |> Option.toResult parseDateOnly
@@ -69,7 +69,7 @@ let private parseTimeSpan timeSpan =
     | _ -> "TimeSpan. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
 
 let private toWorkerTask handler enabled (task: External.TaskGraph) =
-    scheduleResult {
+    result {
         let! recursively = task.Recursively |> Option.toResult parseTimeSpan
         let! duration = task.Duration |> Option.toResult parseTimeSpan
         let! schedule = task.Schedule |> Option.toResult mapSchedule
@@ -91,10 +91,10 @@ let private toWorkerTask handler enabled (task: External.TaskGraph) =
 let merge (handlers: Graph.Node<WorkerHandler>) taskGraph =
 
     let rec mergeLoop taskName (taskGraph: External.TaskGraph) =
-        let fullTaskNme = taskGraph.Name |> Graph.buildNodeName taskName
+        let fullTaskName = taskGraph.Name |> Graph.buildNodeName taskName
 
-        match handlers |> Graph.BFS.tryFindByName fullTaskNme with
-        | None -> $"%s{fullTaskNme} handler" |> NotFound |> Error
+        match handlers |> Graph.BFS.tryFindByName fullTaskName with
+        | None -> $"%s{fullTaskName} handler" |> NotFound |> Error
         | Some handler ->
             taskGraph
             |> toWorkerTask handler.Value taskGraph.Enabled
@@ -103,7 +103,7 @@ let merge (handlers: Graph.Node<WorkerHandler>) taskGraph =
                 | null -> Graph.Node(workerTask, []) |> Ok
                 | tasks ->
                     tasks
-                    |> Array.map (mergeLoop (Some fullTaskNme))
+                    |> Array.map (mergeLoop (Some fullTaskName))
                     |> Result.choose
                     |> Result.map (fun children -> Graph.Node(workerTask, children)))
 

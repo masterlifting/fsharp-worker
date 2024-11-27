@@ -90,8 +90,8 @@ let private toWorkerTask handler enabled (task: External.TaskGraph) =
 
 let merge (handlers: Graph.Node<WorkerHandler>) taskGraph =
 
-    let rec mergeLoop taskName (taskGraph: External.TaskGraph) =
-        let fullTaskName = taskGraph.Name |> Graph.buildNodeName taskName
+    let rec mergeLoop parentTaskName (taskGraph: External.TaskGraph) =
+        let fullTaskName = parentTaskName |> Graph.buildNodeName taskGraph.Name
 
         match handlers |> Graph.BFS.tryFindByName fullTaskName with
         | None -> $"%s{fullTaskName} handler" |> NotFound |> Error

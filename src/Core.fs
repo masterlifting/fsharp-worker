@@ -9,7 +9,7 @@ open Worker.Domain
 let rec private handleNode (name, count, schedule) deps =
     async {
         match! deps.getNode name with
-        | Error error -> $"%i{count}.'%s{name}'. Failed -> %s{error.Message}" |> Log.critical
+        | Error error -> $"%i{count}.'%s{name}' Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
 
             let! schedule = node.Value |> deps.handleNode count schedule
@@ -101,7 +101,7 @@ let private tryStart taskName schedule configuration task =
 let rec private handleTask configuration =
     fun count parentSchedule (task: WorkerTaskIn) ->
         async {
-            let taskName = $"%i{count}.'%s{task.Name}'."
+            let taskName = $"%i{count}.'%s{task.Name}'"
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped(reason, schedule) ->
@@ -138,7 +138,7 @@ let private processGraph nodeName deps =
 let start config =
     async {
         try
-            let workerName = $"Worker '%s{config.Name}'."
+            let workerName = $"'%s{config.Name}'"
 
             match! processGraph config.Name config |> Async.Catch with
             | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.success

@@ -70,7 +70,7 @@ type WorkerTaskIn =
     interface Graph.INodeName with
         member this.Id = this.Id
         member this.Name = this.Name
-        member this.setName name = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }
 
 type WorkerHandler =
     { Id: Graph.NodeId
@@ -80,7 +80,7 @@ type WorkerHandler =
     interface Graph.INodeName with
         member this.Id = this.Id
         member this.Name = this.Name
-        member this.setName name = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }
 
 type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTaskIn>, Error'>>
 

@@ -39,8 +39,7 @@ type WorkerTaskResult =
     | Trace of string
 
 type WorkerTaskOut =
-    { Id: Graph.NodeId
-      Name: string
+    { Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
@@ -50,8 +49,7 @@ type WorkerTaskHandler =
     WorkerTaskOut * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
 
 type WorkerTaskIn =
-    { Id: Graph.NodeId
-      Name: string
+    { Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
@@ -60,27 +58,25 @@ type WorkerTaskIn =
       Handler: WorkerTaskHandler option }
 
     member this.toOut schedule =
-        { Id = this.Id
-          Name = this.Name
+        { Name = this.Name
           Recursively = this.Recursively
           Parallel = this.Parallel
           Duration = this.Duration
           Schedule = schedule }
 
     interface Graph.INodeName with
-        member this.Id = this.Id
+        member this.Id = Graph.NodeId.New
         member this.Name = this.Name
-        member this.set(id, name) = { this with Id = id; Name = name }
+        member this.set(_, name) = { this with Name = name }
 
 type WorkerHandler =
-    { Id: Graph.NodeId
-      Name: string
+    { Name: string
       Task: WorkerTaskHandler option }
 
     interface Graph.INodeName with
-        member this.Id = this.Id
+        member this.Id = Graph.NodeId.New
         member this.Name = this.Name
-        member this.set(id, name) = { this with Id = id; Name = name }
+        member this.set(_, name) = { this with Name = name }
 
 type GetWorkerTask = string -> Async<Result<Graph.Node<WorkerTaskIn>, Error'>>
 

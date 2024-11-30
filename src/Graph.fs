@@ -68,15 +68,14 @@ let private parseTimeSpan timeSpan =
     | AP.IsTimeSpan value -> Ok value
     | _ -> "TimeSpan. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
 
-let private toWorkerTask handler enabled (task: External.TaskGraph) =
+let private toWorkerTask (handler: WorkerHandler) enabled (task: External.TaskGraph) =
     result {
         let! recursively = task.Recursively |> Option.toResult parseTimeSpan
         let! duration = task.Duration |> Option.toResult parseTimeSpan
         let! schedule = task.Schedule |> Option.toResult mapSchedule
 
         return
-            { Id = handler.Id
-              Name = task.Name
+            { Name = task.Name
               Parallel = task.Parallel
               Recursively = recursively
               Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)

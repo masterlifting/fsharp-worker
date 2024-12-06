@@ -3,7 +3,7 @@ module Worker.Domain.Scheduler
 
 open System
 
-type WorkerSchedulerStopReason =
+type SchedulerStopReason =
     | NotWorkday of DayOfWeek
     | StopDateReached of DateOnly
     | StopTimeReached of TimeOnly
@@ -14,9 +14,9 @@ type WorkerSchedulerStopReason =
         | StopDateReached date -> $"Stop date reached: {date}"
         | StopTimeReached time -> $"Stop time reached: {time}"
 
-type WorkerScheduler =
+type Scheduler =
     | NotScheduled
-    | Started of WorkerSchedule
-    | StartIn of TimeSpan * WorkerSchedule
-    | Stopped of WorkerSchedulerStopReason * WorkerSchedule
-    | StopIn of TimeSpan * WorkerSchedule
+    | Started of Schedule
+    | StartIn of TimeSpan * Schedule
+    | Stopped of SchedulerStopReason * Schedule
+    | StopIn of TimeSpan * Schedule

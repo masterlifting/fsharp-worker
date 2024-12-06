@@ -3,9 +3,9 @@ module Worker.Domain.WorkerTask
 
 open System
 
-type WorkerTaskOut =
+type WorkerTask =
     { Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
-      Schedule: WorkerSchedule }
+      Schedule: Schedule }

@@ -3,7 +3,7 @@ module Worker.Domain.Schedule
 
 open System
 
-type WorkerSchedule =
+type Schedule =
     { StartDate: DateOnly option
       StopDate: DateOnly option
       StartTime: TimeOnly option

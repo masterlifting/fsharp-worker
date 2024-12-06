@@ -20,7 +20,7 @@ let rec private handleNode (name, count, schedule) deps =
                 do! handleNode (name, count, schedule) deps
     }
 
-and handleNodes (count, deps, schedule) nodes =
+and private handleNodes (count, deps, schedule) nodes =
     async {
         if nodes.Length > 0 then
 
@@ -74,7 +74,7 @@ let private runHandler taskName deps =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart taskName schedule configuration task =
+let private tryStart taskName schedule configuration (task: TaskGraph)  =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
@@ -99,7 +99,7 @@ let private tryStart taskName schedule configuration task =
     }
 
 let rec private handleTask configuration =
-    fun count parentSchedule (task: WorkerTaskIn) ->
+    fun count parentSchedule (task: TaskGraph) ->
         async {
             let taskName = $"%i{count}.'%s{task.Name}'"
 
@@ -132,7 +132,7 @@ let rec private handleTask configuration =
 let private processGraph nodeName deps =
     handleNode
         (nodeName, 1u, None)
-        { getNode = deps.getTask
+        { getNode = deps.getTaskNode
           handleNode = handleTask <| deps.Configuration }
 
 let start config =

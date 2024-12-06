@@ -1,26 +1,13 @@
 ﻿[<AutoOpen>]
-module Worker.Domain.TaskGraph
+module Worker.Domain.TaskGraphHandler
 
-open System
 open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure
 
-type TaskGraph =
+type TaskGraphHandler =
     { Name: string
-      Recursively: TimeSpan option
-      Parallel: bool
-      Duration: TimeSpan
-      Wait: bool
-      Schedule: Schedule option
       Handler: (WorkerTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
-
-    member this.toOut schedule =
-        { Name = this.Name
-          Recursively = this.Recursively
-          Parallel = this.Parallel
-          Duration = this.Duration
-          Schedule = schedule }
 
     interface Graph.INodeName with
         member this.Id = Graph.NodeId.New

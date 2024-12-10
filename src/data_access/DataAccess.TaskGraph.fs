@@ -84,7 +84,7 @@ let init storageType =
     | Configuration(section, configuration) ->
         (section, configuration)
         |> Connection.Configuration
-        |> Persistence.Storage.create
+        |> Persistence.Storage.init
         |> Result.map TaskGraphStorage
 
 let get handlers storage =

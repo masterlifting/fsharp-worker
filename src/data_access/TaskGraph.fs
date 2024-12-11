@@ -71,7 +71,7 @@ module private Configuration =
 
         taskGraph |> mergeLoop None
 
-    let get section handlers client =
+    let create section handlers client =
         client |> loadData section |> Result.bind (merge handlers) |> async.Return
 
 let private toPersistenceStorage storage =
@@ -87,7 +87,7 @@ let init storageType =
         |> Storage.init
         |> Result.map TaskGraphStorage
 
-let get handlers storage =
+let create handlers storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client.Configuration |> Configuration.get client.SectionName handlers
+    | Storage.Configuration client -> client.Configuration |> Configuration.create client.SectionName handlers
     | _ -> $"Storage {storage}" |> NotSupported |> Error |> async.Return

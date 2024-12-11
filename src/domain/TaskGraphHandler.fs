@@ -3,7 +3,7 @@ module Worker.Domain.TaskGraphHandler
 
 open System.Threading
 open Microsoft.Extensions.Configuration
-open Infrastructure
+open Infrastructure.Domain
 
 type TaskGraphHandler =
     { Name: string

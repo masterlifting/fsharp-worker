@@ -1,7 +1,8 @@
 ﻿module Worker.DataAccess.Schedule
 
 open System
-open Infrastructure
+open Infrastructure.Prelude
+open Infrastructure.Domain
 open Worker.Domain
 
 let private parseWorkdays workdays =

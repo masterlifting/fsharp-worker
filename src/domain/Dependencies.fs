@@ -4,7 +4,7 @@ module internal Worker.Domain.Dependencies
 open System
 open System.Threading
 open Microsoft.Extensions.Configuration
-open Infrastructure
+open Infrastructure.Domain
 
 type WorkerNodeDeps =
     { getNode: string -> Async<Result<Graph.Node<TaskGraph>, Error'>>

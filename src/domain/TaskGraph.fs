@@ -4,7 +4,8 @@ module Worker.Domain.TaskGraph
 open System
 open System.Threading
 open Microsoft.Extensions.Configuration
-open Infrastructure
+open Infrastructure.Domain
+open Infrastructure.Prelude
 
 type TaskGraph =
     { Name: string

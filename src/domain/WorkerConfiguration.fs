@@ -2,7 +2,7 @@
 module Worker.Domain.WorkerConfiguration
 
 open Microsoft.Extensions.Configuration
-open Infrastructure
+open Infrastructure.Domain
 
 type WorkerConfiguration =
     { Name: string

@@ -1,14 +1,14 @@
 ﻿module Worker.DataAccess.TaskGraph
 
 open System
-open Microsoft.Extensions.Configuration
-open Infrastructure
-open Persistence.Domain
+open Infrastructure.Domain
+open Infrastructure.Prelude
+open Persistence
 open Worker.Domain
 open Worker.DataAccess.Schedule
 
-type TaskGraphStorage = TaskGraphStorage of Storage
-type StorageType = Configuration of sectionName: string * configuration: IConfigurationRoot
+type TaskGraphStorage = TaskGraphStorage of Storage.Type
+type StorageType = Configuration of Configuration.Domain.Client
 
 type internal TaskGraphEntity() =
     member val Name: string = String.Empty with get, set
@@ -81,13 +81,13 @@ let private toPersistenceStorage storage =
 
 let init storageType =
     match storageType with
-    | Configuration(section, configuration) ->
-        (section, configuration)
-        |> Connection.Configuration
-        |> Persistence.Storage.init
+    | Configuration connection ->
+        connection
+        |> Storage.Connection.Configuration
+        |> Storage.init
         |> Result.map TaskGraphStorage
 
 let get handlers storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration(section, client) -> client |> Configuration.get section handlers
+    | Storage.Configuration client -> client.Configuration |> Configuration.get client.SectionName handlers
     | _ -> $"Storage {storage}" |> NotSupported |> Error |> async.Return

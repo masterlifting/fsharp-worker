@@ -2,7 +2,7 @@ module Worker.Core
 
 open System
 open System.Threading
-open Infrastructure
+open Infrastructure.Prelude
 open Infrastructure.Logging
 open Worker.Domain
 
@@ -74,7 +74,7 @@ let private runHandler taskName deps =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart taskName schedule configuration (task: TaskGraph)  =
+let private tryStart taskName schedule configuration (task: TaskGraph) =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace

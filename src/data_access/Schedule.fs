@@ -44,7 +44,7 @@ let private parseTimeOnly time =
     | AP.IsTimeOnly value -> Ok value
     | _ -> "TimeOnly. Expected format: 'hh:mm:ss'." |> NotSupported |> Error
 
-type internal Schedule() =
+type ScheduleEntity() =
     member val StartDate: string option = None with get, set
     member val StopDate: string option = None with get, set
     member val StartTime: string option = None with get, set

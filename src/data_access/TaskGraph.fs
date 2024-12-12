@@ -20,7 +20,7 @@ type TaskGraphEntity() =
     member val Schedule: ScheduleEntity option = None with get, set
     member val Tasks: TaskGraphEntity[] = [||] with get, set
 
-    member this.ToDomain (handler: TaskGraphHandler) enabled =
+    member this.ToDomain (handler: WorkerTaskNodeHandler) enabled =
         let result = ResultBuilder()
 
         let inline parseTimeSpan timeSpan =
@@ -51,7 +51,7 @@ module private Configuration =
 
     let private loadData = Query.get<TaskGraphEntity>
 
-    let private merge (handlers: Graph.Node<TaskGraphHandler>) taskGraph =
+    let private merge (handlers: Graph.Node<WorkerTaskNodeHandler>) taskGraph =
 
         let rec mergeLoop parentTaskName (graph: TaskGraphEntity) =
             let fullTaskName = parentTaskName |> Graph.buildNodeName graph.Name

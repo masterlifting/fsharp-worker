@@ -7,4 +7,4 @@ open Infrastructure.Domain
 type WorkerConfiguration =
     { Name: string
       Configuration: IConfigurationRoot
-      getTaskNode: string -> Async<Result<Graph.Node<TaskGraph>, Error'>> }
+      getTaskNode: string -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>> }

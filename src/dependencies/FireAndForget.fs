@@ -1,16 +1,13 @@
-[<AutoOpen>]
-module internal Worker.Domain.Dependencies
+﻿[<RequireQualifiedAccess>]
+module internal Worker.Dependencies.FireAndForget
 
 open System
 open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
+open Worker.Domain
 
-type WorkerNodeDeps =
-    { getNode: string -> Async<Result<Graph.Node<TaskGraph>, Error'>>
-      handleNode: uint -> Schedule option -> TaskGraph -> Async<Schedule option> }
-
-type FireAndForgetDeps =
+type Dependencies =
     { Task: WorkerTask
       Duration: TimeSpan
       Configuration: IConfigurationRoot

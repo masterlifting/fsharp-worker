@@ -5,8 +5,9 @@ open System.Threading
 open Infrastructure.Prelude
 open Infrastructure.Logging
 open Worker.Domain
+open Worker.Dependencies
 
-let rec private handleNode (name, count, schedule) deps =
+let rec private handleNode (name, count, schedule) (deps: WorkerTaskNode.Dependencies) =
     async {
         match! deps.getNode name with
         | Error error -> $"%i{count}.'%s{name}' Failed -> %s{error.Message}" |> Log.critical
@@ -55,7 +56,7 @@ and private handleNodes (count, deps, schedule) nodes =
             do! nodes |> List.skip skipLength |> handleNodes (count, deps, schedule)
     }
 
-let private runHandler taskName deps =
+let private runHandler taskName (deps: FireAndForget.Dependencies) =
     async {
         $"%s{taskName} Started." |> Log.debug
 
@@ -74,7 +75,7 @@ let private runHandler taskName deps =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart taskName schedule configuration (task: TaskGraph) =
+let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
@@ -99,7 +100,7 @@ let private tryStart taskName schedule configuration (task: TaskGraph) =
     }
 
 let rec private handleTask configuration =
-    fun count parentSchedule (task: TaskGraph) ->
+    fun count parentSchedule (task: WorkerTaskNode) ->
         async {
             let taskName = $"%i{count}.'%s{task.Name}'"
 

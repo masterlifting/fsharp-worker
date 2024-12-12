@@ -8,12 +8,13 @@
         <Compile Include="domain\Scheduler.fs" />
         <Compile Include="domain\WorkerTask.fs" />
         <Compile Include="domain\WorkerTaskResult.fs" />
-        <Compile Include="domain\TaskGraph.fs" />
-        <Compile Include="domain\TaskGraphHandler.fs" />
+        <Compile Include="domain\WorkerTaskNode.fs" />
+        <Compile Include="domain\WorkerTaskNodeHandler.fs" />
         <Compile Include="domain\WorkerConfiguration.fs" />
-        <Compile Include="domain\Dependencies.fs" />
         <Compile Include="data_access\Schedule.fs" />
         <Compile Include="data_access\TaskGraph.fs" />
+        <Compile Include="dependencies\WorkerTaskNode.fs" />
+        <Compile Include="dependencies\FireAndForget.fs" />
         <Compile Include="Scheduler.fs"/>
         <Compile Include="Core.fs"/>
     </ItemGroup>

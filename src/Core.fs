@@ -92,7 +92,7 @@ let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
 
         match task.Recursively with
         | Some delay ->
-            $"%s{taskName} Next iteration will be started in %s{delay |> fromTimeSpan}."
+            $"%s{taskName} Next iteration will be started in %s{delay |> String.fromTimeSpan}."
             |> Log.trace
 
             do! Async.Sleep delay
@@ -110,12 +110,12 @@ let rec private handleTask configuration =
                 return Some schedule
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
-                    $"%s{taskName} Will be stopped in %s{delay |> fromTimeSpan}." |> Log.debug
+                    $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}." |> Log.debug
 
                 do! task |> tryStart taskName schedule configuration
                 return Some schedule
             | StartIn(delay, schedule) ->
-                $"%s{taskName} Will be started in %s{delay |> fromTimeSpan}." |> Log.warning
+                $"%s{taskName} Will be started in %s{delay |> String.fromTimeSpan}." |> Log.warning
                 do! Async.Sleep delay
                 do! task |> tryStart taskName schedule configuration
                 return Some schedule

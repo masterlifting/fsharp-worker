@@ -23,7 +23,7 @@ type WorkerTaskNode =
           Duration = this.Duration
           Schedule = schedule }
 
-    interface Graph.INodeName with
+    interface Graph.INode with
         member this.Id = Graph.NodeId.New
         member this.Name = this.Name
         member this.set(_, name) = { this with Name = name }

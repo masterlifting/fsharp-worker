@@ -11,7 +11,7 @@ open Worker.Dependencies
 let rec private handleNode (nodeId, count, schedule) (deps: WorkerTaskNode.Dependencies) =
     async {
         match! deps.getNode nodeId with
-        | Error error -> $"%i{count}.'%s{nodeId.Value}' Failed -> %s{error.Message}" |> Log.critical
+        | Error error -> $"%i{count}.Task Id '%s{nodeId.Value}' Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
 
             let! schedule = node.Value |> deps.handleNode count schedule

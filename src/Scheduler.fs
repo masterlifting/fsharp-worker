@@ -61,13 +61,20 @@ let private merge parent child =
     | Some parent, None -> Some parent
     | None, Some child -> Some child
     | Some parent, Some child ->
-        let workdays = parent.Workdays |> Set.union child.Workdays
+        let workdays = parent.Workdays |> Set.intersect child.Workdays
 
         let startDate =
-            if child.StartDate > parent.StartDate then
-                child.StartDate
-            else
-                parent.StartDate
+            match parent.StartDate, child.StartDate with
+            | Some parentStartDate, Some childStartDate ->
+                Some(
+                    if childStartDate > parentStartDate then
+                        childStartDate
+                    else
+                        parentStartDate
+                )
+            | Some parentStartDate, None -> Some parentStartDate
+            | None, Some childStartDate -> Some childStartDate
+            | None, None -> None
 
         let stopDate =
             match parent.StopDate, child.StopDate with
@@ -82,10 +89,39 @@ let private merge parent child =
             | None, Some childStopDate -> Some childStopDate
             | None, None -> None
 
+        let startTime =
+            match parent.StartTime, child.StartTime with
+            | Some parentStartTime, Some childStartTime ->
+                Some(
+                    if childStartTime > parentStartTime then
+                        childStartTime
+                    else
+                        parentStartTime
+                )
+            | Some parentStartTime, None -> Some parentStartTime
+            | None, Some childStartTime -> Some childStartTime
+            | None, None -> None
+
+        let stopTime =
+            match parent.StopTime, child.StopTime with
+            | Some parentStopTime, Some childStopTime ->
+                Some(
+                    if childStopTime < parentStopTime then
+                        childStopTime
+                    else
+                        parentStopTime
+                )
+            | Some parentStopTime, None -> Some parentStopTime
+            | None, Some childStopTime -> Some childStopTime
+            | None, None -> None
+
         { parent with
             Workdays = workdays
             StartDate = startDate
-            StopDate = stopDate }
+            StopDate = stopDate
+            StartTime = startTime
+            StopTime = stopTime
+            TimeZone = child.TimeZone }
         |> Some
 
 let set parentSchedule schedule recursively =

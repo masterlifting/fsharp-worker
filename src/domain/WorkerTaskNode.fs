@@ -8,7 +8,8 @@ open Infrastructure.Domain
 open Infrastructure.Prelude
 
 type WorkerTaskNode =
-    { Name: string
+    { Id: Graph.NodeId
+      Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan
@@ -16,14 +17,15 @@ type WorkerTaskNode =
       Schedule: Schedule option
       Handler: (WorkerTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
 
-    member this.toOut schedule =
-        { Name = this.Name
+    member this.toWorkerTask schedule =
+        { Id = this.Id
+          Name = this.Name
           Recursively = this.Recursively
           Parallel = this.Parallel
           Duration = this.Duration
           Schedule = schedule }
 
     interface Graph.INode with
-        member this.Id = Graph.NodeId.New
+        member this.Id = this.Id
         member this.Name = this.Name
-        member this.set(_, name) = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }

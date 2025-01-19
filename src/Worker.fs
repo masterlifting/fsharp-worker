@@ -1,4 +1,5 @@
-module Worker.Core
+[<RequireQualifiedAccess>]
+module Worker.Worker
 
 open System
 open System.Threading
@@ -7,10 +8,10 @@ open Infrastructure.Logging
 open Worker.Domain
 open Worker.Dependencies
 
-let rec private handleNode (name, count, schedule) (deps: WorkerTaskNode.Dependencies) =
+let rec private handleNode (nodeId, count, schedule) (deps: WorkerTaskNode.Dependencies) =
     async {
-        match! deps.getNode name with
-        | Error error -> $"%i{count}.'%s{name}' Failed -> %s{error.Message}" |> Log.critical
+        match! deps.getNode nodeId with
+        | Error error -> $"%i{count}.'%s{nodeId.Value}' Failed -> %s{error.Message}" |> Log.critical
         | Ok node ->
 
             let! schedule = node.Value |> deps.handleNode count schedule
@@ -18,7 +19,7 @@ let rec private handleNode (name, count, schedule) (deps: WorkerTaskNode.Depende
 
             if node.Value.Recursively.IsSome then
                 let count = count + 1u
-                do! handleNode (name, count, schedule) deps
+                do! handleNode (nodeId, count, schedule) deps
     }
 
 and private handleNodes (count, deps, schedule) nodes =
@@ -37,7 +38,7 @@ and private handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         [ nodes[0] ] @ sequentialNodes
-                        |> List.map (fun task -> deps |> handleNode (task.Name, count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.Id, count, schedule))
                         |> Async.Sequential
 
                     (tasks, sequentialNodes.Length + 1)
@@ -46,7 +47,7 @@ and private handleNodes (count, deps, schedule) nodes =
 
                     let tasks =
                         parallelNodes
-                        |> List.map (fun task -> deps |> handleNode (task.Name, count, schedule))
+                        |> List.map (fun task -> deps |> handleNode (task.Id, count, schedule))
                         |> Async.Parallel
 
                     (tasks, parallelNodes.Length)
@@ -83,7 +84,7 @@ let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
             let run =
                 runHandler
                     taskName
-                    { Task = task.toOut schedule
+                    { Task = task.toWorkerTask schedule
                       Duration = task.Duration
                       Configuration = configuration
                       startHandler = handler }
@@ -142,9 +143,9 @@ let private processGraph nodeName deps =
 let start config =
     async {
         try
-            let workerName = $"'%s{config.Name}'"
+            let workerName = $"'%s{config.RootNodeName}'"
 
-            match! processGraph config.Name config |> Async.Catch with
+            match! processGraph config.RootNodeId config |> Async.Catch with
             | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.success
             | Choice2Of2 ex ->
                 match ex with

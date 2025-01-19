@@ -2,9 +2,11 @@
 module Worker.Domain.WorkerTask
 
 open System
+open Infrastructure.Domain
 
 type WorkerTask =
-    { Name: string
+    { Id: Graph.NodeId
+      Name: string
       Recursively: TimeSpan option
       Parallel: bool
       Duration: TimeSpan

@@ -6,10 +6,11 @@ open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
 type WorkerTaskNodeHandler =
-    { Name: string
+    { Id: Graph.NodeId
+      Name: string
       Handler: (WorkerTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option }
 
     interface Graph.INode with
-        member this.Id = Graph.NodeId.New
+        member this.Id = this.Id
         member this.Name = this.Name
-        member this.set(_, name) = { this with Name = name }
+        member this.set(id, name) = { this with Id = id; Name = name }

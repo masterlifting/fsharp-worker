@@ -11,6 +11,7 @@ type TaskGraphStorage = TaskGraphStorage of Storage.Type
 type StorageType = Configuration of Configuration.Domain.Client
 
 type TaskGraphEntity() =
+    member val Id: string = String.Empty with get, set
     member val Name: string = String.Empty with get, set
     member val Enabled: bool = false with get, set
     member val Recursively: string option = None with get, set
@@ -29,12 +30,14 @@ type TaskGraphEntity() =
             | _ -> "TimeSpan. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
 
         result {
+            let! id = Graph.NodeId.create this.Id
             let! recursively = this.Recursively |> Option.toResult parseTimeSpan
             let! duration = this.Duration |> Option.toResult parseTimeSpan
             let! schedule = this.Schedule |> Option.toResult _.ToDomain()
 
             return
-                { Name = this.Name
+                { Id = id
+                  Name = this.Name
                   Parallel = this.Parallel
                   Recursively = recursively
                   Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)

@@ -18,5 +18,5 @@ type Scheduler =
     | NotScheduled
     | Started of Schedule
     | StartIn of TimeSpan * Schedule
-    | Stopped of SchedulerStopReason * Schedule
+    | Stopped of SchedulerStopReason
     | StopIn of TimeSpan * Schedule

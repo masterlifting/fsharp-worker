@@ -17,7 +17,9 @@ let rec private handleNode (nodeId, count, schedule) (deps: WorkerTaskNode.Depen
         | Ok node ->
 
             let! schedule = node.Value |> deps.handleNode count schedule
-            do! node.Children |> handleNodes (count, deps, schedule)
+
+            if schedule.IsSome && node.Children.Length > 0 then
+                do! node.Children |> handleNodes (count, deps, schedule)
 
             if node.Value.Recursively.IsSome then
                 let count = count + 1u
@@ -108,9 +110,9 @@ let rec private handleTask configuration =
             let taskName = $"%i{count}.'%s{task.Name}'"
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
-            | Stopped(reason, schedule) ->
+            | Stopped reason ->
                 $"%s{taskName} Stopped. %s{reason.Message}" |> Log.critical
-                return Some schedule
+                return None
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
                     $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}."

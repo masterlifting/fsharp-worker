@@ -10,22 +10,22 @@ let private checkWorkday (now: DateTime) schedule =
             let delay = now.Date.AddDays 1. - now
             StartIn(delay, schedule)
         else
-            Stopped(NotWorkday now.DayOfWeek, schedule)
+            Stopped(NotWorkday now.DayOfWeek)
     else
         Started schedule
 
 let private tryStopWork (now: DateTime) schedule =
 
-    match schedule.StopDate with
+   match schedule.StopDate with
     | Some stopDate ->
-        let stopTime = schedule.StopTime |> Option.defaultValue TimeOnly.MaxValue
+        let stopTime = schedule.StopTime |> Option.defaultValue TimeOnly.MinValue
         let stopDateTime = stopDate.ToDateTime stopTime
 
         if stopDateTime >= now then
             let delay = stopDateTime - now
             StopIn(delay, schedule)
         else
-            Stopped(StopDateReached stopDate, schedule)
+            Stopped(StopDateReached stopDate)
     | None ->
         match schedule.StopTime with
         | Some stopTime ->
@@ -38,7 +38,7 @@ let private tryStopWork (now: DateTime) schedule =
                 let delay = now.Date.AddDays 1. - now
                 StartIn(delay, schedule)
             else
-                Stopped(StopTimeReached stopTime, schedule)
+                Stopped(StopTimeReached stopTime)
         | None -> Started schedule
 
 let private tryStartWork (now: DateTime) schedule =

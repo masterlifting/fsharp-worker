@@ -3,10 +3,10 @@ module internal Worker.Scheduler
 open System
 open Worker.Domain
 
-let private checkWorkday recursively (now: DateTime) schedule =
+let private checkWorkday (now: DateTime) schedule =
 
     if now.DayOfWeek |> Set.contains >> not <| schedule.Workdays then
-        if recursively then
+        if schedule.Continue then
             let delay = now.Date.AddDays 1. - now
             StartIn(delay, schedule)
         else
@@ -14,7 +14,7 @@ let private checkWorkday recursively (now: DateTime) schedule =
     else
         Started schedule
 
-let private tryStopWork recursively (now: DateTime) schedule =
+let private tryStopWork (now: DateTime) schedule =
 
     match schedule.StopDate with
     | Some stopDate ->
@@ -34,7 +34,7 @@ let private tryStopWork recursively (now: DateTime) schedule =
             if stopDateTime >= now then
                 let delay = stopDateTime - now
                 StopIn(delay, schedule)
-            else if recursively then
+            else if schedule.Continue then
                 let delay = now.Date.AddDays 1. - now
                 StartIn(delay, schedule)
             else
@@ -55,83 +55,66 @@ let private tryStartWork (now: DateTime) schedule =
     else
         Started schedule
 
-let private merge parent child =
-    match parent, child with
-    | None, None -> None
-    | Some parent, None -> Some parent
-    | None, Some child -> Some child
-    | Some parent, Some child ->
-        let workdays = parent.Workdays |> Set.intersect child.Workdays
+let private merge parent current =
+    fun withContinue ->
+        match parent, current with
+        | None, None -> None
+        | Some parent, None -> Some parent
+        | None, Some current -> Some current
+        | Some parent, Some current ->
+            let workdays = parent.Workdays |> Set.intersect current.Workdays
 
-        let startDate =
-            match parent.StartDate, child.StartDate with
-            | Some parentStartDate, Some childStartDate ->
-                Some(
-                    if childStartDate > parentStartDate then
-                        childStartDate
-                    else
-                        parentStartDate
-                )
-            | Some parentStartDate, None -> Some parentStartDate
-            | None, Some childStartDate -> Some childStartDate
-            | None, None -> None
+            let startDate =
+                match parent.StartDate, current.StartDate with
+                | Some parentStartDate, Some childStartDate -> Some(max parentStartDate childStartDate)
+                | Some parentStartDate, None -> Some parentStartDate
+                | None, Some currentStartDate -> Some currentStartDate
+                | None, None -> None
 
-        let stopDate =
-            match parent.StopDate, child.StopDate with
-            | Some parentStopDate, Some childStopDate ->
-                Some(
-                    if childStopDate < parentStopDate then
-                        childStopDate
-                    else
-                        parentStopDate
-                )
-            | Some parentStopDate, None -> Some parentStopDate
-            | None, Some childStopDate -> Some childStopDate
-            | None, None -> None
+            let stopDate =
+                match parent.StopDate, current.StopDate with
+                | Some parentStopDate, Some currentStopDate -> Some(min parentStopDate currentStopDate)
+                | Some parentStopDate, None -> Some parentStopDate
+                | None, Some currentStopDate -> Some currentStopDate
+                | None, None -> None
 
-        let startTime =
-            match parent.StartTime, child.StartTime with
-            | Some parentStartTime, Some childStartTime ->
-                Some(
-                    if childStartTime > parentStartTime then
-                        childStartTime
-                    else
-                        parentStartTime
-                )
-            | Some parentStartTime, None -> Some parentStartTime
-            | None, Some childStartTime -> Some childStartTime
-            | None, None -> None
+            let startTime =
+                match parent.StartTime, current.StartTime with
+                | Some parentStartTime, Some currentStartTime -> Some(max parentStartTime currentStartTime)
+                | Some parentStartTime, None -> Some parentStartTime
+                | None, Some currentStartTime -> Some currentStartTime
+                | None, None -> None
 
-        let stopTime =
-            match parent.StopTime, child.StopTime with
-            | Some parentStopTime, Some childStopTime ->
-                Some(
-                    if childStopTime < parentStopTime then
-                        childStopTime
-                    else
-                        parentStopTime
-                )
-            | Some parentStopTime, None -> Some parentStopTime
-            | None, Some childStopTime -> Some childStopTime
-            | None, None -> None
+            let stopTime =
+                match parent.StopTime, current.StopTime with
+                | Some parentStopTime, Some currentStopTime -> Some(min parentStopTime currentStopTime)
+                | Some parentStopTime, None -> Some parentStopTime
+                | None, Some currentStopTime -> Some currentStopTime
+                | None, None -> None
 
-        { parent with
-            Workdays = workdays
-            StartDate = startDate
-            StopDate = stopDate
-            StartTime = startTime
-            StopTime = stopTime
-            TimeZone = child.TimeZone }
-        |> Some
+            { parent with
+                Workdays = workdays
+                StartDate = startDate
+                StopDate = stopDate
+                StartTime = startTime
+                StopTime = stopTime
+                Continue = parent.Continue || current.Continue
+                TimeZone = current.TimeZone }
+            |> Some
+        |> Option.map (fun schedule ->
+            { schedule with
+                Continue = withContinue || schedule.Continue })
 
-let set parentSchedule schedule recursively =
-    match parentSchedule |> merge <| schedule with
+let set parentSchedule schedule withContinue =
+    let mergeSchedules = parentSchedule |> merge <| schedule
+
+    match mergeSchedules withContinue with
     | None -> NotScheduled
     | Some schedule ->
         let now = DateTime.UtcNow.AddHours(schedule.TimeZone |> float)
 
-        [ schedule |> checkWorkday recursively now
-          schedule |> tryStopWork recursively now
+        [ schedule |> checkWorkday now
+          schedule |> tryStopWork now
           schedule |> tryStartWork now ]
         |> List.minBy (function
             | Stopped _ -> 0

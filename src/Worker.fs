@@ -116,7 +116,7 @@ let rec private handleTask configuration =
             | StopIn(delay, schedule) ->
                 if (delay < TimeSpan.FromMinutes 10.) then
                     $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}."
-                    |> Log.debug
+                    |> Log.warning
 
                 do! task |> tryStart taskName schedule configuration
                 return Some schedule

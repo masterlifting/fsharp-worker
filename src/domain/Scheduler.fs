@@ -5,14 +5,14 @@ open System
 
 type SchedulerStopReason =
     | NotWorkday of DayOfWeek
-    | StopDateReached of DateOnly
-    | StopTimeReached of TimeOnly
+    | StopTimeReached of DateTime
 
     member this.Message =
         match this with
         | NotWorkday day -> $"Not workday: {day}"
-        | StopDateReached date -> $"Stop date reached: {date}"
-        | StopTimeReached time -> $"Stop time reached: {time}"
+        | StopTimeReached dateTime ->
+            let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
+            $"Stop time reached: {formattedDateTime}"
 
 type Scheduler =
     | NotScheduled

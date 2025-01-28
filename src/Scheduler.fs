@@ -3,43 +3,67 @@ module internal Worker.Scheduler
 open System
 open Worker.Domain
 
-let private checkWorkday (now: DateTime) schedule =
+let rec private findNearestWorkday (date: DateOnly) workdays =
+    match workdays = Set.empty with
+    | true -> None
+    | false ->
+        match workdays.Contains(date.DayOfWeek) with
+        | true -> Some date
+        | false -> workdays |> findNearestWorkday (date.AddDays 1)
 
-    if now.DayOfWeek |> Set.contains >> not <| schedule.Workdays then
-        if schedule.Continue then
-            let delay = now.Date.AddDays 1. - now
-            StartIn(delay, schedule)
-        else
-            Stopped(NotWorkday now.DayOfWeek)
-    else
-        Started schedule
+let private checkWorkday (now: DateTime) schedule =
+    let today = now |> DateOnly.FromDateTime
+
+    match schedule.Workdays |> findNearestWorkday today with
+    | None -> Started schedule
+    | Some nearestWorkday ->
+        match nearestWorkday.DayOfWeek = today.DayOfWeek with
+        | true -> Started schedule
+        | false ->
+            match schedule.Continue with
+            | false -> Stopped(NotWorkday today.DayOfWeek)
+            | true ->
+                let startDateTime =
+                    match schedule.StartTime with
+                    | Some startTime -> nearestWorkday.ToDateTime startTime
+                    | None -> nearestWorkday.ToDateTime TimeOnly.MinValue
+
+                let delay = startDateTime - now
+                StartIn(delay, schedule)
 
 let private tryStopWork (now: DateTime) schedule =
+    let stopDateTime =
+        match schedule.StopDate, schedule.StopTime with
+        | Some stopDate, Some stopTime -> stopDate.ToDateTime stopTime |> Some
+        | Some stopDate, None -> stopDate.ToDateTime TimeOnly.MinValue |> Some
+        | None, Some stopTime -> now.Date.Add(stopTime.ToTimeSpan()) |> Some
+        | None, None -> None
 
-   match schedule.StopDate with
-    | Some stopDate ->
-        let stopTime = schedule.StopTime |> Option.defaultValue TimeOnly.MinValue
-        let stopDateTime = stopDate.ToDateTime stopTime
-
-        if stopDateTime >= now then
+    match stopDateTime with
+    | None -> Started schedule
+    | Some stopDateTime ->
+        match stopDateTime > now with
+        | true ->
             let delay = stopDateTime - now
             StopIn(delay, schedule)
-        else
-            Stopped(StopDateReached stopDate)
-    | None ->
-        match schedule.StopTime with
-        | Some stopTime ->
-            let stopDateTime = now.Date.Add(stopTime.ToTimeSpan())
+        | false ->
+            match schedule.Continue with
+            | false -> Stopped(StopTimeReached stopDateTime)
+            | true ->
+                let tomorrow = now.Date.AddDays 1. |> DateOnly.FromDateTime
 
-            if stopDateTime >= now then
-                let delay = stopDateTime - now
-                StopIn(delay, schedule)
-            else if schedule.Continue then
-                let delay = now.Date.AddDays 1. - now
+                let nextDate =
+                    match schedule.Workdays |> findNearestWorkday tomorrow with
+                    | Some nearestWorkday -> nearestWorkday
+                    | None -> tomorrow
+
+                let startDateTime =
+                    match schedule.StartTime with
+                    | Some startTime -> nextDate.ToDateTime startTime
+                    | None -> nextDate.ToDateTime TimeOnly.MinValue
+
+                let delay = startDateTime - now
                 StartIn(delay, schedule)
-            else
-                Stopped(StopTimeReached stopTime)
-        | None -> Started schedule
 
 let private tryStartWork (now: DateTime) schedule =
     let startDateTime =
@@ -49,11 +73,11 @@ let private tryStartWork (now: DateTime) schedule =
         | None, Some startTime -> now.Date.Add(startTime.ToTimeSpan())
         | None, None -> now
 
-    if startDateTime > now then
+    match startDateTime > now with
+    | true ->
         let delay = startDateTime - now
         StartIn(delay, schedule)
-    else
-        Started schedule
+    | false -> Started schedule
 
 let private merge parent current =
     fun withContinue ->
@@ -116,6 +140,21 @@ let set parentSchedule schedule withContinue =
         [ schedule |> checkWorkday now
           schedule |> tryStopWork now
           schedule |> tryStartWork now ]
+        |> List.groupBy id
+        |> List.map (function
+            | Stopped _, values -> values |> List.head
+            | StartIn _, values ->
+                values
+                |> List.maxBy (function
+                    | StartIn(delay, _) -> delay
+                    | _ -> TimeSpan.MinValue)
+            | StopIn _, values ->
+                values
+                |> List.minBy (function
+                    | StopIn(delay, _) -> delay
+                    | _ -> TimeSpan.MaxValue)
+            | Started _, values -> values |> List.head
+            | NotScheduled, values -> values |> List.head)
         |> List.minBy (function
             | Stopped _ -> 0
             | StartIn _ -> 1

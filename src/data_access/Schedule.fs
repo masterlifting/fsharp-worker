@@ -68,6 +68,6 @@ type ScheduleEntity() =
                   StartTime = startTime
                   StopTime = stopTime
                   Workdays = workdays
-                  Continue = false
+                  Recursively = false
                   TimeZone = this.TimeZone }
         }

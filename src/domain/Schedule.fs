@@ -9,5 +9,5 @@ type Schedule =
       StartTime: TimeOnly option
       StopTime: TimeOnly option
       Workdays: DayOfWeek Set
-      Continue: bool
+      Recursively: bool
       TimeZone: int8 }

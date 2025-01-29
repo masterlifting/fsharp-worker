@@ -14,13 +14,13 @@ let rec private findNearestWorkday (date: DateOnly) workdays =
 
 let private compute (now: DateTime) schedule =
     let today = DateOnly.FromDateTime now
+    let tomorrow = today.AddDays 1
+    let startDate = schedule.StartDate |> Option.defaultValue today
 
     let startDateTime =
-        match schedule.StartDate, schedule.StartTime with
-        | Some startDate, Some startTime -> startDate.ToDateTime startTime
-        | Some startDate, None -> startDate.ToDateTime TimeOnly.MinValue
-        | None, Some startTime -> today.ToDateTime startTime
-        | None, None -> now
+        match schedule.StartTime with
+        | Some startTime -> startDate.ToDateTime startTime
+        | None -> startDate.ToDateTime TimeOnly.MinValue
 
     let stopDateTime =
         match schedule.StopDate, schedule.StopTime with
@@ -33,6 +33,17 @@ let private compute (now: DateTime) schedule =
 
     let toNearestWorkday date =
         schedule.Workdays |> findNearestWorkday date
+
+    let toStartDateTime (date: DateOnly) =
+        date.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
+
+    let toStopDateTime (date: DateOnly) =
+        date.ToDateTime(schedule.StopTime |> Option.defaultValue TimeOnly.MinValue)
+
+    let nextDate =
+        match startDate > tomorrow with
+        | true -> startDate |> toNearestWorkday |> Option.defaultValue startDate
+        | false -> tomorrow |> toNearestWorkday |> Option.defaultValue tomorrow
 
     let handleStart () =
         match startDateTime > now with
@@ -51,19 +62,8 @@ let private compute (now: DateTime) schedule =
                 match schedule.StopDate.IsSome with
                 | true -> Stopped(StartTimeCannotBeReached startDateTime)
                 | false ->
-                    let tomorrow = today.AddDays 1
-                    let startDate = DateOnly.FromDateTime startDateTime
-
-                    let nextDate =
-                        match startDate > tomorrow with
-                        | true -> startDate |> toNearestWorkday |> Option.defaultValue startDate
-                        | false -> tomorrow |> toNearestWorkday |> Option.defaultValue tomorrow
-
-                    let nextStartDateTime =
-                        nextDate.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
-
-                    let nextStopDateTime =
-                        nextDate.ToDateTime(schedule.StopTime |> Option.defaultValue TimeOnly.MinValue)
+                    let nextStartDateTime = nextDate |> toStartDateTime
+                    let nextStopDateTime = nextDate |> toStopDateTime
 
                     match nextStartDateTime > nextStopDateTime with
                     | true -> Stopped(StartTimeCannotBeReached nextStartDateTime)
@@ -80,36 +80,13 @@ let private compute (now: DateTime) schedule =
                         match schedule.StopDate.IsSome with
                         | true -> Stopped(StartTimeCannotBeReached startDateTime)
                         | false ->
-                            let tomorrow = today.AddDays 1
-                            let startDate = DateOnly.FromDateTime startDateTime
-
-                            let nextDate =
-                                match startDate > tomorrow with
-                                | true -> startDate |> toNearestWorkday |> Option.defaultValue startDate
-                                | false -> tomorrow |> toNearestWorkday |> Option.defaultValue tomorrow
-
-                            let nextStartDateTime =
-                                nextDate.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
-
-                            let nextStopDateTime =
-                                nextDate.ToDateTime(schedule.StopTime |> Option.defaultValue TimeOnly.MinValue)
+                            let nextStartDateTime = nextDate |> toStartDateTime
+                            let nextStopDateTime = nextDate |> toStopDateTime
 
                             match nextStartDateTime > nextStopDateTime with
                             | true -> Stopped(StartTimeCannotBeReached nextStartDateTime)
                             | false -> StartIn(nextStartDateTime |> toDelay, schedule)
-                    | false ->
-                        let tomorrow = today.AddDays 1
-                        let startDate = DateOnly.FromDateTime startDateTime
-
-                        let nextDate =
-                            match startDate > tomorrow with
-                            | true -> startDate |> toNearestWorkday |> Option.defaultValue startDate
-                            | false -> tomorrow |> toNearestWorkday |> Option.defaultValue tomorrow
-
-                        let nextStartDateTime =
-                            nextDate.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
-
-                        StartIn(nextStartDateTime |> toDelay, schedule)
+                    | false -> StartIn(nextDate |> toStartDateTime |> toDelay, schedule)
 
     match today |> toNearestWorkday with
     | None ->
@@ -125,26 +102,14 @@ let private compute (now: DateTime) schedule =
         | false ->
             match schedule.Recursively with
             | false ->
-                let tomorrow = today.AddDays 1
-                let startDate = DateOnly.FromDateTime startDateTime
-
-                let nextDate =
+                match
                     match startDate > tomorrow with
                     | true -> startDate |> toNearestWorkday
                     | false -> tomorrow |> toNearestWorkday
-
-                match nextDate with
+                with
                 | None -> Stopped(NotWorkday today.DayOfWeek)
-                | Some nextDate ->
-                    let nextStartDateTime =
-                        nextDate.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
-
-                    StartIn(toDelay nextStartDateTime, schedule)
-            | true ->
-                let nextStartDateTime =
-                    nearestWorkday.ToDateTime(schedule.StartTime |> Option.defaultValue TimeOnly.MinValue)
-
-                StartIn(toDelay nextStartDateTime, schedule)
+                | Some nextDate -> StartIn(nextDate |> toStartDateTime |> toDelay, schedule)
+            | true -> StartIn(nearestWorkday |> toStartDateTime |> toDelay, schedule)
 
 let private merge parent current =
     fun withContinue ->

@@ -6,6 +6,7 @@ open System
 type SchedulerStopReason =
     | NotWorkday of DayOfWeek
     | StopTimeReached of DateTime
+    | StartTimeCannotBeReached of DateTime
 
     member this.Message =
         match this with
@@ -13,6 +14,9 @@ type SchedulerStopReason =
         | StopTimeReached dateTime ->
             let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
             $"Stop time reached: {formattedDateTime}"
+        | StartTimeCannotBeReached dateTime ->
+            let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
+            $"Start time cannot be reached: {formattedDateTime}"
 
 type Scheduler =
     | NotScheduled

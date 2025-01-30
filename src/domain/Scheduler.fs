@@ -4,13 +4,11 @@ module Worker.Domain.Scheduler
 open System
 
 type SchedulerStopReason =
-    | NotWorkday of DayOfWeek
     | StopTimeReached of DateTime
     | StartTimeCannotBeReached of DateTime
 
     member this.Message =
         match this with
-        | NotWorkday day -> $"Not workday: {day}"
         | StopTimeReached dateTime ->
             let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
             $"Stop time reached: {formattedDateTime}"

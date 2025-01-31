@@ -26,35 +26,43 @@ let private compute (now: DateTime) (schedule: Schedule) =
         | None, Some stopTime -> today.ToDateTime stopTime |> Some
         | None, None -> None
 
-    let toNextStartDateTime () =
-        let nextStartDate = startDate.AddDays 1 |> toNearestWorkday
-        nextStartDate.ToDateTime startTime
-
     let toNextStopDateTime (stopDateTime: DateTime) =
         let stopDate = DateOnly.FromDateTime stopDateTime
         let stopTime = TimeOnly.FromDateTime stopDateTime
         let nextStopDate = stopDate.AddDays 1 |> toNearestWorkday
         nextStopDate.ToDateTime stopTime
 
-    let rec handleContinuation startDateTime stopDateTime =
-        let started =
-            startDateTime < stopDateTime && startDateTime <= now && stopDateTime > now
+    let handleStopDate stopDateTime =
+        match startDateTime, stopDateTime, now with
+        | _ when startDateTime > now && startDateTime > stopDateTime ->
+            let nextStopDateTime = stopDateTime |> toNextStopDateTime
 
-        let startIn =
-            (startDateTime < stopDateTime && startDateTime > now)
-            || (startDateTime > stopDateTime && startDateTime > now)
+            match startDateTime > nextStopDateTime with
+            | true -> Stopped(StartTimeCannotBeReached startDateTime)
+            | false -> StartIn(startDateTime |> toDelay, schedule)
+        | _ when startDateTime > now ->
+            let nextStartDate = startDate |> toNearestWorkday
+            let nextStartDateTime = nextStartDate.ToDateTime startTime
 
-        match started, startIn with
-        | true, _ -> Started schedule
-        | false, true -> StartIn(startDateTime |> toDelay, schedule)
-        | false, false ->
+            StartIn(nextStartDateTime |> toDelay, schedule)
+        | _ when startDateTime > stopDateTime -> Stopped(StartTimeCannotBeReached startDateTime)
+        | _ when stopDateTime <= now -> Stopped(StopTimeReached stopDateTime)
+        | _ -> StopIn(stopDateTime |> toDelay, schedule)
+
+    let rec handleStopDateRecursively startDateTime stopDateTime =
+        match startDateTime, stopDateTime, now with
+        | _ when startDateTime < stopDateTime && startDateTime <= now && stopDateTime > now -> Started schedule
+        | _ when startDateTime > now -> StartIn(startDateTime |> toDelay, schedule)
+        | _ ->
             let nextStartDateTime =
                 match startDateTime > stopDateTime with
                 | true -> startDateTime
-                | false -> toNextStartDateTime ()
+                | false ->
+                    let nextStartDate = startDate.AddDays 1 |> toNearestWorkday
+                    nextStartDate.ToDateTime startTime
 
-            let nextStopDateTime = toNextStopDateTime stopDateTime
-            handleContinuation nextStartDateTime nextStopDateTime
+            let nextStopDateTime = stopDateTime |> toNextStopDateTime
+            handleStopDateRecursively nextStartDateTime nextStopDateTime
 
     match schedule.Workdays.IsEmpty with
     | true -> Stopped(EmptyWorkdays)
@@ -66,29 +74,11 @@ let private compute (now: DateTime) (schedule: Schedule) =
             | false -> Started schedule
         | Some stopDateTime ->
             match schedule.StopDate.IsSome with
-            | true ->
-                match startDateTime > now with
-                | true ->
-                    match startDateTime > stopDateTime with
-                    | true -> Stopped(StartTimeCannotBeReached startDateTime)
-                    | false ->
-                        match startDateTime > now with
-                        | true ->
-                             let nextStartDate = startDate |> toNearestWorkday
-                             let nextStartDateTime =   nextStartDate.ToDateTime startTime
-                             StartIn(nextStartDateTime |> toDelay, schedule)
-                        | false -> StopIn(stopDateTime |> toDelay, schedule)
-                | false ->
-                    match startDateTime > stopDateTime with
-                    | true -> Stopped(StartTimeCannotBeReached startDateTime)
-                    | false ->
-                        match stopDateTime <= now with
-                        | true -> Stopped(StopTimeReached stopDateTime)
-                        | false -> StopIn(stopDateTime |> toDelay, schedule)
+            | true -> stopDateTime |> handleStopDate
             | false ->
                 match schedule.Recursively with
                 | false -> Stopped(StopTimeReached stopDateTime)
-                | true -> handleContinuation startDateTime stopDateTime
+                | true -> handleStopDateRecursively startDateTime stopDateTime
 
 let private merge parent current =
     fun withContinue ->

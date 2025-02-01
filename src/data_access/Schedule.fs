@@ -50,7 +50,7 @@ type ScheduleEntity() =
     member val StartTime: string option = None with get, set
     member val StopTime: string option = None with get, set
     member val Workdays: string = String.Empty with get, set
-    member val TimeZone: int8 = 0y with get, set
+    member val TimeZone: float = 0. with get, set
 
     member this.ToDomain() =
         let result = ResultBuilder()

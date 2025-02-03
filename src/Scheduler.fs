@@ -11,7 +11,7 @@ let private compute (now: DateTime) (schedule: Schedule) =
     let toDelay dateTime = dateTime - now
 
     let rec toNearestWorkday (date: DateOnly) =
-        match schedule.Workdays.Contains(date.DayOfWeek) with
+        match schedule.Workdays.Contains date.DayOfWeek with
         | true -> date
         | false -> date.AddDays 1 |> toNearestWorkday
 

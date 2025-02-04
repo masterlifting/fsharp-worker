@@ -56,21 +56,22 @@ module private Configuration =
 
     let private merge (handlers: Graph.Node<WorkerTaskNodeHandler>) taskGraph =
 
-        let rec mergeLoop parentTaskId (graph: TaskGraphEntity) =
-            let taskId = [ parentTaskId; Some graph.Id ] |> List.choose id |> Graph.combine
-
-            match handlers |> Graph.BFS.tryFindById (taskId |> Graph.NodeIdValue) with
-            | None -> $"Handler Id '%s{taskId}'" |> NotFound |> Error
-            | Some handler ->
-                graph.ToDomain handler.Value graph.Enabled
-                |> Result.bind (fun workerTask ->
-                    match graph.Tasks with
-                    | null -> Graph.Node(workerTask, []) |> Ok
-                    | tasks ->
-                        tasks
-                        |> Array.map (mergeLoop (Some taskId))
-                        |> Result.choose
-                        |> Result.map (fun children -> Graph.Node(workerTask, children)))
+        let rec mergeLoop (parentTaskId: Graph.NodeId option) (graph: TaskGraphEntity) =
+            Graph.NodeId.create graph.Id
+            |> Result.map (fun graphId -> [ parentTaskId; Some graphId ] |> List.choose id |> Graph.Node.Id.combine)
+            |> Result.bind (fun taskId ->
+                match handlers |> Graph.BFS.tryFindById taskId with
+                | None -> $"Task handler Id '%s{taskId.Value}'" |> NotFound |> Error
+                | Some handler ->
+                    graph.ToDomain handler.Value graph.Enabled
+                    |> Result.bind (fun workerTask ->
+                        match graph.Tasks with
+                        | null -> Graph.Node(workerTask, []) |> Ok
+                        | tasks ->
+                            tasks
+                            |> Array.map (mergeLoop (Some taskId))
+                            |> Result.choose
+                            |> Result.map (fun children -> Graph.Node(workerTask, children))))
 
         taskGraph |> mergeLoop None
 

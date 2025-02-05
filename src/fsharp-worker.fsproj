@@ -2,6 +2,7 @@
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
         <Compile Include="domain\Schedule.fs" />

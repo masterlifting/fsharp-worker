@@ -19,7 +19,7 @@ type TaskGraphEntity() =
     member val Duration: string option = None with get, set
     member val Wait: bool = false with get, set
     member val Schedule: ScheduleEntity option = None with get, set
-    member val Tasks: TaskGraphEntity[] = [||] with get, set
+    member val Tasks: TaskGraphEntity[] | null = [||] with get, set
 
     member this.ToDomain (handler: WorkerTaskNodeHandler) enabled =
         let result = ResultBuilder()

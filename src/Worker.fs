@@ -41,7 +41,7 @@ and private handleNodes (count, deps, schedule) nodes =
                         nodes |> List.skip 1 |> List.takeWhile (not << _.Value.Parallel)
 
                     let tasks =
-                        [ nodes[0] ] @ sequentialNodes
+                        nodes[0] :: sequentialNodes
                         |> List.map (fun task -> deps |> handleNode (task.Id, count, schedule))
                         |> Async.Sequential
 

@@ -5,7 +5,7 @@ open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
 type WorkerConfiguration =
-    { RootNodeId: Graph.NodeId
-      RootNodeName: string
+    { Name: string
+      TaskNodeRootId: Graph.NodeId
       Configuration: IConfigurationRoot
       getTaskNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>> }

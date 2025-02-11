@@ -1,7 +1,9 @@
 # F# Worker
 
 ## Overview
-The Worker manages a directed graph of tasks for either parallel or sequential execution with a scheduling system.
+The Worker manages a directed graph of tasks for either parallel or sequential execution with a scheduling system and nested rules. 
+It is designed to be used in a distributed environment, such as a microservices architecture.
+The Worker just runs the configured task handler that is provided by the user and does not manage the state of the tasks.
 
 ### Worker.DataAccess.TaskGraph.TaskGraphEntity
 Describes a task node in the task graph, currently supported only through configuration files.

@@ -1,70 +1,73 @@
-<!-- @format -->
-
 # F# Worker
 
 ## Overview
+The Worker manages a directed graph of tasks for either parallel or sequential execution with a scheduling system.
 
-The F# Worker is a powerful tool for managing a graph of tasks and executing them either in parallel or in sequence using scheduling.
+### Worker.DataAccess.TaskGraph.TaskGraphEntity
+Describes a task node in the task graph, currently supported only through configuration files.
 
-## Domain Model
+Properties:
+- **Id**: Unique identifier of the task.
+- **Name**: Descriptive name of the task.
+- **Enabled**: Indicates if the task is active.
+- **Recursively** (optional): Triggers recursive execution based on a timespan in "dd.hh:mm:ss" format.
+- **Parallel**: If true, runs the task in parallel with others; if false, runs in sequence.
+- **Duration** (optional): Maximum running time for the task; it is canceled if it exceeds this duration.
+- **Wait**: If true, waits for the dependent handler to complete.
+- **Schedule** (optional): Scheduling instructions for the task.
+- **Tasks**: An array of child tasks (nested TaskGraphEntity items).
 
-### TaskGraph
+### Worker.DataAccess.Schedule.ScheduleEntity
+Defines schedule settings for a task. If unspecified, default properties apply.
 
-The `TaskGraph` represents a task and its configuration. It includes the following properties:
+Properties:
+- **StartDate** (optional): Date when the task begins. By default, it starts immediately.
+- **StopDate** (optional): Date when the task should stop.
+- **StartTime** (optional): Time when the task begins. By default, it starts immediately.
+- **StopTime** (optional): Time when the task should stop.
+- **Workdays**: Days of the week to run the task (e.g., "mon,tue,wed,thu,fri").
+- **TimeZone**: Hours offset from UTC (defaults to 0).
 
-- `Name`: Name of the task.
-- `Enabled`: If true, the task is active.
-- `Recursively`: (Optional) If specified, the task will be executed recursively based on the provided condition.
-- `Parallel`: If true, the task will be executed in parallel with other parallel tasks; otherwise, it will be executed in sequence.
-- `Duration`: (Optional) If specified, the task will run for the provided duration.
-- `Wait`: If true, the task will wait for dependent tasks to complete.
-- `Schedule`: (Optional) The schedule configuration for the task.
-- `Tasks`: An array of nested `TaskGraph` elements to define task dependencies.
+### Worker.Domain.WorkerTaskNodeHandler
+Represents a particular task handler.
 
-### Schedule
-
-The `Schedule` represents the scheduling configuration for a task. It includes the following properties:
-
-- `StartDate`: (Optional) The start date of the task. If not specified, the task will start immediately.
-- `StopDate`: (Optional) The stop date of the task.
-- `StartTime`: (Optional )The start time of the task. If not specified, the task will start immediately.
-- `StopTime`: (Optional) The stop time of the task.
-- `Workdays`: The days of the week when the task should work (e.g., "mon,tue,wed,thu,fri").
-- `TimeShift`: Number of hours to shift the task execution time to UTC (default is 0).
+Properties:
+- **Id**: Unique identifier tied to the TaskGraphEntity.
+- **Name**: Handler name for the task.
+- **Handler**: Function that is executed by the task. Receives the Worker.Domain.WorkerTask, the app configuration, and a cancellation token. Returns a Worker.Domain.WorkerTaskResult.
 
 ## Dependencies
-
-To use the F# Worker, you need to provide the following dependencies:
-
-```fsharp
-type GetTask = string -> Async<Result<Graph.Node<Task>, Error'>>
-
-type WorkerConfiguration =
-    { Name: string
-      Configuration: IConfigurationRoot 
-      getTask: GetTask }
-```
+This worker depends on my libs:
+- **fsharp-infrastructure**
+- **fsharp-persistence**
 
 ## Worker Execution
-
-You can start the worker with the following example:
+To set up the Worker, provide a configuration object such as:
 
 ```fsharp
-    let workerConfig =
-        { Name = rootTask.Name
-          Configuration = configuration
-          getTask = taskHandlers |> TasksStorage.getTask configuration }
-
-    workerConfig |> Worker.Core.start |> Async.RunSynchronously
+type WorkerConfiguration =
+    { RootNodeId: Graph.NodeId
+      RootNodeName: string
+      Configuration: IConfigurationRoot
+      getTaskNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>> }
 ```
 
-In this example:
+You can run the Worker with code like:
 
-- `rootTask` is the root task of the task graph and task handlers graph.
-- `configuration` is the configuration of the application where the worker is running.
-- `taskHandlers` is a list of task handlers that can be used to execute tasks.
-- `TasksStorage.getTask` is a function that retrieves a task by name from the task graph.
-- `Worker.Core.start` is a function that starts the worker.
+```fsharp
+let workerConfig =
+    { RootNodeId = rootTask.Id
+      RootNodeName = rootTask.Name
+      Configuration = configuration
+      getTaskNode = getTaskNode workerHandlers }
 
-### Example
-- https://github.com/masterlifting/embassy-access/blob/notifications/src/embassy-access-worker/Program.fs
+workerConfig |> Worker.start |> Async.RunSynchronously
+```
+
+Where:
+- **RootNodeId** is the root task node's identifier.
+- **RootNodeName** is the root task node's name.
+- **Configuration** is the main configuration object.
+- **getTaskNode** merged task configuration-based on task definition and task handler to produce a `WorkerTaskNode`.
+
+### [Click here for an example](https://github.com/masterlifting/embassy-access/blob/main/src/embassy-access-worker/Program.fs)

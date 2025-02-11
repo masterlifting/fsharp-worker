@@ -114,7 +114,7 @@ let rec private handleTask configuration =
                 $"%s{taskName} Stopped. %s{reason.Message}" |> Log.critical
                 return None
             | StopIn(delay, schedule) ->
-                if (delay < TimeSpan.FromMinutes 10.) then
+                if delay < TimeSpan.FromMinutes 10. then
                     $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}."
                     |> Log.warning
 
@@ -138,9 +138,9 @@ let rec private handleTask configuration =
                 return None
         }
 
-let private processGraph nodeName deps =
+let private processGraph nodeId deps =
     handleNode
-        (nodeName, 1u, None)
+        (nodeId, 1u, None)
         { getNode = deps.getTaskNode
           handleNode = handleTask <| deps.Configuration }
 

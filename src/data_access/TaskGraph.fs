@@ -8,7 +8,7 @@ open Worker.Domain
 open Worker.DataAccess.Schedule
 
 type TaskGraphStorage = TaskGraphStorage of Storage.Type
-type StorageType = Configuration of Configuration.Domain.Client
+type StorageType = Configuration of Configuration.Domain.Connection
 
 type TaskGraphEntity() =
     member val Id: string = String.Empty with get, set
@@ -52,7 +52,7 @@ type TaskGraphEntity() =
 module private Configuration =
     open Persistence.Configuration
 
-    let private loadData = Query.get<TaskGraphEntity>
+    let private loadData = Read.section<TaskGraphEntity>
 
     let private merge (handlers: Graph.Node<WorkerTaskNodeHandler>) taskGraph =
 
@@ -75,8 +75,8 @@ module private Configuration =
 
         taskGraph |> mergeLoop None
 
-    let create section handlers client =
-        client |> loadData section |> Result.bind (merge handlers) |> async.Return
+    let create handlers client =
+        client |> loadData |> Result.bind (merge handlers) |> async.Return
 
 let private toPersistenceStorage storage =
     storage
@@ -93,5 +93,5 @@ let init storageType =
 
 let create handlers storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client.Configuration |> Configuration.create client.SectionName handlers
+    | Storage.Configuration client -> client |> Configuration.create handlers
     | _ -> $"Storage {storage}" |> NotSupported |> Error |> async.Return

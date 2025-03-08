@@ -7,7 +7,7 @@ open Persistence
 open Worker.Domain
 open Worker.DataAccess.Schedule
 
-type TaskGraphStorage = TaskGraphStorage of Storage.Type
+type TaskGraphStorage = TaskGraphStorage of Storage.Provider
 type StorageType = Configuration of Configuration.Domain.Connection
 
 type TaskGraphEntity() =

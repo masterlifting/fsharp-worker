@@ -1,5 +1,4 @@
-[<RequireQualifiedAccess>]
-module Worker.Worker
+module Worker.Client
 
 open System
 open System.Threading

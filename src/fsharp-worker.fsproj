@@ -17,7 +17,7 @@
         <Compile Include="dependencies\WorkerTaskNode.fs" />
         <Compile Include="dependencies\FireAndForget.fs" />
         <Compile Include="Scheduler.fs"/>
-        <Compile Include="Worker.fs" />
+        <Compile Include="Client.fs" />
     </ItemGroup>
     <ItemGroup/>
     <ItemGroup>

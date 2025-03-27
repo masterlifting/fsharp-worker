@@ -4,11 +4,13 @@ open System
 open Infrastructure.Domain
 open Infrastructure.Prelude
 open Persistence
+open Persistence.Storages
+open Persistence.Storages.Domain
 open Worker.Domain
 open Worker.DataAccess.Schedule
 
 type TaskGraphStorage = TaskGraphStorage of Storage.Provider
-type StorageType = Configuration of Configuration.Domain.Connection
+type StorageType = Configuration of Configuration.Connection
 
 type TaskGraphEntity() =
     member val Id: string = String.Empty with get, set
@@ -50,7 +52,7 @@ type TaskGraphEntity() =
         }
 
 module private Configuration =
-    open Persistence.Configuration
+    open Persistence.Storages.Configuration
 
     let private loadData = Read.section<TaskGraphEntity>
 

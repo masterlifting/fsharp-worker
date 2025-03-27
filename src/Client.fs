@@ -11,7 +11,7 @@ let rec private handleNode (nodeId, count, schedule) (deps: WorkerTaskNode.Depen
     async {
         match! deps.getNode nodeId with
         | Error error ->
-            $"%i{count}.Task Id '%s{nodeId.Value}' Failed -> %s{error.Message}"
+            $"%i{count}.Task Id '%s{nodeId.Value}' Failed. Error: %s{error.Message}"
             |> Log.critical
         | Ok node ->
 
@@ -67,7 +67,7 @@ let private runHandler taskName (deps: FireAndForget.Dependencies) =
         use cts = new CancellationTokenSource(deps.Duration)
 
         match! deps.startHandler (deps.Task, deps.Configuration, cts.Token) with
-        | Error error -> $"%s{taskName} Failed -> %s{error.Message}" |> Log.critical
+        | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.critical
         | Ok result ->
             let message = $"%s{taskName} Completed. "
 
@@ -155,7 +155,7 @@ let start config =
                 | :? OperationCanceledException ->
                     let message = $"%s{workerName} Canceled."
                     failwith message
-                | _ -> failwith $"%s{workerName} Failed -> %s{ex.Message}"
+                | _ -> failwith $"%s{workerName} Failed. Error: %s{ex.Message}"
         with ex ->
             ex.Message |> Log.critical
 

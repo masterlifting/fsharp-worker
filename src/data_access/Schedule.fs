@@ -18,7 +18,7 @@ let private parseWorkdays workdays =
             | "sat" -> Ok DayOfWeek.Saturday
             | "sun" -> Ok DayOfWeek.Sunday
             | _ ->
-                "Workday. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
+                "Worker. Workdays. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
                 |> NotSupported
                 |> Error)
         |> Result.choose
@@ -37,12 +37,12 @@ let private parseWorkdays workdays =
 let private parseDateOnly day =
     match day with
     | AP.IsDateOnly value -> Ok value
-    | _ -> "DateOnly. Expected format: 'yyyy-MM-dd'." |> NotSupported |> Error
+    | _ -> "Worker. DateOnly. Expected format: 'yyyy-MM-dd'." |> NotSupported |> Error
 
 let private parseTimeOnly time =
     match time with
     | AP.IsTimeOnly value -> Ok value
-    | _ -> "TimeOnly. Expected format: 'hh:mm:ss'." |> NotSupported |> Error
+    | _ -> "Worker. TimeOnly. Expected format: 'hh:mm:ss'." |> NotSupported |> Error
 
 type ScheduleEntity() =
     member val StartDate: string option = None with get, set

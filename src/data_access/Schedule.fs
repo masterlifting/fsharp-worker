@@ -63,12 +63,13 @@ type ScheduleEntity() =
             let! startTime = this.StartTime |> Option.toResult parseTimeOnly
             let! stopTime = this.StopTime |> Option.toResult parseTimeOnly
 
-            return
-                { StartDate = startDate
-                  StopDate = stopDate
-                  StartTime = startTime
-                  StopTime = stopTime
-                  Workdays = workdays
-                  Recursively = false
-                  TimeZone = this.TimeZone }
+            return {
+                StartDate = startDate
+                StopDate = stopDate
+                StartTime = startTime
+                StopTime = stopTime
+                Workdays = workdays
+                Recursively = false
+                TimeZone = this.TimeZone
+            }
         }

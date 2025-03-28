@@ -87,18 +87,21 @@ let private merge parent current =
         | Some parent, None -> Some parent
         | None, Some current -> Some current
         | Some parent, Some current ->
-            { parent with
-                Workdays = parent.Workdays |> Set.intersect current.Workdays
-                StartDate = Option.max parent.StartDate current.StartDate
-                StopDate = Option.min parent.StopDate current.StopDate
-                StartTime = Option.max parent.StartTime current.StartTime
-                StopTime = Option.min parent.StopTime current.StopTime
-                Recursively = parent.Recursively || current.Recursively
-                TimeZone = current.TimeZone }
+            {
+                parent with
+                    Workdays = parent.Workdays |> Set.intersect current.Workdays
+                    StartDate = Option.max parent.StartDate current.StartDate
+                    StopDate = Option.min parent.StopDate current.StopDate
+                    StartTime = Option.max parent.StartTime current.StartTime
+                    StopTime = Option.min parent.StopTime current.StopTime
+                    Recursively = parent.Recursively || current.Recursively
+                    TimeZone = current.TimeZone
+            }
             |> Some
-        |> Option.map (fun schedule ->
-            { schedule with
-                Recursively = withContinue || schedule.Recursively })
+        |> Option.map (fun schedule -> {
+            schedule with
+                Recursively = withContinue || schedule.Recursively
+        })
 
 let set parentSchedule currentSchedule withContinue =
     let mergeSchedules = parentSchedule |> merge <| currentSchedule

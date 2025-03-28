@@ -85,12 +85,12 @@ let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
         | None -> $"%s{taskName} Skipped." |> Log.trace
         | Some handler ->
             let run =
-                runHandler
-                    taskName
-                    { Task = task.toWorkerTask schedule
-                      Duration = task.Duration
-                      Configuration = configuration
-                      startHandler = handler }
+                runHandler taskName {
+                    Task = task.toWorkerTask schedule
+                    Duration = task.Duration
+                    Configuration = configuration
+                    startHandler = handler
+                }
 
             if task.Wait then do! run else run |> Async.Start
 
@@ -138,10 +138,10 @@ let rec private handleTask configuration =
         }
 
 let private processGraph nodeId deps =
-    handleNode
-        (nodeId, 1u, None)
-        { getNode = deps.getTaskNode
-          handleNode = handleTask <| deps.Configuration }
+    handleNode (nodeId, 1u, None) {
+        getNode = deps.getTaskNode
+        handleNode = handleTask <| deps.Configuration
+    }
 
 let start config =
     async {

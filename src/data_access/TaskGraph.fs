@@ -37,18 +37,19 @@ type TaskGraphEntity() =
             let! duration = this.Duration |> Option.toResult parseTimeSpan
             let! schedule = this.Schedule |> Option.toResult _.ToDomain()
 
-            return
-                { Id = id
-                  Name = this.Name
-                  Parallel = this.Parallel
-                  Recursively = recursively
-                  Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)
-                  Wait = this.Wait
-                  Schedule = schedule
-                  Handler =
+            return {
+                Id = id
+                Name = this.Name
+                Parallel = this.Parallel
+                Recursively = recursively
+                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)
+                Wait = this.Wait
+                Schedule = schedule
+                Handler =
                     match enabled with
                     | true -> handler.Handler
-                    | false -> None }
+                    | false -> None
+            }
         }
 
 module private Configuration =

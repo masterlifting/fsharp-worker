@@ -25,14 +25,15 @@ let private parseWorkdays workdays =
         |> Result.map Set.ofList
     | _ ->
         Ok
-        <| set
-            [ DayOfWeek.Monday
-              DayOfWeek.Tuesday
-              DayOfWeek.Wednesday
-              DayOfWeek.Thursday
-              DayOfWeek.Friday
-              DayOfWeek.Saturday
-              DayOfWeek.Sunday ]
+        <| set [
+            DayOfWeek.Monday
+            DayOfWeek.Tuesday
+            DayOfWeek.Wednesday
+            DayOfWeek.Thursday
+            DayOfWeek.Friday
+            DayOfWeek.Saturday
+            DayOfWeek.Sunday
+        ]
 
 let private parseDateOnly day =
     match day with

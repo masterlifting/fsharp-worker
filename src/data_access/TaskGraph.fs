@@ -29,7 +29,7 @@ type TaskGraphEntity() =
         let inline parseTimeSpan timeSpan =
             match timeSpan with
             | AP.IsTimeSpan value -> Ok value
-            | _ -> "Worker. TimeSpan. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
+            | _ -> "Worker. TimeSpan is not supported. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
 
         result {
             let! id = Graph.NodeId.create this.Id
@@ -97,4 +97,4 @@ let init storageType =
 let create handlers storage =
     match storage |> toPersistenceStorage with
     | Storage.Configuration client -> client |> Configuration.create handlers
-    | _ -> $"The '{storage}'" |> NotSupported |> Error |> async.Return
+    | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return

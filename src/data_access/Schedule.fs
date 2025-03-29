@@ -38,12 +38,18 @@ let private parseWorkdays workdays =
 let private parseDateOnly day =
     match day with
     | AP.IsDateOnly value -> Ok value
-    | _ -> "Worker. DateOnly is not supported. Expected format: 'yyyy-MM-dd'." |> NotSupported |> Error
+    | _ ->
+        "Worker. DateOnly is not supported. Expected format: 'yyyy-MM-dd'."
+        |> NotSupported
+        |> Error
 
 let private parseTimeOnly time =
     match time with
     | AP.IsTimeOnly value -> Ok value
-    | _ -> "Worker. TimeOnly is not supported. Expected format: 'hh:mm:ss'." |> NotSupported |> Error
+    | _ ->
+        "Worker. TimeOnly is not supported. Expected format: 'hh:mm:ss'."
+        |> NotSupported
+        |> Error
 
 type ScheduleEntity() =
     member val StartDate: string option = None with get, set

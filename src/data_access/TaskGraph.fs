@@ -29,7 +29,10 @@ type TaskGraphEntity() =
         let inline parseTimeSpan timeSpan =
             match timeSpan with
             | AP.IsTimeSpan value -> Ok value
-            | _ -> "Worker. TimeSpan is not supported. Expected format: 'dd.hh:mm:ss'." |> NotSupported |> Error
+            | _ ->
+                "Worker. TimeSpan is not supported. Expected format: 'dd.hh:mm:ss'."
+                |> NotSupported
+                |> Error
 
         result {
             let! id = Graph.NodeId.create this.Id

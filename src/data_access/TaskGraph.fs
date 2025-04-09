@@ -12,6 +12,16 @@ open Worker.DataAccess.Schedule
 type TaskGraphStorage = TaskGraphStorage of Storage.Provider
 type StorageType = Configuration of Configuration.Connection
 
+let private result = ResultBuilder()
+
+let private parseTimeSpan timeSpan =
+    match timeSpan with
+    | AP.IsTimeSpan value -> Ok value
+    | _ ->
+        "Worker. TimeSpan is not supported. Expected format: 'dd.hh:mm:ss'."
+        |> NotSupported
+        |> Error
+
 type TaskGraphEntity() =
     member val Id: string = String.Empty with get, set
     member val Name: string = String.Empty with get, set
@@ -23,17 +33,7 @@ type TaskGraphEntity() =
     member val Schedule: ScheduleEntity option = None with get, set
     member val Tasks: TaskGraphEntity[] | null = [||] with get, set
 
-    member this.ToDomain (handler: WorkerTaskNodeHandler) enabled =
-        let result = ResultBuilder()
-
-        let inline parseTimeSpan timeSpan =
-            match timeSpan with
-            | AP.IsTimeSpan value -> Ok value
-            | _ ->
-                "Worker. TimeSpan is not supported. Expected format: 'dd.hh:mm:ss'."
-                |> NotSupported
-                |> Error
-
+    member this.ToNode(handlerNode: WorkerTaskNodeHandler option) =
         result {
             let! id = Graph.NodeId.create this.Id
             let! recursively = this.Recursively |> Option.toResult parseTimeSpan
@@ -45,22 +45,50 @@ type TaskGraphEntity() =
                 Name = this.Name
                 Parallel = this.Parallel
                 Recursively = recursively
-                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 5.)
+                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
                 Wait = this.Wait
                 Schedule = schedule
-                Handler =
-                    match enabled with
-                    | true -> handler.Handler
-                    | false -> None
+                Handler = handlerNode |> Option.bind _.Handler
             }
         }
+
+    member this.ToGraph() =
+        this.Id
+        |> Graph.NodeId.create
+        |> Result.bind (fun nodeId ->
+            match this.Tasks with
+            | null -> List.empty |> Ok
+            | tasks -> tasks |> Seq.map _.ToGraph() |> Result.choose
+            |> Result.bind (fun task ->
+                result {
+                    let! recursively = this.Recursively |> Option.toResult parseTimeSpan
+                    let! duration = this.Duration |> Option.toResult parseTimeSpan
+                    let! schedule = this.Schedule |> Option.toResult _.ToDomain()
+
+                    return
+                        Graph.Node(
+                            {
+                                Id = nodeId
+                                Name = this.Name
+                                Parallel = this.Parallel
+                                Recursively = recursively
+                                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
+                                Wait = this.Wait
+                                Schedule = schedule
+                                Handler = None
+                            },
+                            task
+                        )
+                }))
 
 module private Configuration =
     open Persistence.Storages.Configuration
 
     let private loadData = Read.section<TaskGraphEntity>
+    let create client =
+        client |> loadData |> Result.bind _.ToGraph() |> async.Return
 
-    let private merge (handlers: Graph.Node<WorkerTaskNodeHandler>) taskGraph =
+    let merge handlers client =
 
         let rec mergeLoop (parentTaskId: Graph.NodeId option) (graph: TaskGraphEntity) =
             Graph.NodeId.create graph.Id
@@ -69,20 +97,23 @@ module private Configuration =
                 match handlers |> Graph.BFS.tryFindById taskId with
                 | None -> $"Task handler Id '%s{taskId.Value}'" |> NotFound |> Error
                 | Some handler ->
-                    graph.ToDomain handler.Value graph.Enabled
-                    |> Result.bind (fun workerTask ->
+                    let handlerNode =
+                        match graph.Enabled with
+                        | true -> handler.Value |> Some
+                        | false -> None
+                    graph.ToNode handlerNode
+                    |> Result.bind (fun node ->
                         match graph.Tasks with
-                        | null -> Graph.Node(workerTask, []) |> Ok
+                        | null -> Graph.Node(node, []) |> Ok
                         | tasks ->
                             tasks
                             |> Array.map (mergeLoop (Some taskId))
                             |> Result.choose
-                            |> Result.map (fun children -> Graph.Node(workerTask, children))))
+                            |> Result.map (fun children -> Graph.Node(node, children))))
 
-        taskGraph |> mergeLoop None
+        let startMerge graph = graph |> mergeLoop None
 
-    let create handlers client =
-        client |> loadData |> Result.bind (merge handlers) |> async.Return
+        client |> loadData |> Result.bind startMerge |> async.Return
 
 let private toPersistenceStorage storage =
     storage
@@ -97,7 +128,12 @@ let init storageType =
         |> Storage.init
         |> Result.map TaskGraphStorage
 
-let create handlers storage =
+let create storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.create handlers
+    | Storage.Configuration client -> client |> Configuration.create
+    | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
+
+let merge handlers storage =
+    match storage |> toPersistenceStorage with
+    | Storage.Configuration client -> client |> Configuration.merge handlers
     | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return

@@ -14,8 +14,8 @@ let rec private handleNode nodeId attempt =
             match! deps.tryFindNode nodeId with
             | Error error ->
                 $"%i{attempt}.Task Id '%s{nodeId.Value}' Failed. Error: %s{error.Message}"
-                |> Log.critical
-            | Ok None -> $"%i{attempt}.Task Id '%s{nodeId.Value}' not Found." |> Log.critical
+                |> Log.crt
+            | Ok None -> $"%i{attempt}.Task Id '%s{nodeId.Value}' not Found." |> Log.crt
             | Ok(Some node) ->
 
                 let! schedule = node.Value |> deps.handleNode attempt schedule
@@ -67,79 +67,73 @@ and private handleNodes nodes attempt =
 
 let private startTask taskName (deps: FireAndForget.Dependencies) =
     async {
-        $"%s{taskName} Started." |> Log.debug
+        $"%s{taskName} Started." |> Log.dbg
 
         use cts = new CancellationTokenSource(deps.Duration)
 
-        match! deps.startHandler (deps.Task, deps.Configuration, cts.Token) with
-        | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.critical
-        | Ok result ->
-            let message = $"%s{taskName} Completed. "
-
-            match result with
-            | Success result -> $"%s{message}%A{result}" |> Log.success
-            | Warn msg -> $"%s{message}%s{msg}" |> Log.warning
-            | Debug msg -> $"%s{message}%s{msg}" |> Log.debug
-            | Info msg -> $"%s{message}%s{msg}" |> Log.info
-            | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
+        match! deps.startHandler (deps.ActiveTask, deps.Configuration, cts.Token) with
+        | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.crt
+        | Ok() -> $"%s{taskName} Completed." |> Log.inf
     }
 
-let private tryStart taskName schedule configuration (task: WorkerTask) =
-    async {
-        match task.Handler with
-        | None -> $"%s{taskName} Skipped." |> Log.trace
-        | Some startHandler ->
-            let handler =
-                startTask taskName {
-                    Task = task.ToActiveTask schedule
-                    Duration = task.Duration
-                    Configuration = configuration
-                    startHandler = startHandler
-                }
+let private tryStart (task: WorkerTask) =
+    fun (name, attempt, schedule, configuration) ->
+        async {
+            match task.Handler with
+            | None -> $"%s{name} Skipped." |> Log.trc
+            | Some startHandler ->
+                let handler =
+                    startTask name {
+                        ActiveTask = task.ToActiveTask schedule attempt
+                        Duration = task.Duration
+                        Configuration = configuration
+                        startHandler = startHandler
+                    }
 
-            match task.WaitResult with
-            | true -> do! handler
-            | false -> Async.Start handler
+                match task.WaitResult with
+                | true -> do! handler
+                | false -> Async.Start handler
 
-        match task.Recursively with
-        | Some delay ->
-            $"%s{taskName} Next iteration will be started in %s{delay |> String.fromTimeSpan}."
-            |> Log.trace
+            match task.Recursively with
+            | Some delay ->
+                $"%s{name} Next iteration will be started in %s{delay |> String.fromTimeSpan}."
+                |> Log.trc
 
-            do! Async.Sleep delay
-        | None -> ()
-    }
+                do! Async.Sleep delay
+            | None -> ()
+        }
 
 let private handleTask configuration =
     fun attempt parentSchedule (task: WorkerTask) ->
         async {
             let taskName = $"%i{attempt}.'%s{task.Id.Value}'"
 
+            let inline tryStart schedule task =
+                (taskName, attempt, schedule, configuration) |> tryStart task
+
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped reason ->
-                $"%s{taskName} Stopped. %s{reason.Message}" |> Log.critical
+                $"%s{taskName} Stopped. %s{reason.Message}" |> Log.crt
                 return None
             | StopIn(delay, schedule) ->
                 if delay < TimeSpan.FromMinutes 10. then
-                    $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}."
-                    |> Log.warning
+                    $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}." |> Log.wrn
 
-                do! task |> tryStart taskName schedule configuration
+                do! task |> tryStart schedule
                 return Some schedule
             | StartIn(delay, schedule) ->
-                $"%s{taskName} Will be started in %s{delay |> String.fromTimeSpan}."
-                |> Log.warning
+                $"%s{taskName} Will be started in %s{delay |> String.fromTimeSpan}." |> Log.wrn
 
                 do! Async.Sleep delay
-                do! task |> tryStart taskName schedule configuration
+                do! task |> tryStart schedule
                 return Some schedule
             | Started schedule ->
-                do! task |> tryStart taskName schedule configuration
+                do! task |> tryStart schedule
                 return Some schedule
             | NotScheduled ->
                 if task.Handler.IsSome then
                     $"%s{taskName} Handling was skipped due to the schedule was not found."
-                    |> Log.warning
+                    |> Log.wrn
 
                 return None
         }
@@ -159,7 +153,7 @@ let start config =
             let workerName = $"'%s{config.Name}'"
 
             match! processGraph config.TaskNodeRootId config |> Async.Catch with
-            | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.success
+            | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.scs
             | Choice2Of2 ex ->
                 match ex with
                 | :? OperationCanceledException ->
@@ -167,7 +161,7 @@ let start config =
                     failwith message
                 | _ -> failwith $"%s{workerName} Failed. Error: %s{ex.Message}"
         with ex ->
-            ex.Message |> Log.critical
+            ex.Message |> Log.crt
 
         // Wait for the logger to finish writing logs
         do! Async.Sleep 1000

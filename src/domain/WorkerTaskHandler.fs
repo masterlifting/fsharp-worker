@@ -7,7 +7,7 @@ open Infrastructure.Domain
 
 type WorkerTaskHandler = {
     Id: Graph.NodeId
-    Handler: (WorkerActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option
+    Handler: (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
 } with
 
     interface Graph.INode with

@@ -8,8 +8,7 @@
         <Compile Include="domain\Schedule.fs" />
         <Compile Include="domain\Scheduler.fs" />
         <Compile Include="domain\TaskGraph.fs" />
-        <Compile Include="domain\WorkerActiveTask.fs" />
-        <Compile Include="domain\WorkerTaskResult.fs" />
+        <Compile Include="domain\ActiveTask.fs" />
         <Compile Include="domain\WorkerTask.fs" />
         <Compile Include="domain\WorkerTaskHandler.fs" />
         <Compile Include="domain\WorkerConfiguration.fs" />

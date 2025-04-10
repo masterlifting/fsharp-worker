@@ -1,11 +1,12 @@
 ﻿[<AutoOpen>]
-module Worker.Domain.WorkerActiveTask
+module Worker.Domain.ActiveTask
 
 open System
 open Infrastructure.Domain
 
-type WorkerActiveTask = {
+type ActiveTask = {
     Id: Graph.NodeId
+    Attempt: uint<attempts>
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan

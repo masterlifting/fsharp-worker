@@ -14,16 +14,17 @@ type WorkerTask = {
     Duration: TimeSpan
     WaitResult: bool
     Schedule: Schedule option
-    Handler: (WorkerActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option
+    Handler: (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
     Description: string option
 } with
 
     interface Graph.INode with
         member this.Id = this.Id
         member this.set id = { this with Id = id }
-    
-    member this.ToActiveTask schedule = {
+
+    member this.ToActiveTask schedule attempt = {
         Id = this.Id
+        Attempt = attempt
         Recursively = this.Recursively
         Parallel = this.Parallel
         Duration = this.Duration

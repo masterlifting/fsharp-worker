@@ -6,13 +6,13 @@ open Infrastructure.Domain
 
 type TaskGraph = {
     Id: Graph.NodeId
-    Name: string
     Enabled: bool
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     Wait: bool
     Schedule: Schedule option
+    Description: string option
 } with
 
     interface Graph.INode with

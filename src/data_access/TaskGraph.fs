@@ -24,13 +24,13 @@ let private parseTimeSpan timeSpan =
 
 type TaskGraphEntity() =
     member val Id: string = String.Empty with get, set
-    member val Name: string = String.Empty with get, set
     member val Enabled: bool = false with get, set
     member val Recursively: string option = None with get, set
     member val Parallel: bool = false with get, set
     member val Duration: string option = None with get, set
     member val Wait: bool = false with get, set
     member val Schedule: ScheduleEntity option = None with get, set
+    member val Description: string option = None with get, set
     member val Tasks: TaskGraphEntity[] | null = [||] with get, set
 
     member this.ToDomain() =
@@ -46,13 +46,13 @@ type TaskGraphEntity() =
 
                 return {
                     Id = id
-                    Name = this.Name
                     Enabled = this.Enabled
                     Recursively = recursively
                     Parallel = this.Parallel
                     Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
                     Wait = this.Wait
                     Schedule = schedule
+                    Description = this.Description
                 }
             }
             |> Result.map (fun task -> Graph.Node(task, tasks)))

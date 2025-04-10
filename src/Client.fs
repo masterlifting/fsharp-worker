@@ -113,7 +113,7 @@ let private tryStart taskName schedule configuration (task: WorkerTask) =
 let private handleTask configuration =
     fun attempt parentSchedule (task: WorkerTask) ->
         async {
-            let taskName = $"%i{attempt}.'%s{task.Name}'"
+            let taskName = $"%i{attempt}.'%s{task.Id.Value}'"
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped reason ->
@@ -195,7 +195,7 @@ let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
 
         let rec innerLoop (graph: Graph.Node<TaskGraph>) =
             let node = {
-                Id = graph.Id
+                Id = graph.ShortId
                 Name = graph.Value.Name
                 Parallel = graph.Value.Parallel
                 Recursively = graph.Value.Recursively

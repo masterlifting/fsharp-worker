@@ -179,15 +179,16 @@ let rec registerHandler nodeId handlerId handler =
         |> Option.map (fun node ->
             Graph.Node(
                 {
-                    Id = node.ShortId
-                    Name = node.ShortName
+                    Id = node.Id
+                    Name = node.Name
                     Handler =
-                        match node.Id |> Graph.Node.Id.split |> Seq.tryLast with
-                        | Some id ->
+                        node.Id
+                        |> Graph.Node.Id.split
+                        |> Seq.tryLast
+                        |> Option.bind (fun id ->
                             match id.Value = handlerId with
                             | true -> handler |> Some
-                            | false -> None
-                        | None -> None
+                            | false -> None)
                 },
                 node.Children
                 |> List.map (fun child -> child |> registerHandler child.Id handlerId handler)
@@ -195,8 +196,8 @@ let rec registerHandler nodeId handlerId handler =
         |> Option.defaultValue (
             Graph.Node(
                 {
-                    Id = graph.ShortId
-                    Name = graph.ShortName
+                    Id = graph.Id
+                    Name = graph.Name
                     Handler = None
                 },
                 []

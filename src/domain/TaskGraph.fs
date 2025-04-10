@@ -10,7 +10,7 @@ type TaskGraph = {
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
-    Wait: bool
+    WaitResult: bool
     Schedule: Schedule option
     Description: string option
 } with

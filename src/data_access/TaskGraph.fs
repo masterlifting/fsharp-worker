@@ -28,7 +28,7 @@ type TaskGraphEntity() =
     member val Recursively: string option = None with get, set
     member val Parallel: bool = true with get, set
     member val Duration: string option = None with get, set
-    member val Wait: bool = false with get, set
+    member val WaitResult: bool = false with get, set
     member val Schedule: ScheduleEntity option = None with get, set
     member val Description: string option = None with get, set
     member val Tasks: TaskGraphEntity[] | null = [||] with get, set
@@ -50,7 +50,7 @@ type TaskGraphEntity() =
                     Recursively = recursively
                     Parallel = this.Parallel
                     Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                    Wait = this.Wait
+                    WaitResult = this.WaitResult
                     Schedule = schedule
                     Description = this.Description
                 }

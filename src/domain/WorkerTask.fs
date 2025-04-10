@@ -12,7 +12,7 @@ type WorkerTask = {
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
-    Wait: bool
+    WaitResult: bool
     Schedule: Schedule option
     Handler: (WorkerActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option
     Description: string option

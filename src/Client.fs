@@ -97,7 +97,7 @@ let private tryStart taskName schedule configuration (task: WorkerTask) =
                     startHandler = startHandler
                 }
 
-            match task.Wait with
+            match task.WaitResult with
             | true -> do! handler
             | false -> Async.Start handler
 
@@ -200,12 +200,12 @@ let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
                 Parallel = graph.Value.Parallel
                 Recursively = graph.Value.Recursively
                 Duration = graph.Value.Duration
-                Wait = graph.Value.Wait
+                WaitResult = graph.Value.WaitResult
                 Schedule = graph.Value.Schedule
                 Handler =
                     match graph.Value.Enabled with
                     | false -> None
-                    | true -> handlers |> Graph.BFS.tryFindById graph.Id |> Option.bind (_.Value.Handler)
+                    | true -> handlers |> Graph.BFS.tryFindById graph.Id |> Option.bind _.Value.Handler
             }
 
             match graph.Children.Length = 0 with

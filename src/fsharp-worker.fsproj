@@ -7,14 +7,15 @@
     <ItemGroup>
         <Compile Include="domain\Schedule.fs" />
         <Compile Include="domain\Scheduler.fs" />
-        <Compile Include="domain\WorkerTask.fs" />
+        <Compile Include="domain\TaskGraph.fs" />
+        <Compile Include="domain\WorkerActiveTask.fs" />
         <Compile Include="domain\WorkerTaskResult.fs" />
-        <Compile Include="domain\WorkerTaskNode.fs" />
-        <Compile Include="domain\WorkerTaskNodeHandler.fs" />
+        <Compile Include="domain\WorkerTask.fs" />
+        <Compile Include="domain\WorkerTaskHandler.fs" />
         <Compile Include="domain\WorkerConfiguration.fs" />
         <Compile Include="data_access\Schedule.fs" />
         <Compile Include="data_access\TaskGraph.fs" />
-        <Compile Include="dependencies\WorkerTaskNode.fs" />
+        <Compile Include="dependencies\WorkerTask.fs" />
         <Compile Include="dependencies\FireAndForget.fs" />
         <Compile Include="Scheduler.fs"/>
         <Compile Include="Client.fs" />

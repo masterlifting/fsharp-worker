@@ -9,7 +9,7 @@ open Worker.Domain
 open Worker.Dependencies
 
 let rec private handleNode nodeId attempt =
-    fun (deps: WorkerTaskNode.Dependencies, schedule) ->
+    fun (deps: WorkerTask.Dependencies, schedule) ->
         async {
             match! deps.tryFindNode nodeId with
             | Error error ->
@@ -84,14 +84,14 @@ let private startTask taskName (deps: FireAndForget.Dependencies) =
             | Trace msg -> $"%s{message}%s{msg}" |> Log.trace
     }
 
-let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
+let private tryStart taskName schedule configuration (task: WorkerTask) =
     async {
         match task.Handler with
         | None -> $"%s{taskName} Skipped." |> Log.trace
         | Some startHandler ->
             let handler =
                 startTask taskName {
-                    Task = task.toWorkerTask schedule
+                    Task = task.ToActiveTask schedule
                     Duration = task.Duration
                     Configuration = configuration
                     startHandler = startHandler
@@ -111,7 +111,7 @@ let private tryStart taskName schedule configuration (task: WorkerTaskNode) =
     }
 
 let private handleTask configuration =
-    fun attempt parentSchedule (task: WorkerTaskNode) ->
+    fun attempt parentSchedule (task: WorkerTask) ->
         async {
             let taskName = $"%i{attempt}.'%s{task.Name}'"
 
@@ -146,8 +146,8 @@ let private handleTask configuration =
 
 let private processGraph nodeId deps =
 
-    let nodeDeps: WorkerTaskNode.Dependencies = {
-        tryFindNode = deps.tryFindTaskNode
+    let nodeDeps: WorkerTask.Dependencies = {
+        tryFindNode = deps.tryFindTask
         handleNode = handleTask deps.Configuration
     }
 
@@ -173,10 +173,10 @@ let start config =
         do! Async.Sleep 1000
     }
 
-let registerHandlers nodeId (handlers: WorkerTaskNodeHandler seq) =
-    fun (graph: Graph.Node<WorkerTaskNode>) ->
+let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
+    fun (graph: Graph.Node<TaskGraph>) ->
 
-        let rec innerLoop (node: Graph.Node<WorkerTaskNode>) =
+        let rec innerLoop (node: Graph.Node<TaskGraph>) =
             Graph.Node(
                 {
                     Id = node.ShortId
@@ -189,3 +189,30 @@ let registerHandlers nodeId (handlers: WorkerTaskNodeHandler seq) =
             )
 
         graph |> Graph.DFS.tryFindById nodeId |> Option.map innerLoop
+
+let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
+    fun (taskGraph: Graph.Node<TaskGraph>) ->
+
+        let rec innerLoop (graph: Graph.Node<TaskGraph>) =
+            let node = {
+                Id = graph.Id
+                Name = graph.Value.Name
+                Parallel = graph.Value.Parallel
+                Recursively = graph.Value.Recursively
+                Duration = graph.Value.Duration
+                Wait = graph.Value.Wait
+                Schedule = graph.Value.Schedule
+                Handler =
+                    match graph.Value.Enabled with
+                    | false -> None
+                    | true -> handlers |> Graph.BFS.tryFindById graph.Id |> Option.bind (_.Value.Handler)
+            }
+
+            match graph.Children.Length = 0 with
+            | true -> Graph.Node(node, [])
+            | false ->
+                graph.Children
+                |> List.map innerLoop
+                |> fun children -> Graph.Node(node, children)
+
+        taskGraph |> innerLoop

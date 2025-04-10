@@ -33,65 +33,36 @@ type TaskGraphEntity() =
     member val Schedule: ScheduleEntity option = None with get, set
     member val Tasks: TaskGraphEntity[] | null = [||] with get, set
 
-    member this.ToNode(handler: WorkerTaskNodeHandler option) =
-        result {
-            let! id = Graph.NodeId.create this.Id
-            let! recursively = this.Recursively |> Option.toResult parseTimeSpan
-            let! duration = this.Duration |> Option.toResult parseTimeSpan
-            let! schedule = this.Schedule |> Option.toResult _.ToDomain()
-
-            return {
-                Id = id
-                Name = this.Name
-                Parallel = this.Parallel
-                Recursively = recursively
-                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                Wait = this.Wait
-                Schedule = schedule
-                Handler = handler |> Option.bind _.Handler
-            }
-        }
-
-    member this.ToGraph() =
+    member this.ToDomain() =
         match this.Tasks with
         | null -> List.empty |> Ok
-        | tasks -> tasks |> Seq.map _.ToGraph() |> Result.choose
-        |> Result.bind (fun tasks -> this.ToNode None |> Result.map (fun task -> Graph.Node(task, tasks)))
+        | tasks -> tasks |> Seq.map _.ToDomain() |> Result.choose
+        |> Result.bind (fun tasks ->
+            result {
+                let! id = Graph.NodeId.create this.Id
+                let! recursively = this.Recursively |> Option.toResult parseTimeSpan
+                let! duration = this.Duration |> Option.toResult parseTimeSpan
+                let! schedule = this.Schedule |> Option.toResult _.ToDomain()
+
+                return {
+                    Id = id
+                    Name = this.Name
+                    Enabled = this.Enabled
+                    Recursively = recursively
+                    Parallel = this.Parallel
+                    Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
+                    Wait = this.Wait
+                    Schedule = schedule
+                }
+            }
+            |> Result.map (fun task -> Graph.Node(task, tasks)))
 
 module private Configuration =
     open Persistence.Storages.Configuration
 
     let private loadData = Read.section<TaskGraphEntity>
-    let getSimple client =
-        client |> loadData |> Result.bind _.ToGraph() |> async.Return
-
-    let getWithHandlers handlers client =
-
-        let rec mergeLoop (taskId: Graph.NodeId option) (graph: TaskGraphEntity) =
-            Graph.NodeId.create graph.Id
-            |> Result.map (fun nodeId -> [ taskId; Some nodeId ] |> List.choose id |> Graph.Node.Id.combine)
-            |> Result.bind (fun nodeId ->
-                let handler =
-                    match graph.Enabled with
-                    | false -> None
-                    | true ->
-                        handlers
-                        |> Graph.BFS.tryFindById nodeId
-                        |> Option.map _.Value
-                
-                graph.ToNode handler
-                |> Result.bind (fun node ->
-                    match graph.Tasks with
-                    | null -> Graph.Node(node, []) |> Ok
-                    | tasks ->
-                        tasks
-                        |> Array.map (mergeLoop (Some nodeId))
-                        |> Result.choose
-                        |> Result.map (fun children -> Graph.Node(node, children))))
-
-        let startMerge graph = graph |> mergeLoop None
-
-        client |> loadData |> Result.bind startMerge |> async.Return
+    let get client =
+        client |> loadData |> Result.bind _.ToDomain() |> async.Return
 
 let private toPersistenceStorage storage =
     storage
@@ -106,12 +77,7 @@ let init storageType =
         |> Storage.init
         |> Result.map TaskGraphStorage
 
-let getSimple storage =
+let get storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.getSimple
-    | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
-
-let getWithHandlers handlers storage =
-    match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.getWithHandlers handlers
+    | Storage.Configuration client -> client |> Configuration.get
     | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return

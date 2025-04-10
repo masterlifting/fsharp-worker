@@ -8,8 +8,8 @@ open Infrastructure.Domain
 open Worker.Domain
 
 type Dependencies = {
-    Task: WorkerTask
+    Task: WorkerActiveTask
     Duration: TimeSpan
     Configuration: IConfigurationRoot
-    startHandler: WorkerTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
+    startHandler: WorkerActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>
 }

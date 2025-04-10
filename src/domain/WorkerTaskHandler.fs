@@ -1,13 +1,13 @@
 ﻿[<AutoOpen>]
-module Worker.Domain.WorkerTaskNodeHandler
+module Worker.Domain.WorkerTaskHandler
 
 open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
-type WorkerTaskNodeHandler = {
+type WorkerTaskHandler = {
     Id: Graph.NodeId
-    Handler: (WorkerTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option
+    Handler: (WorkerActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<WorkerTaskResult, Error'>>) option
 } with
 
     interface Graph.INode with

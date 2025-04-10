@@ -171,3 +171,34 @@ let start config =
         // Wait for the logger to finish writing logs
         do! Async.Sleep 1000
     }
+
+let rec registerHandler nodeId handlerId handler =
+    fun (graph: Graph.Node<WorkerTaskNode>) ->
+        graph
+        |> Graph.DFS.tryFindById nodeId
+        |> Option.map (fun node ->
+            Graph.Node(
+                {
+                    Id = node.ShortId
+                    Name = node.ShortName
+                    Handler =
+                        match node.Id |> Graph.Node.Id.split |> Seq.tryLast with
+                        | Some id ->
+                            match id.Value = handlerId with
+                            | true -> handler |> Some
+                            | false -> None
+                        | None -> None
+                },
+                node.Children
+                |> List.map (fun child -> child |> registerHandler child.Id handlerId handler)
+            ))
+        |> Option.defaultValue (
+            Graph.Node(
+                {
+                    Id = graph.ShortId
+                    Name = graph.ShortName
+                    Handler = None
+                },
+                []
+            )
+        )

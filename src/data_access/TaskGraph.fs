@@ -95,7 +95,7 @@ module private Configuration =
             |> Result.map (fun graphId -> [ parentTaskId; Some graphId ] |> List.choose id |> Graph.Node.Id.combine)
             |> Result.bind (fun taskId ->
                 match handlers |> Graph.BFS.tryFindById taskId with
-                | None -> $"Task handler Id '%s{taskId.Value}'" |> NotFound |> Error
+                | None -> $"Task handler Id '%s{taskId.Value}' not found." |> NotFound |> Error
                 | Some handler ->
                     let handlerNode =
                         match graph.Enabled with

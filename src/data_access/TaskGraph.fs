@@ -33,7 +33,7 @@ type TaskGraphEntity() =
     member val Schedule: ScheduleEntity option = None with get, set
     member val Tasks: TaskGraphEntity[] | null = [||] with get, set
 
-    member this.ToNode(handlerNode: WorkerTaskNodeHandler option) =
+    member this.ToNode(handler: WorkerTaskNodeHandler option) =
         result {
             let! id = Graph.NodeId.create this.Id
             let! recursively = this.Recursively |> Option.toResult parseTimeSpan
@@ -48,7 +48,7 @@ type TaskGraphEntity() =
                 Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
                 Wait = this.Wait
                 Schedule = schedule
-                Handler = handlerNode |> Option.bind _.Handler
+                Handler = handler |> Option.bind _.Handler
             }
         }
 
@@ -67,26 +67,27 @@ module private Configuration =
 
     let getWithHandlers handlers client =
 
-        let rec mergeLoop (parentTaskId: Graph.NodeId option) (graph: TaskGraphEntity) =
+        let rec mergeLoop (taskId: Graph.NodeId option) (graph: TaskGraphEntity) =
             Graph.NodeId.create graph.Id
-            |> Result.map (fun graphId -> [ parentTaskId; Some graphId ] |> List.choose id |> Graph.Node.Id.combine)
-            |> Result.bind (fun taskId ->
-                match handlers |> Graph.BFS.tryFindById taskId with
-                | None -> $"Task handler Id '%s{taskId.Value}' not found." |> NotFound |> Error
-                | Some handler ->
-                    let handlerNode =
-                        match graph.Enabled with
-                        | true -> handler.Value |> Some
-                        | false -> None
-                    graph.ToNode handlerNode
-                    |> Result.bind (fun node ->
-                        match graph.Tasks with
-                        | null -> Graph.Node(node, []) |> Ok
-                        | tasks ->
-                            tasks
-                            |> Array.map (mergeLoop (Some taskId))
-                            |> Result.choose
-                            |> Result.map (fun children -> Graph.Node(node, children))))
+            |> Result.map (fun nodeId -> [ taskId; Some nodeId ] |> List.choose id |> Graph.Node.Id.combine)
+            |> Result.bind (fun nodeId ->
+                let handler =
+                    match graph.Enabled with
+                    | false -> None
+                    | true ->
+                        handlers
+                        |> Graph.BFS.tryFindById nodeId
+                        |> Option.map _.Value
+                
+                graph.ToNode handler
+                |> Result.bind (fun node ->
+                    match graph.Tasks with
+                    | null -> Graph.Node(node, []) |> Ok
+                    | tasks ->
+                        tasks
+                        |> Array.map (mergeLoop (Some nodeId))
+                        |> Result.choose
+                        |> Result.map (fun children -> Graph.Node(node, children))))
 
         let startMerge graph = graph |> mergeLoop None
 

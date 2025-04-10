@@ -5,6 +5,6 @@ open Infrastructure.Domain
 open Worker.Domain
 
 type Dependencies = {
-    getNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>>
+    tryFindNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode> option, Error'>>
     handleNode: uint<attempts> -> Schedule option -> WorkerTaskNode -> Async<Schedule option>
 }

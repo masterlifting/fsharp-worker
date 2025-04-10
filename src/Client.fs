@@ -11,11 +11,12 @@ open Worker.Dependencies
 let rec private handleNode nodeId attempt =
     fun (deps: WorkerTaskNode.Dependencies, schedule) ->
         async {
-            match! deps.getNode nodeId with
+            match! deps.tryFindNode nodeId with
             | Error error ->
                 $"%i{attempt}.Task Id '%s{nodeId.Value}' Failed. Error: %s{error.Message}"
                 |> Log.critical
-            | Ok node ->
+            | Ok None -> $"%i{attempt}.Task Id '%s{nodeId.Value}' not Found." |> Log.critical
+            | Ok(Some node) ->
 
                 let! schedule = node.Value |> deps.handleNode attempt schedule
 
@@ -146,7 +147,7 @@ let private handleTask configuration =
 let private processGraph nodeId deps =
 
     let nodeDeps: WorkerTaskNode.Dependencies = {
-        getNode = deps.getTaskNode
+        tryFindNode = deps.tryFindTaskNode
         handleNode = handleTask deps.Configuration
     }
 

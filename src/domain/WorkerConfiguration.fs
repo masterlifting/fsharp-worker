@@ -8,5 +8,5 @@ type WorkerConfiguration = {
     Name: string
     TaskNodeRootId: Graph.NodeId
     Configuration: IConfigurationRoot
-    getTaskNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>>
+    tryFindTaskNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode> option, Error'>>
 }

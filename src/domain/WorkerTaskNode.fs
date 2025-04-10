@@ -29,5 +29,4 @@ type WorkerTaskNode = {
 
     interface Graph.INode with
         member this.Id = this.Id
-        member this.Name = this.Name
-        member this.set(id, name) = { this with Id = id; Name = name }
+        member this.set id = { this with Id = id }

@@ -180,7 +180,6 @@ let registerHandlers nodeId (handlers: WorkerTaskNodeHandler seq) =
             Graph.Node(
                 {
                     Id = node.ShortId
-                    Name = node.ShortName
                     Handler =
                         handlers
                         |> Seq.tryFind (fun handler -> handler.Id = node.ShortId)

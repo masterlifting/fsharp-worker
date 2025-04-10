@@ -53,42 +53,19 @@ type TaskGraphEntity() =
         }
 
     member this.ToGraph() =
-        this.Id
-        |> Graph.NodeId.create
-        |> Result.bind (fun nodeId ->
-            match this.Tasks with
-            | null -> List.empty |> Ok
-            | tasks -> tasks |> Seq.map _.ToGraph() |> Result.choose
-            |> Result.bind (fun task ->
-                result {
-                    let! recursively = this.Recursively |> Option.toResult parseTimeSpan
-                    let! duration = this.Duration |> Option.toResult parseTimeSpan
-                    let! schedule = this.Schedule |> Option.toResult _.ToDomain()
-
-                    return
-                        Graph.Node(
-                            {
-                                Id = nodeId
-                                Name = this.Name
-                                Parallel = this.Parallel
-                                Recursively = recursively
-                                Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                                Wait = this.Wait
-                                Schedule = schedule
-                                Handler = None
-                            },
-                            task
-                        )
-                }))
+        match this.Tasks with
+        | null -> List.empty |> Ok
+        | tasks -> tasks |> Seq.map _.ToGraph() |> Result.choose
+        |> Result.bind (fun tasks -> this.ToNode None |> Result.map (fun task -> Graph.Node(task, tasks)))
 
 module private Configuration =
     open Persistence.Storages.Configuration
 
     let private loadData = Read.section<TaskGraphEntity>
-    let create client =
+    let getSimple client =
         client |> loadData |> Result.bind _.ToGraph() |> async.Return
 
-    let merge handlers client =
+    let getWithHandlers handlers client =
 
         let rec mergeLoop (parentTaskId: Graph.NodeId option) (graph: TaskGraphEntity) =
             Graph.NodeId.create graph.Id
@@ -128,12 +105,12 @@ let init storageType =
         |> Storage.init
         |> Result.map TaskGraphStorage
 
-let create storage =
+let getSimple storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.create
+    | Storage.Configuration client -> client |> Configuration.getSimple
     | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
 
-let merge handlers storage =
+let getWithHandlers handlers storage =
     match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.merge handlers
+    | Storage.Configuration client -> client |> Configuration.getWithHandlers handlers
     | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return

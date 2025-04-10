@@ -172,34 +172,20 @@ let start config =
         do! Async.Sleep 1000
     }
 
-let rec registerHandler nodeId handlerId handler =
+let registerHandlers nodeId (handlers: WorkerTaskNodeHandler seq) =
     fun (graph: Graph.Node<WorkerTaskNode>) ->
-        graph
-        |> Graph.DFS.tryFindById nodeId
-        |> Option.map (fun node ->
+
+        let rec innerLoop (node: Graph.Node<WorkerTaskNode>) =
             Graph.Node(
                 {
-                    Id = node.Id
-                    Name = node.Name
+                    Id = node.ShortId
+                    Name = node.ShortName
                     Handler =
-                        node.Id
-                        |> Graph.Node.Id.split
-                        |> Seq.tryLast
-                        |> Option.bind (fun id ->
-                            match id.Value = handlerId with
-                            | true -> handler |> Some
-                            | false -> None)
+                        handlers
+                        |> Seq.tryFind (fun handler -> handler.Id = node.ShortId)
+                        |> Option.bind _.Handler
                 },
-                node.Children
-                |> List.map (fun child -> child |> registerHandler child.Id handlerId handler)
-            ))
-        |> Option.defaultValue (
-            Graph.Node(
-                {
-                    Id = graph.Id
-                    Name = graph.Name
-                    Handler = None
-                },
-                []
+                node.Children |> List.map innerLoop
             )
-        )
+
+        graph |> Graph.DFS.tryFindById nodeId |> Option.map innerLoop

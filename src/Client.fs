@@ -138,7 +138,7 @@ let private tryStartTask configuration =
 let start (deps: Worker.Dependencies) =
     async {
         try
-            let workerName = $"'%s{deps.Name}'"
+            let workerName = $"'%s{deps.Name}'."
 
             let taskDeps: WorkerTask.Dependencies = {
                 tryFindTask = deps.tryFindTask
@@ -146,7 +146,7 @@ let start (deps: Worker.Dependencies) =
             }
 
             match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
-            | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.scs
+            | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs
             | Choice2Of2 ex ->
                 match ex with
                 | :? OperationCanceledException ->

@@ -61,7 +61,7 @@ and private processTasks tasks attempt =
 
 let private startTask attempt (task: WorkerTask) =
     fun (schedule, configuration) ->
-        
+
         let taskName = task.Print attempt
 
         let inline start (deps: FireAndForget.Dependencies) =

@@ -32,7 +32,7 @@ type WorkerTask = {
         Description = this.Description
     }
 
-    member this.Print (attempt: uint<attempts>) =
+    member this.Print(attempt: uint<attempts>) =
         match this.Description with
         | Some description -> $"%i{attempt}.'%s{this.Id.Value}' %s{description}."
         | None -> $"%i{attempt}.'%s{this.Id.Value}'"

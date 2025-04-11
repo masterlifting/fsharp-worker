@@ -8,86 +8,83 @@ open Infrastructure.Logging
 open Worker.Domain
 open Worker.Dependencies
 
-let rec private handleNode nodeId attempt =
+let rec private processTask taskId attempt =
     fun (deps: WorkerTask.Dependencies, schedule) ->
         async {
-            match! deps.tryFindNode nodeId with
+            match! deps.tryFindTask taskId with
             | Error error ->
-                $"%i{attempt}.Task Id '%s{nodeId.Value}' Failed. Error: %s{error.Message}"
+                $"%i{attempt}.Task Id '%s{taskId.Value}' Failed. Error: %s{error.Message}"
                 |> Log.crt
-            | Ok None -> $"%i{attempt}.Task Id '%s{nodeId.Value}' not Found." |> Log.crt
-            | Ok(Some node) ->
+            | Ok None -> $"%i{attempt}.Task Id '%s{taskId.Value}' not Found." |> Log.crt
+            | Ok(Some task) ->
 
-                let! schedule = node.Value |> deps.handleNode attempt schedule
+                let! schedule = task.Value |> deps.tryStartTask attempt schedule
 
-                if schedule.IsSome && node.Children.Length > 0 then
-                    do! (deps, schedule) |> handleNodes node.Children attempt
+                if schedule.IsSome && task.Children.Length > 0 then
+                    do! (deps, schedule) |> processTasks task.Children attempt
 
-                if node.Value.Recursively.IsSome then
-                    do! (deps, schedule) |> handleNode nodeId (attempt + 1u<attempts>)
+                if task.Value.Recursively.IsSome then
+                    do! (deps, schedule) |> processTask taskId (attempt + 1u<attempts>)
         }
 
-and private handleNodes nodes attempt =
+and private processTasks tasks attempt =
     fun (deps, schedule) ->
         async {
-            if nodes.Length > 0 then
+            if tasks.Length > 0 then
+                let asyncTasks, skipLength =
+                    match tasks |> List.takeWhile _.Value.Parallel with
+                    | parallelTasks when parallelTasks.Length < 2 ->
 
-                let nodeHandlers, skipLength =
+                        let sequentialTasks =
+                            tasks |> List.skip 1 |> List.takeWhile (not << _.Value.Parallel)
 
-                    let parallelNodes = nodes |> List.takeWhile _.Value.Parallel
-
-                    match parallelNodes with
-                    | parallelNodes when parallelNodes.Length < 2 ->
-
-                        let sequentialNodes =
-                            nodes |> List.skip 1 |> List.takeWhile (not << _.Value.Parallel)
-
-                        let tasks =
-                            nodes[0] :: sequentialNodes
-                            |> List.map (fun task -> (deps, schedule) |> handleNode task.Id attempt)
+                        let asyncTasks =
+                            tasks[0] :: sequentialTasks
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
                             |> Async.Sequential
 
-                        (tasks, sequentialNodes.Length + 1)
+                        (asyncTasks, sequentialTasks.Length + 1)
 
-                    | parallelNodes ->
+                    | parallelTasks ->
 
-                        let tasks =
-                            parallelNodes
-                            |> List.map (fun task -> (deps, schedule) |> handleNode task.Id attempt)
+                        let asyncTasks =
+                            parallelTasks
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
                             |> Async.Parallel
 
-                        (tasks, parallelNodes.Length)
+                        (asyncTasks, parallelTasks.Length)
 
-                do! nodeHandlers |> Async.Ignore
-
-                let nodes = nodes |> List.skip skipLength
-
-                do! (deps, schedule) |> handleNodes nodes attempt
+                do! asyncTasks |> Async.Ignore
+                let nextTasks = tasks |> List.skip skipLength
+                do! (deps, schedule) |> processTasks nextTasks attempt
         }
 
-let private startTask taskName (deps: FireAndForget.Dependencies) =
-    async {
-        $"%s{taskName} Started." |> Log.dbg
+let private startTask attempt (task: WorkerTask) =
+    fun (schedule, configuration) ->
+        
+        let taskName = task.Print attempt
 
-        use cts = new CancellationTokenSource(deps.Duration)
+        let inline start (deps: FireAndForget.Dependencies) =
+            async {
+                $"%s{taskName} Started." |> Log.dbg
 
-        match! deps.startHandler (deps.ActiveTask, deps.Configuration, cts.Token) with
-        | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.crt
-        | Ok() -> $"%s{taskName} Completed." |> Log.inf
-    }
+                use cts = new CancellationTokenSource(deps.Duration)
 
-let private tryStart (task: WorkerTask) =
-    fun (name, attempt, schedule, configuration) ->
+                match! deps.startActiveTask (deps.ActiveTask, deps.Configuration, cts.Token) with
+                | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.crt
+                | Ok() -> $"%s{taskName} Completed." |> Log.inf
+            }
+
         async {
             match task.Handler with
-            | None -> $"%s{name} Skipped." |> Log.trc
-            | Some startHandler ->
+            | None -> $"%s{taskName} Skipped." |> Log.trc
+            | Some startActiveTask ->
                 let handler =
-                    startTask name {
+                    start {
                         ActiveTask = task.ToActiveTask schedule attempt
                         Duration = task.Duration
                         Configuration = configuration
-                        startHandler = startHandler
+                        startActiveTask = startActiveTask
                     }
 
                 match task.WaitResult with
@@ -96,20 +93,20 @@ let private tryStart (task: WorkerTask) =
 
             match task.Recursively with
             | Some delay ->
-                $"%s{name} Next iteration will be started in %s{delay |> String.fromTimeSpan}."
+                $"%s{taskName} Next iteration will be started in %s{delay |> String.fromTimeSpan}."
                 |> Log.trc
 
                 do! Async.Sleep delay
             | None -> ()
         }
 
-let private handleTask configuration =
+let private tryStartTask configuration =
     fun attempt parentSchedule (task: WorkerTask) ->
         async {
-            let taskName = $"%i{attempt}.'%s{task.Id.Value}'"
+            let taskName = task.Print attempt
 
-            let inline tryStart schedule task =
-                (taskName, attempt, schedule, configuration) |> tryStart task
+            let inline tryStartTask schedule task =
+                (schedule, configuration) |> startTask attempt task
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped reason ->
@@ -119,16 +116,16 @@ let private handleTask configuration =
                 if delay < TimeSpan.FromMinutes 10. then
                     $"%s{taskName} Will be stopped in %s{delay |> String.fromTimeSpan}." |> Log.wrn
 
-                do! task |> tryStart schedule
+                do! task |> tryStartTask schedule
                 return Some schedule
             | StartIn(delay, schedule) ->
                 $"%s{taskName} Will be started in %s{delay |> String.fromTimeSpan}." |> Log.wrn
 
                 do! Async.Sleep delay
-                do! task |> tryStart schedule
+                do! task |> tryStartTask schedule
                 return Some schedule
             | Started schedule ->
-                do! task |> tryStart schedule
+                do! task |> tryStartTask schedule
                 return Some schedule
             | NotScheduled ->
                 if task.Handler.IsSome then
@@ -138,21 +135,17 @@ let private handleTask configuration =
                 return None
         }
 
-let private processGraph nodeId deps =
-
-    let nodeDeps: WorkerTask.Dependencies = {
-        tryFindNode = deps.tryFindTask
-        handleNode = handleTask deps.Configuration
-    }
-
-    (nodeDeps, None) |> handleNode nodeId 1u<attempts>
-
-let start config =
+let start (deps: Worker.Dependencies) =
     async {
         try
-            let workerName = $"'%s{config.Name}'"
+            let workerName = $"'%s{deps.Name}'"
 
-            match! processGraph config.TaskNodeRootId config |> Async.Catch with
+            let taskDeps: WorkerTask.Dependencies = {
+                tryFindTask = deps.tryFindTask
+                tryStartTask = tryStartTask deps.Configuration
+            }
+
+            match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
             | Choice1Of2 _ -> $"%s{workerName} Completed." |> Log.scs
             | Choice2Of2 ex ->
                 match ex with

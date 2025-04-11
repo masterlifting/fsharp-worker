@@ -11,11 +11,9 @@
         <Compile Include="domain\ActiveTask.fs" />
         <Compile Include="domain\WorkerTask.fs" />
         <Compile Include="domain\WorkerTaskHandler.fs" />
-        <Compile Include="domain\WorkerConfiguration.fs" />
         <Compile Include="data_access\Schedule.fs" />
         <Compile Include="data_access\TaskGraph.fs" />
-        <Compile Include="dependencies\WorkerTask.fs" />
-        <Compile Include="dependencies\FireAndForget.fs" />
+        <Compile Include="dependencies\Dependencies.fs" />
         <Compile Include="Scheduler.fs"/>
         <Compile Include="Client.fs" />
     </ItemGroup>

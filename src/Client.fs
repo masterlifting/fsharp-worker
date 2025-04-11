@@ -175,7 +175,7 @@ let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
                 node.Children |> List.map innerLoop
             )
 
-        graph |> Graph.DFS.tryFindById nodeId |> Option.map innerLoop
+        graph |> Graph.DFS.tryFind nodeId |> Option.map innerLoop
 
 let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
     fun (taskGraph: Graph.Node<TaskGraph>) ->
@@ -192,7 +192,7 @@ let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
                 Handler =
                     match graph.Value.Enabled with
                     | false -> None
-                    | true -> handlers |> Graph.BFS.tryFindById graph.Id |> Option.bind _.Value.Handler
+                    | true -> handlers |> Graph.BFS.tryFind graph.Id |> Option.bind _.Value.Handler
             }
 
             match graph.Children.Length = 0 with

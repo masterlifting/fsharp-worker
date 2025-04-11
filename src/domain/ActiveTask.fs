@@ -16,5 +16,5 @@ type ActiveTask = {
 
     static member print task =
         match task.Description with
-        | Some description -> $"%i{task.Attempt}.'%s{task.Id.Value}' %s{description}"
+        | Some description -> $"%i{task.Attempt}.'%s{task.Id.Value}' %s{description}."
         | None -> $"%i{task.Attempt}.'%s{task.Id.Value}'"

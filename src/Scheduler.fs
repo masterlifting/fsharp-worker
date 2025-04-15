@@ -77,7 +77,7 @@ let private compute (now: DateTime) (schedule: Schedule) =
             | true -> stopDateTime |> handleStopDate
             | false ->
                 match schedule.Recursively with
-                | false -> Stopped(StopTimeReached stopDateTime)
+                | false -> stopDateTime |> handleStopDate
                 | true -> handleStopDateRecursively startDateTime stopDateTime
 
 let private merge parent current =

@@ -23,7 +23,7 @@ type WorkerTask = {
         member this.set id = { this with Id = id }
 
     member this.ToActiveTask schedule attempt = {
-        Id = this.Id
+        Id = this.Id |> ActiveTaskId
         Attempt = attempt
         Recursively = this.Recursively
         Parallel = this.Parallel

@@ -4,8 +4,17 @@ module Worker.Domain.ActiveTask
 open System
 open Infrastructure.Domain
 
+type ActiveTaskId =
+    | ActiveTaskId of Graph.NodeId
+    
+    member this.Value =
+        match this with
+        | ActiveTaskId id -> id
+        
+    member this.ValueStr = this.Value.Value
+
 type ActiveTask = {
-    Id: Graph.NodeId
+    Id: ActiveTaskId
     Attempt: uint<attempts>
     Recursively: TimeSpan option
     Parallel: bool
@@ -16,5 +25,5 @@ type ActiveTask = {
 
     static member print task =
         match task.Description with
-        | Some description -> $"%i{task.Attempt}.'%s{task.Id.Value}' %s{description}."
-        | None -> $"%i{task.Attempt}.'%s{task.Id.Value}'"
+        | Some description -> $"%i{task.Attempt}.'%s{task.Id.ValueStr}' %s{description}."
+        | None -> $"%i{task.Attempt}.'%s{task.Id.ValueStr}'"

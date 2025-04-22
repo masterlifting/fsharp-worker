@@ -39,7 +39,7 @@ type TaskGraphEntity() =
         | tasks -> tasks |> Seq.map _.ToDomain() |> Result.choose
         |> Result.bind (fun tasks ->
             result {
-                let! id = Graph.NodeId.create this.Id
+                let! id = Graph.NodeId.parse this.Id
                 let! recursively = this.Recursively |> Option.toResult parseTimeSpan
                 let! duration = this.Duration |> Option.toResult parseTimeSpan
                 let! schedule = this.Schedule |> Option.toResult _.ToDomain()

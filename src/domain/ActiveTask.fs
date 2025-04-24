@@ -6,11 +6,11 @@ open Infrastructure.Domain
 
 type ActiveTaskId =
     | ActiveTaskId of Graph.NodeId
-    
+
     member this.Value =
         match this with
         | ActiveTaskId id -> id
-        
+
     member this.ValueStr = this.Value.Value
 
 type ActiveTask = {

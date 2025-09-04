@@ -1,4 +1,4 @@
-﻿module Worker.DataAccess.TaskGraph
+﻿module Worker.DataAccess.TasksTree
 
 open System
 open Infrastructure.Domain
@@ -9,7 +9,7 @@ open Persistence.Storages.Domain
 open Worker.Domain
 open Worker.DataAccess.Schedule
 
-type TaskGraphStorage = TaskGraphStorage of Storage.Provider
+type TasksTreeStorage = TasksTreeStorage of Storage.Provider
 type StorageType = Configuration of Configuration.Connection
 
 let private result = ResultBuilder()
@@ -22,7 +22,7 @@ let private parseTimeSpan timeSpan =
         |> NotSupported
         |> Error
 
-type TaskGraphEntity() =
+type TasksTreeEntity() =
     member val Id: string = String.Empty with get, set
     member val Enabled: bool = false with get, set
     member val Recursively: string option = None with get, set
@@ -31,7 +31,7 @@ type TaskGraphEntity() =
     member val WaitResult: bool = false with get, set
     member val Schedule: ScheduleEntity option = None with get, set
     member val Description: string option = None with get, set
-    member val Tasks: TaskGraphEntity[] | null = [||] with get, set
+    member val Tasks: TasksTreeEntity[] | null = [||] with get, set
 
     member this.ToDomain() =
         match this.Tasks with
@@ -39,7 +39,7 @@ type TaskGraphEntity() =
         | tasks -> tasks |> Seq.map _.ToDomain() |> Result.choose
         |> Result.bind (fun tasks ->
             result {
-                let! id = Graph.NodeId.parse this.Id
+                let! id = Tree.NodeId.parse this.Id
                 let! recursively = this.Recursively |> Option.toResult parseTimeSpan
                 let! duration = this.Duration |> Option.toResult parseTimeSpan
                 let! schedule = this.Schedule |> Option.toResult _.ToDomain()
@@ -55,19 +55,19 @@ type TaskGraphEntity() =
                     Description = this.Description
                 }
             }
-            |> Result.map (fun task -> Graph.Node(task, tasks)))
+            |> Result.map (fun task -> Tree.Node(task, tasks)))
 
 module private Configuration =
     open Persistence.Storages.Configuration
 
-    let private loadData = Read.section<TaskGraphEntity>
+    let private loadData = Read.section<TasksTreeEntity>
     let get client =
         client |> loadData |> Result.bind _.ToDomain() |> async.Return
 
 let private toPersistenceStorage storage =
     storage
     |> function
-        | TaskGraphStorage storage -> storage
+        | TasksTreeStorage storage -> storage
 
 let init storageType =
     match storageType with
@@ -75,7 +75,7 @@ let init storageType =
         connection
         |> Storage.Connection.Configuration
         |> Storage.init
-        |> Result.map TaskGraphStorage
+        |> Result.map TasksTreeStorage
 
 let get storage =
     match storage |> toPersistenceStorage with

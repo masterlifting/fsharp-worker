@@ -5,7 +5,7 @@ open System
 open Infrastructure.Domain
 
 type ActiveTaskId =
-    | ActiveTaskId of Graph.NodeId
+    | ActiveTaskId of Tree.NodeId
 
     member this.Value =
         match this with

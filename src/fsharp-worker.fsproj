@@ -1,25 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-        <OutputType>Library</OutputType>
-        <TargetFramework>net9.0</TargetFramework>
-        <Nullable>enable</Nullable>
-    </PropertyGroup>
-    <ItemGroup>
-        <Compile Include="domain\Schedule.fs" />
-        <Compile Include="domain\Scheduler.fs" />
-        <Compile Include="domain\TaskGraph.fs" />
-        <Compile Include="domain\ActiveTask.fs" />
-        <Compile Include="domain\WorkerTask.fs" />
-        <Compile Include="domain\WorkerTaskHandler.fs" />
-        <Compile Include="data_access\Schedule.fs" />
-        <Compile Include="data_access\TaskGraph.fs" />
-        <Compile Include="dependencies\Dependencies.fs" />
-        <Compile Include="Scheduler.fs"/>
-        <Compile Include="Client.fs" />
-    </ItemGroup>
-    <ItemGroup/>
-    <ItemGroup>
-        <ProjectReference Include="..\..\fsharp-infrastructure\src\fsharp-infrastructure.fsproj"/>
-        <ProjectReference Include="..\..\fsharp-persistence\src\fsharp-persistence.fsproj" />
-    </ItemGroup>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="domain\Schedule.fs" />
+    <Compile Include="domain\Scheduler.fs" />
+    <Compile Include="domain\TasksTree.fs" />
+    <Compile Include="domain\ActiveTask.fs" />
+    <Compile Include="domain\WorkerTask.fs" />
+    <Compile Include="domain\WorkerTaskHandler.fs" />
+    <Compile Include="data_access\Schedule.fs" />
+    <Compile Include="data_access\TasksTree.fs" />
+    <Compile Include="dependencies\Dependencies.fs" />
+    <Compile Include="Scheduler.fs" />
+    <Compile Include="Client.fs" />
+  </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\..\fsharp-infrastructure\src\fsharp-infrastructure.fsproj" />
+    <ProjectReference Include="..\..\fsharp-persistence\src\fsharp-persistence.fsproj" />
+  </ItemGroup>
 </Project>

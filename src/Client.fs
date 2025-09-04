@@ -43,7 +43,7 @@ and private processTasks tasks attempt =
                             |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
                             |> Async.Sequential
 
-                        (asyncTasks, sequentialTasks.Length + 1)
+                        asyncTasks, sequentialTasks.Length + 1
 
                     | parallelTasks ->
 
@@ -52,7 +52,7 @@ and private processTasks tasks attempt =
                             |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
                             |> Async.Parallel
 
-                        (asyncTasks, parallelTasks.Length)
+                        asyncTasks, parallelTasks.Length
 
                 do! asyncTasks |> Async.Ignore
                 let nextTasks = tasks |> List.skip skipLength
@@ -161,10 +161,10 @@ let start (deps: Worker.Dependencies) =
     }
 
 let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
-    fun (graph: Graph.Node<TaskGraph>) ->
+    fun (tree: Tree.Node<TasksTree>) ->
 
-        let rec innerLoop (node: Graph.Node<TaskGraph>) =
-            Graph.Node(
+        let rec innerLoop (node: Tree.Node<TasksTree>) =
+            Tree.Node(
                 {
                     Id = node.ShortId
                     Handler =
@@ -175,31 +175,31 @@ let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
                 node.Children |> List.map innerLoop
             )
 
-        graph |> Graph.DFS.tryFind nodeId |> Option.map innerLoop
+        tree |> Tree.DFS.tryFind nodeId |> Option.map innerLoop
 
-let registerHandlers (handlers: Graph.Node<WorkerTaskHandler>) =
-    fun (taskGraph: Graph.Node<TaskGraph>) ->
+let registerHandlers (handlers: Tree.Node<WorkerTaskHandler>) =
+    fun (tasksTree: Tree.Node<TasksTree>) ->
 
-        let rec innerLoop (graph: Graph.Node<TaskGraph>) =
+        let rec innerLoop (tree: Tree.Node<TasksTree>) =
             let node = {
-                Id = graph.ShortId
-                Description = graph.Value.Description
-                Parallel = graph.Value.Parallel
-                Recursively = graph.Value.Recursively
-                Duration = graph.Value.Duration
-                WaitResult = graph.Value.WaitResult
-                Schedule = graph.Value.Schedule
+                Id = tree.ShortId
+                Description = tree.Value.Description
+                Parallel = tree.Value.Parallel
+                Recursively = tree.Value.Recursively
+                Duration = tree.Value.Duration
+                WaitResult = tree.Value.WaitResult
+                Schedule = tree.Value.Schedule
                 Handler =
-                    match graph.Value.Enabled with
+                    match tree.Value.Enabled with
                     | false -> None
-                    | true -> handlers |> Graph.BFS.tryFind graph.Id |> Option.bind _.Value.Handler
+                    | true -> handlers |> Tree.BFS.tryFind tree.Id |> Option.bind _.Value.Handler
             }
 
-            match graph.Children.Length = 0 with
-            | true -> Graph.Node(node, [])
+            match tree.Children.Length = 0 with
+            | true -> Tree.Node(node, [])
             | false ->
-                graph.Children
+                tree.Children
                 |> List.map innerLoop
-                |> fun children -> Graph.Node(node, children)
+                |> fun children -> Tree.Node(node, children)
 
-        taskGraph |> innerLoop
+        tasksTree |> innerLoop

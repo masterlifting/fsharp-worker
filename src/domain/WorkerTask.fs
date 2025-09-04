@@ -8,7 +8,7 @@ open Infrastructure.Domain
 open Infrastructure.Prelude
 
 type WorkerTask = {
-    Id: Graph.NodeId
+    Id: Tree.NodeId
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
@@ -18,7 +18,7 @@ type WorkerTask = {
     Description: string option
 } with
 
-    interface Graph.INode with
+    interface Tree.INode with
         member this.Id = this.Id
         member this.set id = { this with Id = id }
 

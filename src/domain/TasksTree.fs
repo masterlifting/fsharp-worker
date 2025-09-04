@@ -1,11 +1,11 @@
 ﻿[<AutoOpen>]
-module Worker.Domain.TaskGraph
+module Worker.Domain.TasksTree
 
 open System
 open Infrastructure.Domain
 
-type TaskGraph = {
-    Id: Graph.NodeId
+type TasksTree = {
+    Id: Tree.NodeId
     Enabled: bool
     Recursively: TimeSpan option
     Parallel: bool
@@ -15,6 +15,6 @@ type TaskGraph = {
     Description: string option
 } with
 
-    interface Graph.INode with
+    interface Tree.INode with
         member this.Id = this.Id
         member this.set id = { this with Id = id }

@@ -177,7 +177,7 @@ let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
 
         tree |> Tree.DFS.tryFind nodeId |> Option.map innerLoop
 
-let registerHandlers (handlers: Tree.Node<WorkerTaskHandler>) =
+let mapTasks (handlers: Tree.Node<WorkerTaskHandler>) =
     fun (tasksTree: Tree.Node<TasksTree>) ->
 
         let rec innerLoop (tree: Tree.Node<TasksTree>) =

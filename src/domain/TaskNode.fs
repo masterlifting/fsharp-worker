@@ -1,10 +1,10 @@
 ﻿[<AutoOpen>]
-module Worker.Domain.TasksTree
+module Worker.Domain.TaskNode
 
 open System
 open Infrastructure.Domain
 
-type TasksTree = {
+type TaskNode = {
     Id: Tree.NodeId
     Enabled: bool
     Recursively: TimeSpan option

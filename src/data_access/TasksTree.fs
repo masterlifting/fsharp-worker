@@ -22,7 +22,7 @@ let private parseTimeSpan timeSpan =
         |> NotSupported
         |> Error
 
-type TasksTreeEntity() =
+type TaskNodeEntity() =
     member val Id: string = String.Empty with get, set
     member val Enabled: bool = false with get, set
     member val Recursively: string option = None with get, set
@@ -31,7 +31,7 @@ type TasksTreeEntity() =
     member val WaitResult: bool = false with get, set
     member val Schedule: ScheduleEntity option = None with get, set
     member val Description: string option = None with get, set
-    member val Tasks: TasksTreeEntity[] | null = [||] with get, set
+    member val Tasks: TaskNodeEntity[] | null = [||] with get, set
 
     member this.ToDomain() =
         match this.Tasks with
@@ -60,7 +60,7 @@ type TasksTreeEntity() =
 module private Configuration =
     open Persistence.Storages.Configuration
 
-    let private loadData = Read.section<TasksTreeEntity>
+    let private loadData = Read.section<TaskNodeEntity>
     let get client =
         client |> loadData |> Result.bind _.ToDomain() |> async.Return
 

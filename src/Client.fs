@@ -161,9 +161,9 @@ let start (deps: Worker.Dependencies) =
     }
 
 let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
-    fun (tree: Tree.Node<TasksTree>) ->
+    fun (tree: Tree.Node<TaskNode>) ->
 
-        let rec innerLoop (node: Tree.Node<TasksTree>) =
+        let rec innerLoop (node: Tree.Node<TaskNode>) =
             Tree.Node(
                 {
                     Id = node.ShortId
@@ -178,9 +178,9 @@ let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
         tree |> Tree.DFS.tryFind nodeId |> Option.map innerLoop
 
 let mapTasks (handlers: Tree.Node<WorkerTaskHandler>) =
-    fun (tasksTree: Tree.Node<TasksTree>) ->
+    fun (tasksTree: Tree.Node<TaskNode>) ->
 
-        let rec innerLoop (tree: Tree.Node<TasksTree>) =
+        let rec innerLoop (tree: Tree.Node<TaskNode>) =
             let node = {
                 Id = tree.ShortId
                 Description = tree.Value.Description

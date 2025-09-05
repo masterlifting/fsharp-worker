@@ -7,7 +7,7 @@
   <ItemGroup>
     <Compile Include="domain\Schedule.fs" />
     <Compile Include="domain\Scheduler.fs" />
-    <Compile Include="domain\TasksTree.fs" />
+    <Compile Include="domain\TaskNode.fs" />
     <Compile Include="domain\ActiveTask.fs" />
     <Compile Include="domain\WorkerTask.fs" />
     <Compile Include="domain\WorkerTaskHandler.fs" />

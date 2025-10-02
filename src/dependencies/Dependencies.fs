@@ -11,14 +11,14 @@ module Worker =
     type Dependencies = {
         Name: string
         Configuration: IConfigurationRoot
-        RootTaskId: Tree.NodeId
-        tryFindTask: Tree.NodeId -> Async<Result<Tree.Node<WorkerTask> option, Error'>>
+        RootTaskId: string
+        tryFindTask: string -> Async<Result<Infrastructure.Prelude.Tree.Node<WorkerTask> option, Error'>>
     }
 
 [<RequireQualifiedAccess>]
 module WorkerTask =
     type Dependencies = {
-        tryFindTask: Tree.NodeId -> Async<Result<Tree.Node<WorkerTask> option, Error'>>
+        tryFindTask: string -> Async<Result<Infrastructure.Prelude.Tree.Node<WorkerTask> option, Error'>>
         tryStartTask: uint<attempts> -> Schedule option -> WorkerTask -> Async<Schedule option>
     }
 

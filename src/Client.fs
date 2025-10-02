@@ -13,15 +13,15 @@ let rec private processTask taskId attempt =
         async {
             match! deps.tryFindTask taskId with
             | Error error ->
-                $"%i{attempt}.Task Id '%s{taskId.Value}' Failed. Error: %s{error.Message}"
+                $"%i{attempt}.Task Id '%s{taskId}' Failed. Error: %s{error.Message}"
                 |> Log.crt
-            | Ok None -> $"%i{attempt}.Task Id '%s{taskId.Value}' not Found." |> Log.crt
+            | Ok None -> $"%i{attempt}.Task Id '%s{taskId}' not Found." |> Log.crt
             | Ok(Some task) ->
 
                 let! schedule = task.Value |> deps.tryStartTask attempt schedule
 
-                if schedule.IsSome && task.Children.Length > 0 then
-                    do! (deps, schedule) |> processTasks task.Children attempt
+                if schedule.IsSome && not (task.Children |> Seq.isEmpty) then
+                    do! (deps, schedule) |> processTasks (task.Children |> List.ofSeq) attempt
 
                 if task.Value.Recursively.IsSome then
                     do! (deps, schedule) |> processTask taskId (attempt + 1u<attempts>)
@@ -160,46 +160,31 @@ let start (deps: Worker.Dependencies) =
         do! Async.Sleep 1000
     }
 
-let createHandlers nodeId (handlers: WorkerTaskHandler seq) =
-    fun (tree: Tree.Node<TaskNode>) ->
+let merge (handlers: Tree.Root<WorkerTaskHandler>) =
+    fun (tasks: Tree.Root<TaskNode>) ->
 
         let rec innerLoop (node: Tree.Node<TaskNode>) =
-            Tree.Node(
-                {
-                    Id = node.ShortId
-                    Handler =
-                        handlers
-                        |> Seq.tryFind (fun handler -> handler.Id = node.ShortId)
-                        |> Option.bind _.Handler
-                },
-                node.Children |> List.map innerLoop
-            )
-
-        tree |> Tree.DFS.tryFind nodeId |> Option.map innerLoop
-
-let mapTasks (handlers: Tree.Node<WorkerTaskHandler>) =
-    fun (tasksTree: Tree.Node<TaskNode>) ->
-
-        let rec innerLoop (tree: Tree.Node<TaskNode>) =
-            let node = {
-                Id = tree.ShortId
-                Description = tree.Value.Description
-                Parallel = tree.Value.Parallel
-                Recursively = tree.Value.Recursively
-                Duration = tree.Value.Duration
-                WaitResult = tree.Value.WaitResult
-                Schedule = tree.Value.Schedule
+            let task = {
+                Id = node.Id
+                Description = node.Value.Description
+                Parallel = node.Value.Parallel
+                Recursively = node.Value.Recursively
+                Duration = node.Value.Duration
+                WaitResult = node.Value.WaitResult
+                Schedule = node.Value.Schedule
                 Handler =
-                    match tree.Value.Enabled with
+                    match node.Value.Enabled with
                     | false -> None
-                    | true -> handlers |> Tree.BFS.tryFind tree.Id |> Option.bind _.Value.Handler
+                    | true -> handlers.FindValue node.Id |> Option.map _.Value
             }
 
-            match tree.Children.Length = 0 with
-            | true -> Tree.Node(node, [])
-            | false ->
-                tree.Children
-                |> List.map innerLoop
-                |> fun children -> Tree.Node(node, children)
+            let resultNode = Tree.Node.Create(node.Id, task);
 
-        tasksTree |> innerLoop
+            match node.Children |> Seq.isEmpty with
+            | true -> resultNode
+            | false ->
+                node.Children
+                |> Seq.map innerLoop
+                |> fun children -> resultNode.AddChildren children
+
+        tasks.Root |> innerLoop |> Tree.Root.Init

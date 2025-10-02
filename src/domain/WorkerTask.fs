@@ -5,22 +5,19 @@ open System
 open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
-open Infrastructure.Prelude
+
+type WorkerTaskHandler = (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
 
 type WorkerTask = {
-    Id: Tree.NodeId
+    Id: string
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     WaitResult: bool
     Schedule: Schedule option
-    Handler: (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
+    Handler: WorkerTaskHandler
     Description: string option
 } with
-
-    interface Tree.INode with
-        member this.Id = this.Id
-        member this.set id = { this with Id = id }
 
     member this.ToActiveTask schedule attempt = {
         Id = this.Id |> ActiveTaskId
@@ -34,5 +31,5 @@ type WorkerTask = {
 
     member this.Print(attempt: uint<attempts>) =
         match this.Description with
-        | Some description -> $"%i{attempt}.'%s{this.Id.Value}' %s{description}."
-        | None -> $"%i{attempt}.'%s{this.Id.Value}'"
+        | Some description -> $"%i{attempt}.'%s{this.Id}' %s{description}."
+        | None -> $"%i{attempt}.'%s{this.Id}'"

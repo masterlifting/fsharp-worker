@@ -5,13 +5,13 @@ open System
 open Infrastructure.Domain
 
 type ActiveTaskId =
-    | ActiveTaskId of Tree.NodeId
+    | ActiveTaskId of string
 
     member this.Value =
         match this with
         | ActiveTaskId id -> id
 
-    member this.ValueStr = this.Value.Value
+    member this.ValueStr = this.Value
 
 type ActiveTask = {
     Id: ActiveTaskId

@@ -34,65 +34,34 @@ type TaskNodeEntity() =
     member val Tasks: TaskNodeEntity[] | null = [||] with get, set
 
     member this.ToDomain() =
-        match this.Tasks with
-        | null -> List.empty |> Ok
-        | tasks -> tasks |> Seq.map _.ToDomain() |> Result.choose
-        |> Result.bind (fun tasks ->
+        let rec toNode (e: TaskNodeEntity) =
             result {
-                let! id = Tree.NodeId.parse this.Id
-                let! recursively = this.Recursively |> Option.toResult parseTimeSpan
-                let! duration = this.Duration |> Option.toResult parseTimeSpan
-                let! schedule = this.Schedule |> Option.toResult _.ToDomain()
+                let! recursively = e.Recursively |> Option.toResult parseTimeSpan
+                let! duration = e.Duration |> Option.toResult parseTimeSpan
+                let! schedule = e.Schedule |> Option.toResult _.ToDomain()
 
-                return {
-                    Id = id
-                    Enabled = this.Enabled
+                let taskNode = Tree.Node.Create(e.Id, {
+                    Enabled = e.Enabled
                     Recursively = recursively
-                    Parallel = this.Parallel
+                    Parallel = e.Parallel
                     Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                    WaitResult = this.WaitResult
+                    WaitResult = e.WaitResult
                     Schedule = schedule
-                    Description = this.Description
-                }
-            }
-            |> Result.map (fun task -> Tree.Node(task, tasks)))
-
-    /// New method that returns Infrastructure.Prelude.Tree.Root instead of Infrastructure.Domain.Tree.Node
-    member this.ToPreludeTreeRoot() =
-        let rec convertToPreludeNode (entity: TaskNodeEntity) =
-            result {
-                let! id = entity.Id |> String.toDefault |> Ok // Using string directly for Prelude.Tree.Node
-                let! recursively = entity.Recursively |> Option.toResult parseTimeSpan
-                let! duration = entity.Duration |> Option.toResult parseTimeSpan
-                let! schedule = entity.Schedule |> Option.toResult _.ToDomain()
-
-                let taskGraph = {
-                    Id = Tree.NodeId.parse entity.Id |> Result.defaultValue (Tree.NodeIdValue entity.Id)
-                    Enabled = entity.Enabled
-                    Recursively = recursively
-                    Parallel = entity.Parallel
-                    Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                    WaitResult = entity.WaitResult
-                    Schedule = schedule
-                    Description = entity.Description
-                }
-
-                let preludeNode = Infrastructure.Prelude.Tree.Node.Create(entity.Id, taskGraph)
+                    Description = e.Description
+                })
                 
-                // Recursively convert children
-                match entity.Tasks with
-                | null -> return preludeNode
+                match e.Tasks with
+                | null -> return taskNode
                 | tasks -> 
                     let! childNodes = 
                         tasks 
-                        |> Array.toList
-                        |> List.map convertToPreludeNode 
+                        |> Array.map toNode 
                         |> Result.choose
-                    
-                    return preludeNode.WithChildren(childNodes)
+
+                    return taskNode.AddChildren childNodes
             }
         
-        this |> convertToPreludeNode |> Result.map Infrastructure.Prelude.Tree.Root.Init
+        this |> toNode |> Result.map Tree.Root.Init
 
 module private Configuration =
     open Persistence.Storages.Configuration
@@ -101,9 +70,6 @@ module private Configuration =
     let get client =
         client |> loadData |> Result.bind _.ToDomain() |> async.Return
         
-    let getPreludeTreeRoot client =
-        client |> loadData |> Result.bind _.ToPreludeTreeRoot() |> async.Return
-
 let private toPersistenceStorage storage =
     storage
     |> function
@@ -120,10 +86,4 @@ let init storageType =
 let get storage =
     match storage |> toPersistenceStorage with
     | Storage.Configuration client -> client |> Configuration.get
-    | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
-
-/// Get tasks tree as Infrastructure.Prelude.Tree.Root instead of Infrastructure.Domain.Tree.Node
-let getPreludeTreeRoot storage =
-    match storage |> toPersistenceStorage with
-    | Storage.Configuration client -> client |> Configuration.getPreludeTreeRoot
     | _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return

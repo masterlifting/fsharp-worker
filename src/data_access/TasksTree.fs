@@ -40,7 +40,7 @@ type TaskNodeEntity() =
                 let! duration = e.Duration |> Option.toResult parseTimeSpan
                 let! schedule = e.Schedule |> Option.toResult _.ToDomain()
 
-                let taskNode = Tree.Node.Create(e.Id, {
+                let taskNode = Tree.Node.create(e.Id, {
                     Enabled = e.Enabled
                     Recursively = recursively
                     Parallel = e.Parallel
@@ -51,7 +51,8 @@ type TaskNodeEntity() =
                 })
                 
                 match e.Tasks with
-                | null -> return taskNode
+                | null
+                | [||] -> return taskNode
                 | tasks -> 
                     let! childNodes = 
                         tasks 
@@ -61,7 +62,7 @@ type TaskNodeEntity() =
                     return taskNode.AddChildren childNodes
             }
         
-        this |> toNode |> Result.map Tree.Root.Init
+        this |> toNode
 
 module private Configuration =
     open Persistence.Storages.Configuration

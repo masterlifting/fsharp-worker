@@ -11,7 +11,7 @@ open Worker.Dependencies
 let rec private processTask taskId attempt =
     fun (deps: WorkerTask.Dependencies, schedule) ->
         async {
-            match! deps.tryFindTask taskId with
+            match! deps.findTask taskId with
             | Error error ->
                 $"%i{attempt}.Task Id '%s{taskId}' Failed. Error: %s{error.Message}"
                 |> Log.crt
@@ -141,7 +141,7 @@ let start (deps: Worker.Dependencies) =
             let workerName = $"'%s{deps.Name}'."
 
             let taskDeps: WorkerTask.Dependencies = {
-                tryFindTask = deps.tryFindTask
+                findTask = deps.findTask
                 tryStartTask = tryStartTask deps.Configuration
             }
 
@@ -160,10 +160,10 @@ let start (deps: Worker.Dependencies) =
         do! Async.Sleep 1000
     }
 
-let merge (handlers: Tree.Root<WorkerTaskHandler>) =
-    fun (tasks: Tree.Root<TaskNode>) ->
+let merge (handlers: Tree.Node<WorkerTaskHandler>) =
+    fun (tasks: Tree.Node<TaskNode>) ->
 
-        let rec innerLoop (node: Tree.Node<TaskNode>) =
+        let rec toWorkerTaskNode (node: Tree.Node<TaskNode>) =
             let task = {
                 Id = node.Id
                 Description = node.Value.Description
@@ -178,13 +178,13 @@ let merge (handlers: Tree.Root<WorkerTaskHandler>) =
                     | true -> handlers.FindValue node.Id |> Option.map _.Value
             }
 
-            let resultNode = Tree.Node.Create(node.Id, task);
+            let resultNode = Tree.Node.create(node.Id, task);
 
             match node.Children |> Seq.isEmpty with
             | true -> resultNode
             | false ->
                 node.Children
-                |> Seq.map innerLoop
+                |> Seq.map toWorkerTaskNode
                 |> fun children -> resultNode.AddChildren children
 
-        tasks.Root |> innerLoop |> Tree.Root.Init
+        tasks |> toWorkerTaskNode

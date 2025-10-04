@@ -40,7 +40,7 @@ type TaskNodeEntity() =
                 let! duration = e.Duration |> Option.toResult parseTimeSpan
                 let! schedule = e.Schedule |> Option.toResult _.ToDomain()
 
-                let taskNode = Tree.Node.create(e.Id, {
+                let node = Tree.Node.create(e.Id, {
                     Enabled = e.Enabled
                     Recursively = recursively
                     Parallel = e.Parallel
@@ -52,14 +52,14 @@ type TaskNodeEntity() =
                 
                 match e.Tasks with
                 | null
-                | [||] -> return taskNode
+                | [||] -> return node
                 | tasks -> 
-                    let! childNodes = 
+                    let! nodeChildren = 
                         tasks 
                         |> Array.map toNode 
                         |> Result.choose
 
-                    return taskNode.AddChildren childNodes
+                    return node.AddChildren nodeChildren
             }
         
         this |> toNode

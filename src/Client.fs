@@ -4,6 +4,7 @@ open System
 open System.Threading
 open Infrastructure.Domain
 open Infrastructure.Prelude
+open Infrastructure.Prelude.Tree.Builder
 open Infrastructure.Logging
 open Worker.Domain
 open Worker.Dependencies
@@ -163,28 +164,28 @@ let start (deps: Worker.Dependencies) =
 let merge (handlers: Tree.Node<WorkerTaskHandler>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
-        let rec toWorkerTaskNode (node: Tree.Node<TaskNode>) =
-            let task = {
-                Id = node.Id
-                Description = node.Value.Description
-                Parallel = node.Value.Parallel
-                Recursively = node.Value.Recursively
-                Duration = node.Value.Duration
-                WaitResult = node.Value.WaitResult
-                Schedule = node.Value.Schedule
+        let rec toWorkerTaskNode (taskNode: Tree.Node<TaskNode>) =
+            let workerTask = {
+                Id = taskNode.Id
+                Description = taskNode.Value.Description
+                Parallel = taskNode.Value.Parallel
+                Recursively = taskNode.Value.Recursively
+                Duration = taskNode.Value.Duration
+                WaitResult = taskNode.Value.WaitResult
+                Schedule = taskNode.Value.Schedule
                 Handler =
-                    match node.Value.Enabled with
+                    match taskNode.Value.Enabled with
                     | false -> None
-                    | true -> handlers.FindValue node.Id |> Option.map _.Value
+                    | true -> handlers |> Tree.findValue taskNode.Id |> Option.map _.Value
             }
 
-            let resultNode = Tree.Node.create(node.Id, task);
+            let workerTaskNode = Tree.Node.create(taskNode.Id, workerTask);
 
-            match node.Children |> Seq.isEmpty with
-            | true -> resultNode
+            match taskNode.Children |> Seq.isEmpty with
+            | true -> workerTaskNode
             | false ->
-                node.Children
+                taskNode.Children
                 |> Seq.map toWorkerTaskNode
-                |> fun children -> resultNode.AddChildren children
+                |> fun children -> workerTaskNode |> withChildren children
 
         tasks |> toWorkerTaskNode

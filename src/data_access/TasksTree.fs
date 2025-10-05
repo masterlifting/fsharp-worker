@@ -3,6 +3,7 @@
 open System
 open Infrastructure.Domain
 open Infrastructure.Prelude
+open Infrastructure.Prelude.Tree.Builder
 open Persistence
 open Persistence.Storages
 open Persistence.Storages.Domain
@@ -54,12 +55,12 @@ type TaskNodeEntity() =
                 | null
                 | [||] -> return node
                 | tasks -> 
-                    let! nodeChildren = 
+                    let! children = 
                         tasks 
                         |> Array.map toNode 
                         |> Result.choose
 
-                    return node.AddChildren nodeChildren
+                    return node |> withChildren children
             }
         
         this |> toNode

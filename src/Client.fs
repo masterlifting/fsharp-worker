@@ -41,7 +41,7 @@ and private processTasks tasks attempt =
 
                         let asyncTasks =
                             tasks[0] :: sequentialTasks
-                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id.Value attempt)
                             |> Async.Sequential
 
                         asyncTasks, sequentialTasks.Length + 1
@@ -50,7 +50,7 @@ and private processTasks tasks attempt =
 
                         let asyncTasks =
                             parallelTasks
-                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id attempt)
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id.Value attempt)
                             |> Async.Parallel
 
                         asyncTasks, parallelTasks.Length

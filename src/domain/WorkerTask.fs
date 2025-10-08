@@ -6,10 +6,26 @@ open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
+type WorkerTaskId = 
+    | WorkerTaskId of Tree.NodeId
+
+    member this.Value =
+        match this with
+        | WorkerTaskId id -> id.Value
+
+    member this.NodeId =
+        match this with
+        | WorkerTaskId id -> id
+
+    static member create value =
+        value |> WorkerTaskId
+
+    override this.ToString() = this.Value
+
 type WorkerTaskHandler = (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
 
 type WorkerTask = {
-    Id: string
+    Id: WorkerTaskId
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
@@ -20,7 +36,7 @@ type WorkerTask = {
 } with
 
     member this.ToActiveTask schedule attempt = {
-        Id = this.Id |> ActiveTaskId
+        Id = this.Id.Value |> ActiveTaskId
         Attempt = attempt
         Recursively = this.Recursively
         Parallel = this.Parallel
@@ -31,5 +47,5 @@ type WorkerTask = {
 
     member this.Print(attempt: uint<attempts>) =
         match this.Description with
-        | Some description -> $"%i{attempt}.'%s{this.Id}' %s{description}."
-        | None -> $"%i{attempt}.'%s{this.Id}'"
+        | Some description -> $"%i{attempt}. '{this.Id}' %s{description}."
+        | None -> $"%i{attempt}. '{this.Id}'"

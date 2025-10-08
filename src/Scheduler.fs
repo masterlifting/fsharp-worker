@@ -65,7 +65,7 @@ let private compute (now: DateTime) (schedule: Schedule) =
             handleStopDateRecursively nextStartDateTime nextStopDateTime
 
     match schedule.Workdays.IsEmpty with
-    | true -> Stopped(EmptyWorkdays)
+    | true -> Stopped EmptyWorkdays
     | false ->
         match stopDateTime with
         | None ->

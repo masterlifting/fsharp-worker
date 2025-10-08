@@ -11,7 +11,7 @@ type ActiveTaskId =
         match this with
         | ActiveTaskId id -> id
 
-    member this.ValueStr = this.Value
+    override this.ToString() = this.Value
 
 type ActiveTask = {
     Id: ActiveTaskId
@@ -25,5 +25,5 @@ type ActiveTask = {
 
     static member print task =
         match task.Description with
-        | Some description -> $"%i{task.Attempt}.'%s{task.Id.ValueStr}' %s{description}."
-        | None -> $"%i{task.Attempt}.'%s{task.Id.ValueStr}'"
+        | Some description -> $"%i{task.Attempt}.'%A{task.Id}' %s{description}."
+        | None -> $"%i{task.Attempt}.'%A{task.Id}'"

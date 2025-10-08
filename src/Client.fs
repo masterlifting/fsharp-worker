@@ -13,10 +13,8 @@ let rec private processTask taskId attempt =
     fun (deps: WorkerTask.Dependencies, schedule) ->
         async {
             match! deps.findTask taskId with
-            | Error error ->
-                $"%i{attempt}.Task Id '%s{taskId}' Failed. Error: %s{error.Message}"
-                |> Log.crt
-            | Ok None -> $"%i{attempt}.Task Id '%s{taskId}' not Found." |> Log.crt
+            | Error error -> $"%i{attempt}. Task Id '{taskId}' Failed. Error: %s{error.Message}" |> Log.crt
+            | Ok None -> $"%i{attempt}. Task Id '{taskId}' not Found." |> Log.crt
             | Ok(Some task) ->
 
                 let! schedule = task.Value |> deps.tryStartTask attempt schedule
@@ -25,7 +23,7 @@ let rec private processTask taskId attempt =
                     do! (deps, schedule) |> processTasks (task.Children |> List.ofSeq) attempt
 
                 if task.Value.Recursively.IsSome then
-                    do! (deps, schedule) |> processTask taskId (attempt + 1u<attempts>)
+                    do! (deps, schedule) |> processTask task.Value.Id (attempt + 1u<attempts>)
         }
 
 and private processTasks tasks attempt =
@@ -41,7 +39,7 @@ and private processTasks tasks attempt =
 
                         let asyncTasks =
                             tasks[0] :: sequentialTasks
-                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id.Value attempt)
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Value.Id attempt)
                             |> Async.Sequential
 
                         asyncTasks, sequentialTasks.Length + 1
@@ -50,7 +48,7 @@ and private processTasks tasks attempt =
 
                         let asyncTasks =
                             parallelTasks
-                            |> List.map (fun task -> (deps, schedule) |> processTask task.Id.Value attempt)
+                            |> List.map (fun task -> (deps, schedule) |> processTask task.Value.Id attempt)
                             |> Async.Parallel
 
                         asyncTasks, parallelTasks.Length
@@ -166,7 +164,7 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
 
         let rec toWorkerTaskNode (taskNode: Tree.Node<TaskNode>) =
             let workerTask = {
-                Id = taskNode.Id
+                Id = WorkerTaskId.create taskNode.Id
                 Description = taskNode.Value.Description
                 Parallel = taskNode.Value.Parallel
                 Recursively = taskNode.Value.Recursively
@@ -179,7 +177,7 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
                     | true -> handlers |> Tree.findValue taskNode.Id |> Option.map _.Value
             }
 
-            let workerTaskNode = Tree.Node.create(taskNode.Id, workerTask);
+            let workerTaskNode = Tree.Node.create (taskNode.Id.Value, workerTask)
 
             match taskNode.Children |> Seq.isEmpty with
             | true -> workerTaskNode

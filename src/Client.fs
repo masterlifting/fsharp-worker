@@ -162,28 +162,30 @@ let start (deps: Worker.Dependencies) =
 let merge (handlers: Tree.Node<WorkerTaskHandler>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
-        let rec toWorkerTaskNode (taskNode: Tree.Node<TaskNode>) =
-            let workerTask = {
-                Id = WorkerTaskId.create taskNode.Id
-                Description = taskNode.Value.Description
-                Parallel = taskNode.Value.Parallel
-                Recursively = taskNode.Value.Recursively
-                Duration = taskNode.Value.Duration
-                WaitResult = taskNode.Value.WaitResult
-                Schedule = taskNode.Value.Schedule
-                Handler =
-                    match taskNode.Value.Enabled with
-                    | false -> None
-                    | true -> handlers |> Tree.findValue taskNode.Id |> Option.map _.Value
-            }
+        let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler>) =
+            match tasks |> Tree.findNode node.FullId with
+            | None -> None
+            | Some taskNode ->
 
-            let workerTaskNode = Tree.Node.create (taskNode.Id.Value, workerTask)
+                let workerTask = {
+                    Id = WorkerTaskId.create taskNode.FullId
+                    Description = taskNode.Value.Description
+                    Parallel = taskNode.Value.Parallel
+                    Recursively = taskNode.Value.Recursively
+                    Duration = taskNode.Value.Duration
+                    WaitResult = taskNode.Value.WaitResult
+                    Schedule = taskNode.Value.Schedule
+                    Handler = node.Value
+                }
 
-            match taskNode.Children |> Seq.isEmpty with
-            | true -> workerTaskNode
-            | false ->
-                taskNode.Children
-                |> Seq.map toWorkerTaskNode
-                |> fun children -> workerTaskNode |> withChildren children
+                let workerTaskNode = Tree.Node.create (node.Id, workerTask)
 
-        tasks |> toWorkerTaskNode
+                match node.Children |> Seq.isEmpty with
+                | true -> workerTaskNode |> Some
+                | false ->
+                    node.Children
+                    |> Seq.map toWorkerTaskNode
+                    |> Seq.choose id
+                    |> fun children -> workerTaskNode |> withChildren children |> Some
+
+        handlers |> toWorkerTaskNode |> Option.defaultValue Tree.Node.Empty

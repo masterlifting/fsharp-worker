@@ -163,12 +163,12 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
         let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler>) =
-            match tasks |> Tree.findNode node.FullId with
+            match tasks |> Tree.findNode node.Id with
             | None -> None
             | Some taskNode ->
 
                 let workerTask = {
-                    Id = WorkerTaskId.create taskNode.FullId
+                    Id = WorkerTaskId.create taskNode.Id
                     Description = taskNode.Value.Description
                     Parallel = taskNode.Value.Parallel
                     Recursively = taskNode.Value.Recursively
@@ -178,7 +178,7 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
                     Handler = node.Value
                 }
 
-                let workerTaskNode = Tree.Node.create (node.Id, workerTask)
+                let workerTaskNode = Tree.Node.create (node.CurrentId, workerTask)
 
                 match node.Children |> Seq.isEmpty with
                 | true -> workerTaskNode |> Some

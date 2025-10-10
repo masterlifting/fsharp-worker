@@ -9,16 +9,16 @@ open Infrastructure.Domain
 type WorkerTaskId = 
     | WorkerTaskId of Tree.NodeId
 
-    member this.Value =
-        match this with
-        | WorkerTaskId id -> id.Value
-
     member this.NodeId =
         match this with
         | WorkerTaskId id -> id
 
+    member this.Value =
+        match this with
+        | WorkerTaskId id -> id.Value
+
     static member create value =
-        value |> WorkerTaskId
+        value |> Tree.NodeId.create |> WorkerTaskId
 
     override this.ToString() = this.Value
 

@@ -14,7 +14,7 @@ let rec private processTask taskId attempt =
         async {
             match! deps.findTask taskId with
             | Error error -> $"%i{attempt}. Task Id '{taskId}' Failed. Error: %s{error.Message}" |> Log.crt
-            | Ok None -> $"%i{attempt}. Task Id '{taskId}' not Found." |> Log.crt
+            | Ok None -> $"%i{attempt}. Task Id '{taskId}' not found." |> Log.crt
             | Ok(Some task) ->
 
                 let! schedule = task.Value |> deps.tryStartTask attempt schedule
@@ -164,11 +164,11 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
 
         let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler>) =
             match tasks |> Tree.findNode node.Id with
-            | None -> None
+            | None -> $"Task Id '{node.Id}'" |> NotFound |> Error
             | Some taskNode ->
 
                 let workerTask = {
-                    Id = WorkerTaskId.create taskNode.Id
+                    Id = WorkerTaskId.create taskNode.Id.Value
                     Description = taskNode.Value.Description
                     Parallel = taskNode.Value.Parallel
                     Recursively = taskNode.Value.Recursively
@@ -181,11 +181,11 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
                 let workerTaskNode = Tree.Node.create (node.CurrentId, workerTask)
 
                 match node.Children |> Seq.isEmpty with
-                | true -> workerTaskNode |> Some
+                | true -> workerTaskNode |> Ok
                 | false ->
                     node.Children
                     |> Seq.map toWorkerTaskNode
-                    |> Seq.choose id
-                    |> fun children -> workerTaskNode |> withChildren children |> Some
+                    |> Result.choose
+                    |> Result.map (fun children -> workerTaskNode |> withChildren children)
 
-        handlers |> toWorkerTaskNode |> Option.defaultValue Tree.Node.Empty
+        handlers |> toWorkerTaskNode

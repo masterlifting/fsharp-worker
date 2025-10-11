@@ -12,10 +12,10 @@ type SchedulerStopReason =
         match this with
         | EmptyWorkdays -> "Empty workdays"
         | StopTimeReached dateTime ->
-            let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
+            let formattedDateTime = dateTime.ToString "yyyy-MM-dd HH:mm:ss"
             $"Stop time reached: {formattedDateTime}"
         | StartTimeCannotBeReached dateTime ->
-            let formattedDateTime = dateTime.ToString("yyyy-MM-dd HH:mm:ss")
+            let formattedDateTime = dateTime.ToString "yyyy-MM-dd HH:mm:ss"
             $"Start time cannot be reached: {formattedDateTime}"
 
 type Scheduler =

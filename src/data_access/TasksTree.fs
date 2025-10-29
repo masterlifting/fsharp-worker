@@ -41,28 +41,29 @@ type TaskNodeEntity() =
                 let! duration = e.Duration |> Option.toResult parseTimeSpan
                 let! schedule = e.Schedule |> Option.toResult _.ToDomain()
 
-                let node = Tree.Node.create(e.Id, {
-                    Enabled = e.Enabled
-                    Recursively = recursively
-                    Parallel = e.Parallel
-                    Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
-                    WaitResult = e.WaitResult
-                    Schedule = schedule
-                    Description = e.Description
-                })
-                
+                let node =
+                    Tree.Node.create (
+                        e.Id,
+                        {
+                            Enabled = e.Enabled
+                            Recursively = recursively
+                            Parallel = e.Parallel
+                            Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
+                            WaitResult = e.WaitResult
+                            Schedule = schedule
+                            Description = e.Description
+                        }
+                    )
+
                 match e.Tasks with
                 | null
                 | [||] -> return node
-                | tasks -> 
-                    let! children = 
-                        tasks 
-                        |> Array.map toNode 
-                        |> Result.choose
+                | tasks ->
+                    let! children = tasks |> Array.map toNode |> Result.choose
 
                     return node |> withChildren children
             }
-        
+
         this |> toNode
 
 module private Configuration =
@@ -71,7 +72,7 @@ module private Configuration =
     let private loadData = Read.section<TaskNodeEntity>
     let get client =
         client |> loadData |> Result.bind _.ToDomain() |> async.Return
-        
+
 let private toPersistenceStorage storage =
     storage
     |> function

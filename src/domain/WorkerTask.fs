@@ -6,7 +6,7 @@ open System.Threading
 open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
-type WorkerTaskId = 
+type WorkerTaskId =
     | WorkerTaskId of Tree.NodeId
 
     member this.NodeId =

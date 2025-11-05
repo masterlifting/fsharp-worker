@@ -178,7 +178,7 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
                     Handler = node.Value
                 }
 
-                let workerTaskNode = Tree.Node.create (node.CurrentId, workerTask)
+                let workerTaskNode = Tree.Node.create (node.Id.CurrentValue, workerTask)
 
                 match node.Children |> Seq.isEmpty with
                 | true -> workerTaskNode |> Ok

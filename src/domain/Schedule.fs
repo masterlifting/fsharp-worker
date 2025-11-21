@@ -10,5 +10,5 @@ type Schedule = {
     StopTime: TimeOnly option
     Workdays: DayOfWeek Set
     Recursively: bool
-    TimeZone: float
+    TimeZone: byte
 }

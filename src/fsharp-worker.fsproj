@@ -10,8 +10,13 @@
     <Compile Include="domain\TaskNode.fs" />
     <Compile Include="domain\ActiveTask.fs" />
     <Compile Include="domain\WorkerTask.fs" />
-    <Compile Include="data_access\Schedule.fs" />
-    <Compile Include="data_access\TasksTree.fs" />
+    <Compile Include="data_access\schedule\Schedule.fs" />
+    <Compile Include="data_access\schedule\Postgre.fs" />
+    <Compile Include="data_access\schedule\Storage.fs" />
+    <Compile Include="data_access\tasks_tree\TasksTree.fs" />
+    <Compile Include="data_access\tasks_tree\Configuration.fs" />
+    <Compile Include="data_access\tasks_tree\Postgre.fs" />
+    <Compile Include="data_access\tasks_tree\Storage.fs" />
     <Compile Include="dependencies\Dependencies.fs" />
     <Compile Include="Scheduler.fs" />
     <Compile Include="Client.fs" />

@@ -109,5 +109,5 @@ let set parentSchedule currentSchedule withContinue =
     match mergeSchedules withContinue with
     | None -> NotScheduled
     | Some schedule ->
-        let now = DateTime.UtcNow.AddHours schedule.TimeZone
+        let now = DateTime.UtcNow.AddHours(float schedule.TimeZone)
         schedule |> compute now

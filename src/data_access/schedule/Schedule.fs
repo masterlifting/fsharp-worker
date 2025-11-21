@@ -56,7 +56,7 @@ let private parseTimeOnly time =
 type Storage = Provider of Storage.Provider
 
 type Entity() =
-    member val Id: int64 = 0L with get, set
+    member val Name: string = String.Empty with get, set
     member val StartDate: string | null = null with get, set
     member val StopDate: string | null = null with get, set
     member val StartTime: string | null = null with get, set
@@ -75,6 +75,7 @@ type Entity() =
             let! stopTime = this.StopTime |> Option.ofObj |> Option.toResult parseTimeOnly
 
             return {
+                Name = this.Name
                 StartDate = startDate
                 StopDate = stopDate
                 StartTime = startTime
@@ -88,7 +89,7 @@ type Entity() =
 type private Schedule with
     member private this.ToEntity() =
         Entity(
-            Id = 0L,
+            Name = this.Name,
             StartDate = (this.StartDate |> Option.map _.ToString("yyyy-MM-dd") |> Option.toObj),
             StopDate = (this.StopDate |> Option.map _.ToString("yyyy-MM-dd") |> Option.toObj),
             StartTime = (this.StartTime |> Option.map _.ToString("HH:mm:ss") |> Option.toObj),

@@ -10,7 +10,7 @@ open Worker.DataAccess
 type private TaskNodeRow() =
     member val Id: string = String.Empty with get, set
     member val ParentId: string | null = null with get, set
-    member val ScheduleId: Nullable<int64> = Nullable() with get, set
+    member val Schedule_Name: string | null = null with get, set
 
     member val Enabled: bool = false with get, set
     member val Recursively: string | null = null with get, set
@@ -27,19 +27,18 @@ type private TaskNodeRow() =
     member val Schedule_TimeZone: Nullable<uint8> = Nullable() with get, set
 
 let private toScheduleEntity (row: TaskNodeRow) =
-    if row.ScheduleId.HasValue then
+    row.Schedule_Name
+    |> Option.ofObj
+    |> Option.map (fun name ->
         Schedule.Entity(
-            Id = row.ScheduleId.Value,
+            Name = name,
             StartDate = row.Schedule_StartDate,
             StopDate = row.Schedule_StopDate,
             StartTime = row.Schedule_StartTime,
             StopTime = row.Schedule_StopTime,
             Workdays = row.Schedule_Workdays,
             TimeZone = row.Schedule_TimeZone
-        )
-        |> Some
-    else
-        None
+        ))
     |> Option.toObj
 
 let private toNodeEntity (row: TaskNodeRow) =
@@ -87,7 +86,7 @@ module Query =
                     SELECT 
                         tn.id as "Id",
                         tn.parent_id as "ParentId",
-                        s.id as "ScheduleId",
+                        s.name as "Schedule_Name",
                         
                         tn.enabled as "Enabled",
                         tn.recursively as "Recursively",
@@ -104,7 +103,7 @@ module Query =
                         s.workdays as "Schedule_Workdays",
                         s.time_zone as "Schedule_TimeZone"
                     FROM task_nodes as tn
-                    LEFT JOIN schedules as s ON s.id = tn.schedule_id
+                    LEFT JOIN schedules as s ON s.name = tn.schedule_name
                     ORDER BY tn.parent_id
                 """
                 Params = None
@@ -119,6 +118,74 @@ module Query =
                     | Some root -> rows |> buildTree root.Id |> Result.bind _.ToDomain())
         }
 
+    let tryFindById (id: string) (client: Client) =
+        async {
+            let request = {
+                Sql =
+                    """
+                    WITH RECURSIVE task_tree AS (
+                        SELECT 
+                            tn.id,
+                            tn.parent_id,
+                            tn.schedule_name,
+                            tn.enabled,
+                            tn.recursively,
+                            tn.parallel,
+                            tn.duration,
+                            tn.wait_result,
+                            tn.description
+                        FROM task_nodes as tn
+                        WHERE tn.id = @Id
+                        
+                        UNION ALL
+                        
+                        SELECT 
+                            tn.id,
+                            tn.parent_id,
+                            tn.schedule_name,
+                            tn.enabled,
+                            tn.recursively,
+                            tn.parallel,
+                            tn.duration,
+                            tn.wait_result,
+                            tn.description
+                        FROM task_nodes as tn
+                        INNER JOIN task_tree as tt ON tn.parent_id = tt.id
+                    )
+                    SELECT 
+                        tt.id as "Id",
+                        tt.parent_id as "ParentId",
+                        s.name as "Schedule_Name",
+                        
+                        tt.enabled as "Enabled",
+                        tt.recursively as "Recursively",
+                        tt.parallel as "Parallel",
+                        tt.duration as "Duration",
+                        tt.wait_result as "WaitResult",
+                        tt.description as "Description",
+                        
+                        s.start_date as "Schedule_StartDate",
+                        s.stop_date as "Schedule_StopDate",
+                        s.start_time as "Schedule_StartTime",
+                        s.stop_time as "Schedule_StopTime",
+                        s.workdays as "Schedule_Workdays",
+                        s.time_zone as "Schedule_TimeZone"
+                    FROM task_tree as tt
+                    LEFT JOIN schedules as s ON s.name = tt.schedule_name
+                    ORDER BY tt.parent_id
+                """
+                Params = Some {| Id = id |}
+            }
+
+            return!
+                client
+                |> Query.get<TaskNodeRow> request
+                |> ResultAsync.bind (fun rows ->
+                    match rows |> Seq.isEmpty with
+                    | true -> Ok None
+                    | false -> rows |> buildTree id |> Result.bind _.ToDomain() |> Result.map Some)
+        }
+
 module Migrations =
 
     let private initial (client: Client) =
@@ -129,19 +196,19 @@ module Migrations =
                     CREATE TABLE IF NOT EXISTS task_nodes (
                         id TEXT PRIMARY KEY,
                         parent_id TEXT REFERENCES task_nodes(id),
-                        schedule_id BIGINT REFERENCES schedules(id),
+                        schedule_name TEXT REFERENCES schedules(name),
 
                         enabled BOOLEAN NOT NULL,
                         recursively TEXT,
                         parallel BOOLEAN NOT NULL,
                         duration TEXT,
                         wait_result BOOLEAN NOT NULL,
-                        description TEXT,
+                        description TEXT
                     );
                     
                     CREATE INDEX IF NOT EXISTS idx_task_nodes_parent_id ON task_nodes(parent_id);
-                    CREATE INDEX IF NOT EXISTS idx_task_nodes_schedule_id ON task_nodes(schedule_id);
-                    """
+                    CREATE INDEX IF NOT EXISTS idx_task_nodes_schedule_name ON task_nodes(schedule_name);
+                """
                 Params = None
             }
 

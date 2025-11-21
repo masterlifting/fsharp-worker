@@ -12,7 +12,6 @@
     <Compile Include="domain\WorkerTask.fs" />
     <Compile Include="data_access\schedule\Schedule.fs" />
     <Compile Include="data_access\schedule\Postgre.fs" />
-    <Compile Include="data_access\schedule\Storage.fs" />
     <Compile Include="data_access\tasks_tree\TasksTree.fs" />
     <Compile Include="data_access\tasks_tree\Configuration.fs" />
     <Compile Include="data_access\tasks_tree\Postgre.fs" />

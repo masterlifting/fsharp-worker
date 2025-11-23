@@ -10,9 +10,10 @@ open Worker.Domain
 module Worker =
     type Dependencies = {
         Name: string
-        Configuration: IConfigurationRoot
         RootTaskId: WorkerTaskId
-        findTask: WorkerTaskId -> Async<Result<Tree.Node<WorkerTask> option, Error'>>
+        Storage: DataAccess.TasksTree.Storage
+        Handlers: Tree.Node<WorkerTaskHandler>
+        Configuration: IConfigurationRoot
     }
 
 [<RequireQualifiedAccess>]

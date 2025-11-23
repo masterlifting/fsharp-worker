@@ -118,7 +118,7 @@ module Query =
                     | Some root -> rows |> buildTree root.Id |> Result.bind _.ToDomain())
         }
 
-    let tryFindById (id: string) (client: Client) =
+    let findById (id: string) (client: Client) =
         async {
             let request = {
                 Sql =

@@ -6,7 +6,10 @@ open Infrastructure.Domain
 open Infrastructure.Prelude
 open Infrastructure.Prelude.Tree.Builder
 open Infrastructure.Logging
+open Persistence
+open Persistence.Storages.Domain
 open Worker.Domain
+open Worker.DataAccess
 open Worker.Dependencies
 
 let rec private processTask taskId attempt =
@@ -134,32 +137,7 @@ let private tryStartTask configuration =
                 return None
         }
 
-let start (deps: Worker.Dependencies) =
-    async {
-        try
-            let workerName = $"'%s{deps.Name}'."
-
-            let taskDeps: WorkerTask.Dependencies = {
-                findTask = deps.findTask
-                tryStartTask = tryStartTask deps.Configuration
-            }
-
-            match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
-            | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs
-            | Choice2Of2 ex ->
-                match ex with
-                | :? OperationCanceledException ->
-                    let message = $"%s{workerName} Canceled."
-                    failwith message
-                | _ -> failwith $"%s{workerName} Failed. Error: %s{ex.Message}"
-        with ex ->
-            ex.Message |> Log.crt
-
-        // Wait for the logger to finish writing logs
-        do! Async.Sleep 1000
-    }
-
-let merge (handlers: Tree.Node<WorkerTaskHandler>) =
+let private merge (handlers: Tree.Node<WorkerTaskHandler>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
         let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler>) =
@@ -189,3 +167,50 @@ let merge (handlers: Tree.Node<WorkerTaskHandler>) =
                     |> Result.map (fun children -> workerTaskNode |> withChildren children)
 
         handlers |> toWorkerTaskNode
+
+let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler>) =
+    fun (storage: TasksTree.Storage) ->
+        match storage with
+        | TasksTree.Storage.Provider provider ->
+            match provider with
+            | Storage.Database database ->
+                match database with
+                | Database.Client.Postgre client ->
+                    client
+                    |> Postgre.TasksTree.Query.findById taskId.Value
+                    |> ResultAsync.bind (function
+                        | None -> $"Task Id '{taskId}'" |> NotFound |> Error
+                        | Some tasks -> tasks |> merge handlers)
+                    |> ResultAsync.map (Tree.findNode taskId.NodeId)
+            | Storage.Configuration client ->
+                client
+                |> Configuration.TasksTree.Query.get
+                |> ResultAsync.bind (merge handlers)
+                |> ResultAsync.map (Tree.findNode taskId.NodeId)
+            | Storage.FileSystem _
+            | Storage.InMemory _ -> $"The '{provider}' is not supported." |> NotSupported |> Error |> async.Return
+
+let start (deps: Worker.Dependencies) =
+    async {
+        try
+            let workerName = $"'%s{deps.Name}'."
+
+            let taskDeps: WorkerTask.Dependencies = {
+                findTask = fun taskId -> deps.Storage |> findTask taskId deps.Handlers
+                tryStartTask = tryStartTask deps.Configuration
+            }
+
+            match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
+            | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs
+            | Choice2Of2 ex ->
+                match ex with
+                | :? OperationCanceledException ->
+                    let message = $"%s{workerName} Canceled."
+                    failwith message
+                | _ -> failwith $"%s{workerName} Failed. Error: %s{ex.Message}"
+        with ex ->
+            ex.Message |> Log.crt
+
+        // Wait for the logger to finish writing logs
+        do! Async.Sleep 1000
+    }

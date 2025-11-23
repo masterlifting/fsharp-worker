@@ -13,7 +13,7 @@ open Worker.DataAccess
 open Worker.Dependencies
 
 let rec private processTask taskId attempt =
-    fun (deps: WorkerTask.Dependencies, schedule) ->
+    fun (deps: WorkerTask.Dependencies<_>, schedule) ->
         async {
             match! deps.findTask taskId with
             | Error error -> $"%i{attempt}. Task Id '{taskId}' Failed. Error: %s{error.Message}" |> Log.crt
@@ -61,18 +61,18 @@ and private processTasks tasks attempt =
                 do! (deps, schedule) |> processTasks nextTasks attempt
         }
 
-let private startTask attempt (task: WorkerTask) =
-    fun (schedule, configuration) ->
+let private startTask attempt (task: WorkerTask<_>) =
+    fun (schedule, di) ->
 
         let taskName = task.Print attempt
 
-        let inline start (deps: FireAndForget.Dependencies) =
+        let inline start (deps: FireAndForget.Dependencies<_>) =
             async {
                 $"%s{taskName} Started." |> Log.dbg
 
                 use cts = new CancellationTokenSource(deps.Duration)
 
-                match! deps.startActiveTask (deps.ActiveTask, deps.Configuration, cts.Token) with
+                match! deps.startActiveTask (deps.ActiveTask, deps.DI, cts.Token) with
                 | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.crt
                 | Ok() -> $"%s{taskName} Completed." |> Log.inf
             }
@@ -85,8 +85,8 @@ let private startTask attempt (task: WorkerTask) =
                     start {
                         ActiveTask = task.ToActiveTask schedule attempt
                         Duration = task.Duration
-                        Configuration = configuration
                         startActiveTask = startActiveTask
+                        DI = di
                     }
 
                 match task.WaitResult with
@@ -102,13 +102,13 @@ let private startTask attempt (task: WorkerTask) =
             | None -> ()
         }
 
-let private tryStartTask configuration =
-    fun attempt parentSchedule (task: WorkerTask) ->
+let private tryStartTask di =
+    fun attempt parentSchedule (task: WorkerTask<_>) ->
         async {
             let taskName = task.Print attempt
 
             let inline tryStartTask schedule task =
-                (schedule, configuration) |> startTask attempt task
+                (schedule, di) |> startTask attempt task
 
             match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
             | Stopped reason ->
@@ -137,10 +137,10 @@ let private tryStartTask configuration =
                 return None
         }
 
-let private merge (handlers: Tree.Node<WorkerTaskHandler>) =
+let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
-        let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler>) =
+        let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler<_>>) =
             match tasks |> Tree.findNode node.Id with
             | None -> $"Task Id '{node.Id}'" |> NotFound |> Error
             | Some taskNode ->
@@ -168,7 +168,7 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler>) =
 
         handlers |> toWorkerTaskNode
 
-let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler>) =
+let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun (storage: TasksTree.Storage) ->
         match storage with
         | TasksTree.Storage.Provider provider ->
@@ -190,15 +190,35 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
             | Storage.FileSystem _
             | Storage.InMemory _ -> $"The '{provider}' is not supported." |> NotSupported |> Error |> async.Return
 
-let start (deps: Worker.Dependencies) =
+let private initializeStorage storage =
+    match storage with
+    | TasksTree.Storage.Provider provider ->
+        match provider with
+        | Storage.Database database ->
+            match database with
+            | Database.Client.Postgre client ->
+                Postgre.Schedule.Migrations.apply client.Connection.ConnectionString
+                |> ResultAsync.bindAsync (fun _ ->
+                    Postgre.TasksTree.Migrations.apply client.Connection.ConnectionString)
+        | Storage.Configuration _ -> Ok() |> async.Return
+        | Storage.FileSystem _
+        | Storage.InMemory _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
+
+let start (deps: Worker.Dependencies<'a>) =
     async {
         try
             let workerName = $"'%s{deps.Name}'."
 
-            let taskDeps: WorkerTask.Dependencies = {
+            let taskDeps: WorkerTask.Dependencies<'a> = {
                 findTask = fun taskId -> deps.Storage |> findTask taskId deps.Handlers
-                tryStartTask = tryStartTask deps.Configuration
+                tryStartTask = tryStartTask deps.TaskDI
             }
+
+            Log.inf $"%s{workerName} Initializing storage..."
+
+            match! deps.Storage |> initializeStorage with
+            | Error error -> failwith $"%s{workerName} Storage initialization failed. Error: %s{error.Message}"
+            | Ok() -> Log.inf $"%s{workerName} Storage initialized."
 
             match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
             | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs

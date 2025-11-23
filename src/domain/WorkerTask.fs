@@ -3,7 +3,6 @@ module Worker.Domain.WorkerTask
 
 open System
 open System.Threading
-open Microsoft.Extensions.Configuration
 open Infrastructure.Domain
 
 type WorkerTaskId =
@@ -22,16 +21,16 @@ type WorkerTaskId =
 
     override this.ToString() = this.Value
 
-type WorkerTaskHandler = (ActiveTask * IConfigurationRoot * CancellationToken -> Async<Result<unit, Error'>>) option
+type WorkerTaskHandler<'a> = (ActiveTask * 'a * CancellationToken -> Async<Result<unit, Error'>>) option
 
-type WorkerTask = {
+type WorkerTask<'a> = {
     Id: WorkerTaskId
     Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     WaitResult: bool
     Schedule: Schedule option
-    Handler: WorkerTaskHandler
+    Handler: WorkerTaskHandler<'a>
     Description: string option
 } with
 

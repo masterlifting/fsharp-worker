@@ -10,9 +10,9 @@ module Worker =
     type Dependencies<'a> = {
         Name: string
         RootTaskId: WorkerTaskId
-        Storage: DataAccess.TasksTree.Storage
+        Storage: Persistence.Storage.Connection
         Handlers: Tree.Node<WorkerTaskHandler<'a>>
-        TaskDI: 'a
+        TaskDeps: 'a
     }
 
 [<RequireQualifiedAccess>]
@@ -27,6 +27,6 @@ module internal FireAndForget =
     type Dependencies<'a> = {
         ActiveTask: ActiveTask
         Duration: TimeSpan
+        TaskDeps: 'a
         startActiveTask: ActiveTask * 'a * CancellationToken -> Async<Result<unit, Error'>>
-        DI: 'a
     }

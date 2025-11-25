@@ -5,7 +5,7 @@ open System
 open System.Threading
 open Infrastructure.Domain
 
-type WorkerTaskId =
+type internal WorkerTaskId =
     | WorkerTaskId of Tree.NodeId
 
     member this.NodeId =
@@ -21,9 +21,9 @@ type WorkerTaskId =
 
     override this.ToString() = this.Value
 
-type WorkerTaskHandler<'a> = (ActiveTask * 'a * CancellationToken -> Async<Result<unit, Error'>>) option
+type internal WorkerTaskHandler<'a> = (ActiveTask * 'a * CancellationToken -> Async<Result<unit, Error'>>) option
 
-type WorkerTask<'a> = {
+type internal WorkerTask<'a> = {
     Id: WorkerTaskId
     Recursively: TimeSpan option
     Parallel: bool

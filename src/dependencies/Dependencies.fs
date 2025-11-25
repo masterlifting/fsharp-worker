@@ -9,7 +9,7 @@ open Worker.Domain
 module Worker =
     type Dependencies<'a> = {
         Name: string
-        RootTaskId: WorkerTaskId
+        RootTaskId: string
         Storage: Persistence.Storage.Connection
         Handlers: Tree.Node<WorkerTaskHandler<'a>>
         TaskDeps: 'a

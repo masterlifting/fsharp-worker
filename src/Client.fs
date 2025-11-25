@@ -223,7 +223,9 @@ let start (deps: Worker.Dependencies<'a>) =
                     tryStartTask = tryStartTask deps.TaskDeps
                 }
 
-                match! (taskDeps, None) |> processTask deps.RootTaskId 1u<attempts> |> Async.Catch with
+                let rootTaskId = deps.RootTaskId |> WorkerTaskId.create
+
+                match! (taskDeps, None) |> processTask rootTaskId 1u<attempts> |> Async.Catch with
                 | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs
                 | Choice2Of2 ex ->
                     match ex with

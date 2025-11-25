@@ -186,6 +186,50 @@ module Query =
                     | false -> rows |> buildTree id |> Result.bind _.ToDomain() |> Result.map Some)
         }
 
+module Command =
+    open Worker.Domain
+
+    let insert (tree: Tree.Node<TaskNode>) (client: Client) =
+        let request = {
+            Sql =
+                """
+                INSERT INTO task_nodes (
+                    id,
+                    parent_id,
+                    schedule_name,
+                    enabled,
+                    recursively,
+                    parallel,
+                    duration,
+                    wait_result,
+                    description
+                ) VALUES (
+                    @Id,
+                    @ParentId,
+                    @Schedule_Name,
+                    @Enabled,
+                    @Recursively,
+                    @Parallel,
+                    @Duration,
+                    @WaitResult,
+                    @Description
+                )
+                """
+            Params = {
+                Id = node.Id
+                ParentId = node.ParentId |> Option.toObj
+                Schedule_Name = node.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
+                Enabled = node.Enabled
+                Recursively = node.Recursively |> Option.toObj
+                Parallel = node.Parallel
+                Duration = node.Duration |> Option.toObj
+                WaitResult = node.WaitResult
+                Description = node.Description |> Option.toObj
+            }
+        }
+
+        client |> Command.execute request
+
 module Migrations =
 
     let private initial (client: Client) =

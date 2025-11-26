@@ -189,46 +189,74 @@ module Query =
 module Command =
     open Worker.Domain
 
-    let insert (tree: Tree.Node<TaskNode>) (client: Client) =
-        let request = {
-            Sql =
-                """
-                INSERT INTO task_nodes (
-                    id,
-                    parent_id,
-                    schedule_name,
-                    enabled,
-                    recursively,
-                    parallel,
-                    duration,
-                    wait_result,
-                    description
-                ) VALUES (
-                    @Id,
-                    @ParentId,
-                    @Schedule_Name,
-                    @Enabled,
-                    @Recursively,
-                    @Parallel,
-                    @Duration,
-                    @WaitResult,
-                    @Description
-                )
-                """
-            Params = {
-                Id = node.Id
-                ParentId = node.ParentId |> Option.toObj
-                Schedule_Name = node.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
-                Enabled = node.Enabled
-                Recursively = node.Recursively |> Option.toObj
-                Parallel = node.Parallel
-                Duration = node.Duration |> Option.toObj
-                WaitResult = node.WaitResult
-                Description = node.Description |> Option.toObj
-            }
-        }
+    let rec insert (tree: Tree.Node<TaskNode>) (client: Client) =
+        async {
+            let formatTimeSpan (ts: TimeSpan) =
+                if ts.Days > 0 then
+                    $"%d{ts.Days}.%02d{ts.Hours}:%02d{ts.Minutes}:%02d{ts.Seconds}"
+                else
+                    $"%02d{ts.Hours}:%02d{ts.Minutes}:%02d{ts.Seconds}"
 
-        client |> Command.execute request
+            let insertNodeRequest = {
+                Sql =
+                    """
+                    INSERT INTO task_nodes (
+                        id,
+                        parent_id,
+                        schedule_name,
+                        enabled,
+                        recursively,
+                        parallel,
+                        duration,
+                        wait_result,
+                        description
+                    ) VALUES (
+                        @Id,
+                        @ParentId,
+                        @ScheduleName,
+                        @Enabled,
+                        @Recursively,
+                        @Parallel,
+                        @Duration,
+                        @WaitResult,
+                        @Description
+                    )
+                    """
+                Params =
+                    Some {|
+                        Id = tree.Id.Value
+                        ParentId = tree.Parent |> Option.map (fun p -> p.Id.Value) |> Option.toObj
+                        ScheduleName = tree.Value.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
+                        Enabled = tree.Value.Enabled
+                        Recursively = tree.Value.Recursively |> Option.map formatTimeSpan |> Option.toObj
+                        Parallel = tree.Value.Parallel
+                        Duration = tree.Value.Duration |> formatTimeSpan
+                        WaitResult = tree.Value.WaitResult
+                        Description = tree.Value.Description |> Option.toObj
+                    |}
+            }
+
+            let! insertResult = client |> Command.execute insertNodeRequest
+
+            match insertResult with
+            | Error err -> return Error err
+            | Ok _ ->
+                // Insert all children recursively
+                let children = tree.Children |> Seq.toList
+
+                let rec insertChildren (nodes: Tree.Node<TaskNode> list) =
+                    async {
+                        match nodes with
+                        | [] -> return Ok()
+                        | head :: tail ->
+                            let! result = insert head client
+                            match result with
+                            | Error err -> return Error err
+                            | Ok _ -> return! insertChildren tail
+                    }
+
+                return! insertChildren children
+        }
 
 module Migrations =
 

@@ -13,9 +13,9 @@ type private TaskNodeRow() =
     member val Schedule_Name: string | null = null with get, set
 
     member val Enabled: bool = false with get, set
-    member val Recursively: string | null = null with get, set
+    member val Recursively: Nullable<TimeSpan> = Nullable() with get, set
     member val Parallel: bool = true with get, set
-    member val Duration: string | null = null with get, set
+    member val Duration: TimeSpan = TimeSpan.Zero with get, set
     member val WaitResult: bool = false with get, set
     member val Description: string | null = null with get, set
 
@@ -45,9 +45,13 @@ let private toNodeEntity (row: TaskNodeRow) =
     TasksTree.NodeEntity(
         Id = row.Id,
         Enabled = row.Enabled,
-        Recursively = row.Recursively,
+        Recursively =
+            (row.Recursively
+             |> Option.ofNullable
+             |> Option.map String.fromTimeSpan
+             |> Option.toObj),
         Parallel = row.Parallel,
-        Duration = row.Duration,
+        Duration = (row.Duration |> String.fromTimeSpan),
         WaitResult = row.WaitResult,
         Description = row.Description,
         Schedule = (row |> toScheduleEntity)
@@ -231,9 +235,9 @@ module Command =
                         ParentId = tree.Parent |> Option.map (fun p -> p.Id.Value) |> Option.toObj
                         ScheduleName = tree.Value.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
                         Enabled = tree.Value.Enabled
-                        Recursively = tree.Value.Recursively |> Option.map String.fromTimeSpan |> Option.toObj
+                        Recursively = tree.Value.Recursively |> Option.toNullable
                         Parallel = tree.Value.Parallel
-                        Duration = tree.Value.Duration |> String.fromTimeSpan
+                        Duration = tree.Value.Duration
                         WaitResult = tree.Value.WaitResult
                         Description = tree.Value.Description |> Option.toObj
                     |}
@@ -271,9 +275,9 @@ module Migrations =
                         schedule_name TEXT REFERENCES schedules(name),
 
                         enabled BOOLEAN NOT NULL,
-                        recursively TEXT,
+                        recursively INTERVAL,
                         parallel BOOLEAN NOT NULL,
-                        duration TEXT,
+                        duration INTERVAL NOT NULL,
                         wait_result BOOLEAN NOT NULL,
                         description TEXT
                     );

@@ -12,6 +12,8 @@ open Worker.Domain
 open Worker.DataAccess
 open Worker.Dependencies
 
+let private resultAsync = ResultAsyncBuilder()
+
 let rec private processTask taskId attempt =
     fun (deps: WorkerTask.Dependencies<_>, schedule) ->
         async {
@@ -188,14 +190,23 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
         | Storage.FileSystem _
         | Storage.InMemory _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
 
-let private initializeData storage =
+let private initialize tasks storage =
     match storage with
     | Storage.Database database ->
         match database with
         | Database.Client.Postgre client ->
-            Postgre.Schedule.Migrations.apply client.Connection.ConnectionString
-            |> ResultAsync.bindAsync (fun _ -> Postgre.TasksTree.Migrations.apply client.Connection.ConnectionString)
-    | Storage.Configuration _ -> Ok() |> async.Return
+            resultAsync {
+                let cs = client.Connection.ConnectionString
+
+                do! Postgre.Schedule.Migrations.apply cs
+                do! Postgre.TasksTree.Migrations.apply cs
+
+                return
+                    match tasks with
+                    | None -> Ok() |> async.Return
+                    | Some tasks -> client |> Postgre.TasksTree.Command.insert tasks
+            }
+    | Storage.Configuration client -> client |> Configuration.TasksTree.Query.get |> ResultAsync.map ignore //TODO: Should compare with existing tasks one by one
     | Storage.FileSystem _
     | Storage.InMemory _ ->
         $"'{storage}' storage is not supported."
@@ -214,7 +225,7 @@ let start (deps: Worker.Dependencies<'a>) =
             | Error error -> failwith $"%s{workerName} Storage initialization failed. Error: %s{error.Message}"
             | Ok storage ->
 
-                match! storage |> initializeData with
+                match! storage |> initialize deps.Tasks with
                 | Error error -> failwith $"%s{workerName} Storage initialization failed. Error: %s{error.Message}"
                 | Ok() -> Log.inf $"%s{workerName} Storage initialized."
 

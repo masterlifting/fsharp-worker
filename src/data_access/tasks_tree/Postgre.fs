@@ -191,13 +191,7 @@ module Command =
 
     let rec insert (tree: Tree.Node<TaskNode>) (client: Client) =
         async {
-            let formatTimeSpan (ts: TimeSpan) =
-                if ts.Days > 0 then
-                    $"%d{ts.Days}.%02d{ts.Hours}:%02d{ts.Minutes}:%02d{ts.Seconds}"
-                else
-                    $"%02d{ts.Hours}:%02d{ts.Minutes}:%02d{ts.Seconds}"
-
-            let insertNodeRequest = {
+            let request = {
                 Sql =
                     """
                     INSERT INTO task_nodes (
@@ -221,6 +215,15 @@ module Command =
                         @WaitResult,
                         @Description
                     )
+                    ON CONFLICT (id) DO UPDATE SET
+                        parent_id = EXCLUDED.parent_id,
+                        schedule_name = EXCLUDED.schedule_name,
+                        enabled = EXCLUDED.enabled,
+                        recursively = EXCLUDED.recursively,
+                        parallel = EXCLUDED.parallel,
+                        duration = EXCLUDED.duration,
+                        wait_result = EXCLUDED.wait_result,
+                        description = EXCLUDED.description;
                     """
                 Params =
                     Some {|
@@ -228,24 +231,21 @@ module Command =
                         ParentId = tree.Parent |> Option.map (fun p -> p.Id.Value) |> Option.toObj
                         ScheduleName = tree.Value.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
                         Enabled = tree.Value.Enabled
-                        Recursively = tree.Value.Recursively |> Option.map formatTimeSpan |> Option.toObj
+                        Recursively = tree.Value.Recursively |> Option.map String.fromTimeSpan |> Option.toObj
                         Parallel = tree.Value.Parallel
-                        Duration = tree.Value.Duration |> formatTimeSpan
+                        Duration = tree.Value.Duration |> String.fromTimeSpan
                         WaitResult = tree.Value.WaitResult
                         Description = tree.Value.Description |> Option.toObj
                     |}
             }
 
-            let! insertResult = client |> Command.execute insertNodeRequest
-
-            match insertResult with
+            match! client |> Command.execute request with
             | Error err -> return Error err
             | Ok _ ->
-                // Insert all children recursively
-                let children = tree.Children |> Seq.toList
 
-                let rec insertChildren (nodes: Tree.Node<TaskNode> list) =
+                let rec insertChildren (nodes: Tree.Node<TaskNode> seq) =
                     async {
+                        let nodes = nodes |> Seq.toList
                         match nodes with
                         | [] -> return Ok()
                         | head :: tail ->
@@ -255,7 +255,7 @@ module Command =
                             | Ok _ -> return! insertChildren tail
                     }
 
-                return! insertChildren children
+                return! insertChildren tree.Children
         }
 
 module Migrations =
@@ -287,15 +287,12 @@ module Migrations =
             return! client |> Command.execute migration |> ResultAsync.map ignore
         }
 
-    let private clean (client: Client) =
-        async {
-            client |> Provider.dispose
-            return Ok()
-        }
-
     let apply (connectionString: string) =
         Provider.init {
             String = connectionString
             Lifetime = Persistence.Domain.Transient
         }
-        |> ResultAsync.wrap (fun client -> client |> initial |> ResultAsync.apply (client |> clean))
+        |> ResultAsync.wrap (fun client ->
+            client
+            |> initial
+            |> ResultAsync.apply (client |> Provider.dispose |> Ok |> async.Return))

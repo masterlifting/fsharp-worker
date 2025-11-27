@@ -11,6 +11,7 @@ module Worker =
         Name: string
         RootTaskId: string
         Storage: Persistence.Storage.Connection
+        Tasks: Tree.Node<TaskNode> option
         Handlers: Tree.Node<WorkerTaskHandler<'a>>
         TaskDeps: 'a
     }

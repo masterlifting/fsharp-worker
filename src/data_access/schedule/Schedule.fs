@@ -7,6 +7,13 @@ open Infrastructure.Prelude
 open Persistence
 open Worker.Domain
 
+let private result = ResultBuilder()
+
+[<Literal>]
+let private DATE_FORMAT = "yyyy-MM-dd"
+[<Literal>]
+let private TIME_FORMAT = "HH:mm:ss"
+
 let private parseWorkdays workdays =
     match workdays with
     | AP.IsString str ->
@@ -20,7 +27,7 @@ let private parseWorkdays workdays =
             | "sat" -> Ok DayOfWeek.Saturday
             | "sun" -> Ok DayOfWeek.Sunday
             | _ ->
-                "Worker. Workdays is not supported. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
+                "Workdays is not supported. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
                 |> NotSupported
                 |> Error)
         |> Result.choose
@@ -41,7 +48,7 @@ let private parseDateOnly day =
     match day with
     | AP.IsDateOnly value -> Ok value
     | _ ->
-        "Worker. DateOnly is not supported. Expected format: 'yyyy-MM-dd'."
+        $"DateOnly is not supported. Expected format: '{DATE_FORMAT}'."
         |> NotSupported
         |> Error
 
@@ -49,7 +56,7 @@ let private parseTimeOnly time =
     match time with
     | AP.IsTimeOnly value -> Ok value
     | _ ->
-        "Worker. TimeOnly is not supported. Expected format: 'hh:mm:ss'."
+        $"TimeOnly is not supported. Expected format: '{TIME_FORMAT}'."
         |> NotSupported
         |> Error
 
@@ -65,7 +72,6 @@ type Entity() =
     member val TimeZone: Nullable<uint8> = Nullable() with get, set
 
     member this.ToDomain() =
-        let result = ResultBuilder()
 
         result {
             let! workdays = this.Workdays |> parseWorkdays
@@ -90,10 +96,10 @@ type private Schedule with
     member private this.ToEntity() =
         Entity(
             Name = this.Name,
-            StartDate = (this.StartDate |> Option.map _.ToString("yyyy-MM-dd") |> Option.toObj),
-            StopDate = (this.StopDate |> Option.map _.ToString("yyyy-MM-dd") |> Option.toObj),
-            StartTime = (this.StartTime |> Option.map _.ToString("HH:mm:ss") |> Option.toObj),
-            StopTime = (this.StopTime |> Option.map _.ToString("HH:mm:ss") |> Option.toObj),
+            StartDate = (this.StartDate |> Option.map _.ToString(DATE_FORMAT) |> Option.toObj),
+            StopDate = (this.StopDate |> Option.map _.ToString(DATE_FORMAT) |> Option.toObj),
+            StartTime = (this.StartTime |> Option.map _.ToString(TIME_FORMAT) |> Option.toObj),
+            StopTime = (this.StopTime |> Option.map _.ToString(TIME_FORMAT) |> Option.toObj),
             Workdays =
                 (this.Workdays
                  |> Set.map (function

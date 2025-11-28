@@ -32,10 +32,15 @@ type NodeEntity() =
     member val Tasks: NodeEntity[] | null = null with get, set
 
     member this.ToDomain() =
+        let toOption =
+            function
+            | AP.IsString s -> Some s
+            | _ -> None
+
         let rec toNode (e: NodeEntity) =
             result {
-                let! recursively = e.Recursively |> Option.ofObj |> Option.toResult parseTimeSpan
-                let! duration = e.Duration |> Option.ofObj |> Option.toResult parseTimeSpan
+                let! recursively = e.Recursively |> toOption |> Option.toResult parseTimeSpan
+                let! duration = e.Duration |> toOption |> Option.toResult parseTimeSpan
                 let! schedule = e.Schedule |> Option.ofObj |> Option.toResult _.ToDomain()
 
                 let node =

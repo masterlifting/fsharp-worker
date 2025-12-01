@@ -4,6 +4,8 @@ open Infrastructure.Prelude
 open Persistence.Storages.Postgre
 open Persistence.Storages.Domain.Postgre
 
+let private resultAsync = ResultAsyncBuilder()
+
 module Migrations =
 
     let private initial (client: Client) =
@@ -27,12 +29,8 @@ module Migrations =
             return! client |> Command.execute migration |> ResultAsync.map ignore
         }
 
-    let apply (connectionString: string) =
-        Provider.init {
-            String = connectionString
-            Lifetime = Persistence.Domain.Transient
+    let internal apply client =
+        resultAsync {
+            do! client |> initial
+            return client |> Provider.dispose |> Ok |> async.Return
         }
-        |> ResultAsync.wrap (fun client ->
-            client
-            |> initial
-            |> ResultAsync.apply (client |> Provider.dispose |> Ok |> async.Return))

@@ -196,10 +196,8 @@ let private initialize tasks storage =
         match database with
         | Database.Client.Postgre client ->
             resultAsync {
-                let cs = client.Connection.ConnectionString
-
-                do! Postgre.Schedule.Migrations.apply cs
-                do! Postgre.TasksTree.Migrations.apply cs
+                do! client |> Postgre.Schedule.Migrations.apply
+                do! client |> Postgre.TasksTree.Migrations.apply
 
                 return
                     match tasks with

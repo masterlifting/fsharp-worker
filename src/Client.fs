@@ -143,33 +143,30 @@ let private tryStartTask taskDeps =
 let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
-        let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler<_>>) =
-            match tasks |> Tree.findNode node.Id with
-            | None -> $"Task Id '{node.Id}' not found during merge." |> NotFound |> Error
-            | Some taskNode ->
+        let rec toWorkerTaskNode (node: Tree.Node<TaskNode>) =
+            
+            let workerTask = {
+                Id = WorkerTaskId.create node.Id.Value
+                Description = node.Value.Description
+                Parallel = node.Value.Parallel
+                Recursively = node.Value.Recursively
+                Duration = node.Value.Duration
+                WaitResult = node.Value.WaitResult
+                Schedule = node.Value.Schedule
+                Handler = handlers |> Tree.findNode node.Id |> Option.bind _.Value
+            }
 
-                let workerTask = {
-                    Id = WorkerTaskId.create taskNode.Id.Value
-                    Description = taskNode.Value.Description
-                    Parallel = taskNode.Value.Parallel
-                    Recursively = taskNode.Value.Recursively
-                    Duration = taskNode.Value.Duration
-                    WaitResult = taskNode.Value.WaitResult
-                    Schedule = taskNode.Value.Schedule
-                    Handler = node.Value
-                }
+            let workerTaskNode = Tree.Node.create (node.Id.CurrentValue, workerTask)
 
-                let workerTaskNode = Tree.Node.create (node.Id.CurrentValue, workerTask)
+            match node.Children |> Seq.isEmpty with
+            | true -> workerTaskNode |> Ok
+            | false ->
+                node.Children
+                |> Seq.map toWorkerTaskNode
+                |> Result.choose
+                |> Result.map (fun children -> workerTaskNode |> withChildren children)
 
-                match node.Children |> Seq.isEmpty with
-                | true -> workerTaskNode |> Ok
-                | false ->
-                    node.Children
-                    |> Seq.map toWorkerTaskNode
-                    |> Result.choose
-                    |> Result.map (fun children -> workerTaskNode |> withChildren children)
-
-        handlers |> toWorkerTaskNode
+        tasks |> toWorkerTaskNode
 
 let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun storage ->

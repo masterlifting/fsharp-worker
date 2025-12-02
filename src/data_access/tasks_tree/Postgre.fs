@@ -7,8 +7,6 @@ open Persistence.Storages.Postgre
 open Persistence.Storages.Domain.Postgre
 open Worker.DataAccess
 
-let private resultAsync = ResultAsyncBuilder()
-
 type private TaskNodeRow() =
     member val Id: string = String.Empty with get, set
     member val ParentId: string | null = null with get, set
@@ -197,6 +195,11 @@ module Command =
 
     let rec insert (tree: Tree.Node<TaskNode>) (client: Client) =
         async {
+            let! _ =
+                tree.Value.Schedule
+                |> Option.map (fun s -> client |> Schedule.Command.insert s)
+                |> Option.defaultValue (Ok() |> async.Return)
+
             let request = {
                 Sql =
                     """
@@ -230,7 +233,7 @@ module Command =
                         duration = EXCLUDED.duration,
                         wait_result = EXCLUDED.wait_result,
                         description = EXCLUDED.description;
-                    """
+                """
                 Params =
                     Some {|
                         Id = tree.Id.Value
@@ -265,6 +268,7 @@ module Command =
         }
 
 module Migrations =
+    let private resultAsync = ResultAsyncBuilder()
 
     let private initial (client: Client) =
         async {
@@ -294,7 +298,4 @@ module Migrations =
         }
 
     let internal apply client =
-        resultAsync {
-            do! client |> initial
-            return client |> Provider.dispose |> Ok |> async.Return
-        }
+        resultAsync { return client |> initial }

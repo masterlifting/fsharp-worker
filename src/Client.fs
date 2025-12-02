@@ -7,6 +7,7 @@ open Infrastructure.Prelude
 open Infrastructure.Prelude.Tree.Builder
 open Infrastructure.Logging
 open Persistence
+open Persistence.Storages
 open Persistence.Storages.Domain
 open Worker.Domain
 open Worker.DataAccess
@@ -144,7 +145,7 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
 
         let rec toWorkerTaskNode (node: Tree.Node<WorkerTaskHandler<_>>) =
             match tasks |> Tree.findNode node.Id with
-            | None -> $"Task Id '{node.Id}'" |> NotFound |> Error
+            | None -> $"Task Id '{node.Id}' not found during merge." |> NotFound |> Error
             | Some taskNode ->
 
                 let workerTask = {
@@ -177,11 +178,13 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
             match database with
             | Database.Client.Postgre client ->
                 client
+                |> Postgre.Provider.clone
                 |> Postgre.TasksTree.Query.findById taskId.Value
                 |> ResultAsync.bind (function
-                    | None -> $"Task Id '{taskId}'" |> NotFound |> Error
+                    | None -> $"Task Id '{taskId}' not found." |> NotFound |> Error
                     | Some tasks -> tasks |> merge handlers)
                 |> ResultAsync.map (Tree.findNode taskId.NodeId)
+                |> ResultAsync.apply (client |> Postgre.Provider.dispose |> Ok)
         | Storage.Configuration client ->
             client
             |> Configuration.TasksTree.Query.get

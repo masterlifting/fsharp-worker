@@ -3,10 +3,43 @@ module Worker.DataAccess.Postgre.Schedule
 open Infrastructure.Prelude
 open Persistence.Storages.Postgre
 open Persistence.Storages.Domain.Postgre
+open Worker.Domain
+open Worker.DataAccess
 
-let private resultAsync = ResultAsyncBuilder()
+module Command =
+    let insert (schedule: Schedule) (client: Client) =
+        match schedule |> Schedule.toEntity with
+        | Error e -> e |> async.Return
+        | Ok entity ->
+            let request = {
+                Sql =
+                    """
+                    INSERT INTO schedules (name, start_date, stop_date, start_time, stop_time, workdays, time_zone)
+                    VALUES (@Name, @StartDate, @StopDate, @StartTime, @StopTime, @Workdays, @TimeZone)
+                    ON CONFLICT (name) DO UPDATE SET
+                        start_date = EXCLUDED.start_date,
+                        stop_date = EXCLUDED.stop_date,
+                        start_time = EXCLUDED.start_time,
+                        stop_time = EXCLUDED.stop_time,
+                        workdays = EXCLUDED.workdays,
+                        time_zone = EXCLUDED.time_zone;
+                """
+                Params =
+                    Some {|
+                        Name = entity.Name
+                        StartDate = entity.StartDate
+                        StopDate = entity.StopDate
+                        StartTime = entity.StartTime
+                        StopTime = entity.StopTime
+                        Workdays = entity.Workdays
+                        TimeZone = entity.TimeZone
+                    |}
+            }
+
+            client |> Command.execute request |> ResultAsync.map ignore
 
 module Migrations =
+    let private resultAsync = ResultAsyncBuilder()
 
     let private initial (client: Client) =
         async {
@@ -30,7 +63,4 @@ module Migrations =
         }
 
     let internal apply client =
-        resultAsync {
-            do! client |> initial
-            return client |> Provider.dispose |> Ok |> async.Return
-        }
+        resultAsync { return client |> initial }

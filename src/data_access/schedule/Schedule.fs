@@ -92,7 +92,7 @@ type Entity() =
             }
         }
 
-type private Schedule with
+type internal Schedule with
     member private this.ToEntity() =
         Entity(
             Name = this.Name,

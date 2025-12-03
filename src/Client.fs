@@ -180,6 +180,7 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
                 |> Postgre.Provider.clone
                 |> Postgre.TasksTree.Query.findById taskId
                 |> ResultAsync.bind (Option.toResult (merge handlers))
+                |> ResultAsync.apply (client |> Postgre.Provider.dispose |> Ok)
         | Storage.Configuration client ->
             client
             |> Configuration.TasksTree.Query.get

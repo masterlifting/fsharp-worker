@@ -1,4 +1,4 @@
-module Worker.DataAccess.Postgre.TasksTree
+module internal Worker.DataAccess.Postgre.TasksTree
 
 open System
 open Infrastructure.Domain
@@ -7,7 +7,7 @@ open Persistence.Storages.Postgre
 open Persistence.Storages.Domain.Postgre
 open Worker.DataAccess
 
-type private TaskNodeRow() =
+type private TaskNode'() =
     member val Id: string = String.Empty with get, set
     member val ParentId: string | null = null with get, set
     member val Schedule_Name: string | null = null with get, set
@@ -26,7 +26,7 @@ type private TaskNodeRow() =
     member val Schedule_Workdays: string | null = null with get, set
     member val Schedule_TimeZone: Nullable<uint8> = Nullable() with get, set
 
-let private toScheduleEntity (row: TaskNodeRow) =
+let private toScheduleEntity (row: TaskNode') =
     row.Schedule_Name
     |> Option.ofObj
     |> Option.map (fun name ->
@@ -41,7 +41,7 @@ let private toScheduleEntity (row: TaskNodeRow) =
         ))
     |> Option.toObj
 
-let private toNodeEntity (row: TaskNodeRow) =
+let private toNodeEntity (row: TaskNode') =
     TasksTree.NodeEntity(
         Id = row.Id,
         Enabled = row.Enabled,
@@ -58,26 +58,25 @@ let private toNodeEntity (row: TaskNodeRow) =
     )
 
 module Query =
+    open Worker.Domain
+
     let private result = ResultBuilder()
 
-    let rec private buildTree (nodeId: string) (rows: TaskNodeRow seq) =
+    let rec private buildTree (nodeId: string) (nodes: TaskNode' seq) =
         result {
-            match rows |> Seq.tryFind (fun r -> r.Id = nodeId) with
-            | None -> return! $"Node '{nodeId}' not found." |> NotFound |> Error
-            | Some row ->
-                let entity = row |> toNodeEntity
-                let children = rows |> Seq.filter (fun r -> r.ParentId = nodeId)
+            match nodes |> Seq.tryFind (fun r -> r.Id = nodeId) with
+            | None -> return! $"Node '{nodeId}' not found in database." |> NotFound |> Error
+            | Some node ->
+                let entity = node |> toNodeEntity
 
-                let! childEntities =
-                    if children |> Seq.isEmpty then
-                        Ok [||]
-                    else
-                        children
-                        |> Seq.map (fun child -> rows |> buildTree child.Id)
-                        |> Result.choose
-                        |> Result.map List.toArray
+                let! entityTasks =
+                    nodes
+                    |> Seq.filter (fun n -> n.ParentId = nodeId)
+                    |> Seq.map (fun c -> nodes |> buildTree c.Id)
+                    |> Result.choose
+                    |> Result.map List.toArray
 
-                entity.Tasks <- childEntities
+                entity.Tasks <- entityTasks
 
                 return entity
         }
@@ -115,58 +114,29 @@ module Query =
 
             return!
                 client
-                |> Query.get<TaskNodeRow> request
+                |> Query.get<TaskNode'> request
                 |> ResultAsync.bind (fun rows ->
                     match rows |> Seq.tryFind (fun r -> r.ParentId |> Option.ofObj |> Option.isNone) with
                     | None -> "Root task node not found in database." |> NotFound |> Error
                     | Some root -> rows |> buildTree root.Id |> Result.bind _.ToDomain())
         }
 
-    let findById (id: string) (client: Client) =
+    let findById (id: WorkerTaskId) (client: Client) =
         async {
             let request = {
                 Sql =
                     """
-                    WITH RECURSIVE task_tree AS (
-                        SELECT 
-                            tn.id,
-                            tn.parent_id,
-                            tn.schedule_name,
-                            tn.enabled,
-                            tn.recursively,
-                            tn.parallel,
-                            tn.duration,
-                            tn.wait_result,
-                            tn.description
-                        FROM task_nodes as tn
-                        WHERE tn.id = @Id
-                        
-                        UNION ALL
-                        
-                        SELECT 
-                            tn.id,
-                            tn.parent_id,
-                            tn.schedule_name,
-                            tn.enabled,
-                            tn.recursively,
-                            tn.parallel,
-                            tn.duration,
-                            tn.wait_result,
-                            tn.description
-                        FROM task_nodes as tn
-                        INNER JOIN task_tree as tt ON tn.parent_id = tt.id
-                    )
                     SELECT 
-                        tt.id as "Id",
-                        tt.parent_id as "ParentId",
+                        tn.id as "Id",
+                        tn.parent_id as "ParentId",
                         s.name as "Schedule_Name",
                         
-                        tt.enabled as "Enabled",
-                        tt.recursively as "Recursively",
-                        tt.parallel as "Parallel",
-                        tt.duration as "Duration",
-                        tt.wait_result as "WaitResult",
-                        tt.description as "Description",
+                        tn.enabled as "Enabled",
+                        tn.recursively as "Recursively",
+                        tn.parallel as "Parallel",
+                        tn.duration as "Duration",
+                        tn.wait_result as "WaitResult",
+                        tn.description as "Description",
                         
                         s.start_date as "Schedule_StartDate",
                         s.stop_date as "Schedule_StopDate",
@@ -174,20 +144,21 @@ module Query =
                         s.stop_time as "Schedule_StopTime",
                         s.workdays as "Schedule_Workdays",
                         s.time_zone as "Schedule_TimeZone"
-                    FROM task_tree as tt
-                    LEFT JOIN schedules as s ON s.name = tt.schedule_name
-                    ORDER BY tt.parent_id
+                    FROM task_nodes as tn
+                    LEFT JOIN schedules as s ON s.name = tn.schedule_name
+                    WHERE tn.id = @Id OR tn.parent_id = @Id
+                    ORDER BY tn.parent_id NULLS FIRST
                 """
-                Params = Some {| Id = id |}
+                Params = Some {| Id = id.Value |}
             }
 
             return!
                 client
-                |> Query.get<TaskNodeRow> request
-                |> ResultAsync.bind (fun rows ->
-                    match rows |> Seq.isEmpty with
-                    | true -> Ok None
-                    | false -> rows |> buildTree id |> Result.bind _.ToDomain() |> Result.map Some)
+                |> Query.get<TaskNode'> request
+                |> ResultAsync.bind (fun response ->
+                    match response with
+                    | [||] -> Ok None
+                    | nodes -> nodes |> buildTree id.Value |> Result.bind _.ToDomain() |> Result.map Some)
         }
 
 module Command =
@@ -297,5 +268,5 @@ module Migrations =
             return! client |> Command.execute migration |> ResultAsync.map ignore
         }
 
-    let internal apply client =
+    let apply client =
         resultAsync { return client |> initial }

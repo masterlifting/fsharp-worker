@@ -144,27 +144,29 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
         let rec toWorkerTaskNode (node: Tree.Node<TaskNode>) =
-            
-            let workerTask = {
-                Id = WorkerTaskId.create node.Id.Value
-                Description = node.Value.Description
-                Parallel = node.Value.Parallel
-                Recursively = node.Value.Recursively
-                Duration = node.Value.Duration
-                WaitResult = node.Value.WaitResult
-                Schedule = node.Value.Schedule
-                Handler = handlers |> Tree.findNode node.Id |> Option.bind _.Value
-            }
 
-            let workerTaskNode = Tree.Node.create (node.Id.CurrentValue, workerTask)
+            let workerTask =
+                Tree.Node.create (
+                    node.Id.CurrentValue,
+                    {
+                        Id = WorkerTaskId.create node.Id.Value
+                        Description = node.Value.Description
+                        Parallel = node.Value.Parallel
+                        Recursively = node.Value.Recursively
+                        Duration = node.Value.Duration
+                        WaitResult = node.Value.WaitResult
+                        Schedule = node.Value.Schedule
+                        Handler = handlers |> Tree.findNode node.Id |> Option.bind _.Value
+                    }
+                )
 
             match node.Children |> Seq.isEmpty with
-            | true -> workerTaskNode |> Ok
+            | true -> workerTask |> Ok
             | false ->
                 node.Children
                 |> Seq.map toWorkerTaskNode
                 |> Result.choose
-                |> Result.map (fun children -> workerTaskNode |> withChildren children)
+                |> Result.map (fun children -> workerTask |> withChildren children)
 
         tasks |> toWorkerTaskNode
 
@@ -176,17 +178,13 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
             | Database.Client.Postgre client ->
                 client
                 |> Postgre.Provider.clone
-                |> Postgre.TasksTree.Query.findById taskId.Value
-                |> ResultAsync.bind (function
-                    | None -> $"Task Id '{taskId}' not found." |> NotFound |> Error
-                    | Some tasks -> tasks |> merge handlers)
-                |> ResultAsync.map (Tree.findNode taskId.NodeId)
-                |> ResultAsync.apply (client |> Postgre.Provider.dispose |> Ok)
+                |> Postgre.TasksTree.Query.findById taskId
+                |> ResultAsync.bind (Option.toResult (merge handlers))
         | Storage.Configuration client ->
             client
             |> Configuration.TasksTree.Query.get
-            |> ResultAsync.bind (merge handlers)
             |> ResultAsync.map (Tree.findNode taskId.NodeId)
+            |> ResultAsync.bind (Option.toResult (merge handlers))
         | Storage.FileSystem _
         | Storage.InMemory _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
 

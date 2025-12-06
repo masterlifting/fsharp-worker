@@ -96,7 +96,6 @@ module Query =
                         tn.parallel as "Parallel",
                         tn.duration as "Duration",
                         tn.wait_result as "WaitResult",
-                        tn.schedule_id as "ScheduleId",
                         tn.description as "Description",
                         
                         s.start_date as "Schedule_StartDate",

@@ -1,75 +1,58 @@
 # F# Worker
 
-## Overview
-The Worker manages a directed graph of tasks for either parallel or sequential execution with a scheduling system and nested rules. 
-It is designed to be used in a distributed environment, such as a microservices architecture.
-The Worker just runs the configured task handler that is provided by the user and does not manage the state of the tasks.
+Task runner for hierarchical workflows with per-node scheduling, recursion, and optional parallel execution. It wires task handlers to a stored task tree (PostgreSQL or configuration) and executes them according to schedule rules.
 
-### Worker.DataAccess.TaskGraph.TaskGraphEntity
-Describes a task node in the task graph, currently supported only through configuration files.
-
-Properties:
-- **Id**: Unique identifier of the task.
-- **Name**: Descriptive name of the task.
-- **Enabled**: Indicates if the task is active.
-- **Recursively** (optional): Triggers recursive execution based on a timespan in "dd.hh:mm:ss" format.
-- **Parallel**: If true, runs the task in parallel with others; if false, runs in sequence.
-- **Duration** (optional): Maximum running time for the task; it is canceled if it exceeds this duration.
-- **Wait**: If true, waits for the dependent handler to complete.
-- **Schedule** (optional): Scheduling instructions for the task.
-- **Tasks**: An array of child tasks (nested TaskGraphEntity items).
-
-### Worker.DataAccess.Schedule.ScheduleEntity
-Defines schedule settings for a task. If unspecified, default properties apply.
-
-Properties:
-- **StartDate** (optional): Date when the task begins. By default, it starts immediately.
-- **StopDate** (optional): Date when the task should stop.
-- **StartTime** (optional): Time when the task begins. By default, it starts immediately.
-- **StopTime** (optional): Time when the task should stop.
-- **Workdays**: Days of the week to run the task (e.g., "mon,tue,wed,thu,fri").
-- **TimeZone**: Hours offset from UTC (defaults to 0).
-
-### Worker.Domain.WorkerTaskNodeHandler
-Represents a particular task handler.
-
-Properties:
-- **Id**: Unique identifier tied to the TaskGraphEntity.
-- **Name**: Handler name for the task.
-- **Handler**: Function that is executed by the task. Receives the Worker.Domain.WorkerTask, the app configuration, and a cancellation token. Returns a Worker.Domain.WorkerTaskResult.
+## Concepts
+- **Task tree** (`TaskNode`): Each node can run in parallel with its siblings or sequentially, can repeat (`Recursively` as `TimeSpan`), and can enforce `Duration` and `WaitResult` (wait or fire-and-forget).
+- **Handlers** (`WorkerTaskHandler<'a>`): `ActiveTask * 'a * CancellationToken -> Async<Result<unit, Error'>>`. The worker passes your dependency bag `'a` and a cancellation token bounded by `Duration`.
+- **Schedule** (`Schedule`): Start/stop date+time, workdays, timezone offset, optional recursive window. See `Worker.Scheduler` for how start/stop/recurrence is computed.
+- **Storage**: Task tree can be read from PostgreSQL (with migrations applied automatically) or from configuration. File system and in-memory storages are currently not supported.
 
 ## Dependencies
-This worker depends on my libs:
-- **fsharp-infrastructure**
-- **fsharp-persistence**
+Relies on the shared libs:
+- `fsharp-infrastructure`
+- `fsharp-persistence`
 
-## Worker Execution
-To set up the Worker, provide a configuration object such as:
-
-```fsharp
-type WorkerConfiguration =
-    { RootNodeId: Graph.NodeId
-      RootNodeName: string
-      Configuration: IConfigurationRoot
-      getTaskNode: Graph.NodeId -> Async<Result<Graph.Node<WorkerTaskNode>, Error'>> }
-```
-
-You can run the Worker with code like:
+## Wiring a worker
+Create handler tree, optional task tree seed, and start the worker:
 
 ```fsharp
-let workerConfig =
-    { RootNodeId = rootTask.Id
-      RootNodeName = rootTask.Name
-      Configuration = configuration
-      getTaskNode = getTaskNode workerHandlers }
+open Worker.Client
+open Worker.Dependencies
+open Worker.Domain
+open Infrastructure.Prelude.Tree.Builder
 
-workerConfig |> Worker.start |> Async.RunSynchronously
+let handlers : Tree.Node<WorkerTaskHandler<_>> =
+  Tree.Node.create ("ROOT", Some myHandler)
+  |> withChildren [ Tree.Node.create ("CHILD", Some childHandler) ]
+
+let seedTasks : Tree.Node<TaskNode> option = None // or Some tree to insert into DB on startup
+
+let workerDeps : Worker.Dependencies<_> = {
+  Name = "MyWorker"
+  RootTaskId = "ROOT"
+  Storage =
+    Persistence.Storage.Connection.Database {
+      Database = Persistence.Database.Postgre "Host=..." // connection string
+      Lifetime = Persistence.Storage.Lifetime.Scoped
+    }
+  Tasks = seedTasks
+  Handlers = handlers
+  TaskDeps = myDependencyBag
+}
+
+workerDeps |> Worker.Client.start |> Async.RunSynchronously
 ```
 
-Where:
-- **RootNodeId** is the root task node's identifier.
-- **RootNodeName** is the root task node's name.
-- **Configuration** is the main configuration object.
-- **getTaskNode** merged task configuration-based on task definition and task handler to produce a `WorkerTaskNode`.
+Notes:
+- `Tasks = Some tree` seeds the database (runs migrations, then inserts the tree). Use `None` to rely on already-present tasks.
+- `Handlers` must mirror task IDs; missing handlers are skipped, and `WaitResult` controls whether the worker awaits or fire-and-forgets each handler.
+- `Recursively` on a task schedules the next run after the given delay once a run completes.
 
-### [Click here for an example](https://github.com/masterlifting/embassy-access/blob/main/src/embassy-access-worker/Program.fs)
+## Scheduling semantics (summary)
+- Combines parent and child schedules (intersection of workdays, max of start date/time, min of stop date/time, timezone from child).
+- `StartIn/StopIn` responses drive delayed starts/stops; `NotScheduled` skips execution when no schedule exists after merging.
+- When `Recursively = true` on the schedule, the worker rolls forward to the next valid window when the current one ends.
+
+## Example
+See a concrete usage in `src/embassy-access-worker/Program.fs` of the main repo for how the worker is hosted inside the larger application.

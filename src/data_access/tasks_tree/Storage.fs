@@ -26,6 +26,9 @@ let init storageType =
         |> Storage.init
     |> Result.map TasksTree.Storage.Provider
 
+let dispose storage =
+    storage |> toProvider |> Storage.dispose
+
 module Query =
 
     let get storage =

@@ -203,7 +203,7 @@ let private initialize tasks storage =
                     | None -> Ok() |> async.Return
                     | Some tasks -> client |> Postgre.TasksTree.Command.insert tasks
             }
-    | Storage.Configuration client -> client |> Configuration.TasksTree.Query.get |> ResultAsync.map ignore //TODO: Should compare with existing tasks one by one
+    | Storage.Configuration client -> client |> Configuration.TasksTree.Query.get |> ResultAsync.map ignore
     | Storage.FileSystem _
     | Storage.InMemory _ ->
         $"'{storage}' storage is not supported."

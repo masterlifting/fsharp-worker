@@ -156,7 +156,10 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
                         Duration = node.Value.Duration
                         WaitResult = node.Value.WaitResult
                         Schedule = node.Value.Schedule
-                        Handler = handlers |> Tree.findNode node.Id |> Option.bind _.Value
+                        Handler =
+                            match node.Value.Enabled with
+                            | true -> handlers |> Tree.findNode node.Id |> Option.bind _.Value
+                            | false -> None
                     }
                 )
 

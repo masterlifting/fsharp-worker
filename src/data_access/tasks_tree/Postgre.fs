@@ -194,15 +194,7 @@ module Command =
                         @WaitResult,
                         @Description
                     )
-                    ON CONFLICT (id) DO UPDATE SET
-                        parent_id = EXCLUDED.parent_id,
-                        schedule_name = EXCLUDED.schedule_name,
-                        enabled = EXCLUDED.enabled,
-                        recursively = EXCLUDED.recursively,
-                        parallel = EXCLUDED.parallel,
-                        duration = EXCLUDED.duration,
-                        wait_result = EXCLUDED.wait_result,
-                        description = EXCLUDED.description;
+                    ON CONFLICT (id) DO NOTHING;
                 """
                 Params =
                     Some {|

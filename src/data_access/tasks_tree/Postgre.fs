@@ -199,8 +199,8 @@ module Command =
                 Params =
                     Some {|
                         Id = tree.Id.Value
-                        ParentId = tree.Parent |> Option.map (fun p -> p.Id.Value) |> Option.toObj
-                        ScheduleName = tree.Value.Schedule |> Option.map (fun s -> s.Name) |> Option.toObj
+                        ParentId = tree.Parent |> Option.map _.Id.Value |> Option.toObj
+                        ScheduleName = tree.Value.Schedule |> Option.map _.Name |> Option.toObj
                         Enabled = tree.Value.Enabled
                         Recursively = tree.Value.Recursively |> Option.toNullable
                         Parallel = tree.Value.Parallel

@@ -42,11 +42,11 @@ module Migrations =
                     """
                     CREATE TABLE IF NOT EXISTS schedules (
                         name TEXT PRIMARY KEY,
-                        start_date VARCHAR(50),
-                        stop_date VARCHAR(50),
-                        start_time VARCHAR(50),
-                        stop_time VARCHAR(50),
-                        workdays VARCHAR(255),
+                        start_date DATE,
+                        stop_date DATE,
+                        start_time TIME,
+                        stop_time TIME,
+                        workdays TEXT,
                         time_zone SMALLINT NOT NULL
                     );
                 """

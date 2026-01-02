@@ -16,13 +16,7 @@ module Command =
                     """
                     INSERT INTO schedules (name, start_date, stop_date, start_time, stop_time, workdays, time_zone)
                     VALUES (@Name, @StartDate, @StopDate, @StartTime, @StopTime, @Workdays, @TimeZone)
-                    ON CONFLICT (name) DO UPDATE SET
-                        start_date = EXCLUDED.start_date,
-                        stop_date = EXCLUDED.stop_date,
-                        start_time = EXCLUDED.start_time,
-                        stop_time = EXCLUDED.stop_time,
-                        workdays = EXCLUDED.workdays,
-                        time_zone = EXCLUDED.time_zone;
+                    ON CONFLICT (name) DO NOTHING;
                 """
                 Params =
                     Some {|

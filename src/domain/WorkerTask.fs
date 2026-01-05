@@ -25,7 +25,6 @@ type internal WorkerTaskHandler<'a> = (ActiveTask * 'a * CancellationToken -> As
 
 type internal WorkerTask<'a> = {
     Id: WorkerTaskId
-    Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     WaitResult: bool
@@ -37,7 +36,6 @@ type internal WorkerTask<'a> = {
     member this.ToActiveTask schedule attempt = {
         Id = this.Id.Value |> ActiveTaskId
         Attempt = attempt
-        Recursively = this.Recursively
         Parallel = this.Parallel
         Duration = this.Duration
         Schedule = schedule

@@ -9,11 +9,6 @@ open Worker.Domain
 
 let private result = ResultBuilder()
 
-[<Literal>]
-let private DATE_FORMAT = "yyyy-MM-dd"
-[<Literal>]
-let private TIME_FORMAT = "HH:mm:ss"
-
 let private parseWorkdays workdays =
     match workdays with
     | AP.IsString str ->
@@ -27,7 +22,7 @@ let private parseWorkdays workdays =
             | "sat" -> Ok DayOfWeek.Saturday
             | "sun" -> Ok DayOfWeek.Sunday
             | _ ->
-                "Workdays is not supported. Expected values: 'mon,tue,wed,thu,fri,sat,sun'."
+                "Workdays expected values: 'mon,tue,wed,thu,fri,sat,sun'."
                 |> NotSupported
                 |> Error)
         |> Result.choose
@@ -44,50 +39,36 @@ let private parseWorkdays workdays =
             DayOfWeek.Sunday
         ]
 
-let private parseDateOnly day =
-    match day with
-    | AP.IsDateOnly value -> Ok value
-    | _ ->
-        $"DateOnly is not supported. Expected format: '{DATE_FORMAT}'."
-        |> NotSupported
-        |> Error
-
-let private parseTimeOnly time =
-    match time with
-    | AP.IsTimeOnly value -> Ok value
-    | _ ->
-        $"TimeOnly is not supported. Expected format: '{TIME_FORMAT}'."
-        |> NotSupported
-        |> Error
-
 type Storage = Provider of Storage.Provider
 
 type Entity() =
-    member val Name: string = String.Empty with get, set
-    member val StartDate: string | null = null with get, set
-    member val StopDate: string | null = null with get, set
-    member val StartTime: string | null = null with get, set
-    member val StopTime: string | null = null with get, set
+    member val Name: string | null = null with get, set
     member val Workdays: string | null = null with get, set
+    member val Recursively: Nullable<TimeSpan> = Nullable() with get, set
+    member val StartDate: Nullable<DateOnly> = Nullable() with get, set
+    member val StopDate: Nullable<DateOnly> = Nullable() with get, set
+    member val StartTime: Nullable<TimeOnly> = Nullable() with get, set
+    member val StopTime: Nullable<TimeOnly> = Nullable() with get, set
     member val TimeZone: Nullable<uint8> = Nullable() with get, set
 
     member this.ToDomain() =
 
         result {
+            let! name =
+                match this.Name with
+                | AP.IsString v -> Ok v
+                | _ -> "Schedule name is required." |> NotSupported |> Error
+
             let! workdays = this.Workdays |> parseWorkdays
-            let! startDate = this.StartDate |> Option.ofObj |> Option.toResult parseDateOnly
-            let! stopDate = this.StopDate |> Option.ofObj |> Option.toResult parseDateOnly
-            let! startTime = this.StartTime |> Option.ofObj |> Option.toResult parseTimeOnly
-            let! stopTime = this.StopTime |> Option.ofObj |> Option.toResult parseTimeOnly
 
             return {
-                Name = this.Name
-                StartDate = startDate
-                StopDate = stopDate
-                StartTime = startTime
-                StopTime = stopTime
+                Name = name
                 Workdays = workdays
-                Recursively = false
+                Recursively = this.Recursively |> Option.ofNullable
+                StartDate = this.StartDate |> Option.ofNullable
+                StopDate = this.StopDate |> Option.ofNullable
+                StartTime = this.StartTime |> Option.ofNullable
+                StopTime = this.StopTime |> Option.ofNullable
                 TimeZone = this.TimeZone |> Option.ofNullable |> Option.defaultValue 1uy
             }
         }
@@ -96,10 +77,11 @@ type internal Schedule with
     member private this.ToEntity() =
         Entity(
             Name = this.Name,
-            StartDate = (this.StartDate |> Option.map _.ToString(DATE_FORMAT) |> Option.toObj),
-            StopDate = (this.StopDate |> Option.map _.ToString(DATE_FORMAT) |> Option.toObj),
-            StartTime = (this.StartTime |> Option.map _.ToString(TIME_FORMAT) |> Option.toObj),
-            StopTime = (this.StopTime |> Option.map _.ToString(TIME_FORMAT) |> Option.toObj),
+            Recursively = (this.Recursively |> Option.toNullable),
+            StartDate = (this.StartDate |> Option.toNullable),
+            StopDate = (this.StopDate |> Option.toNullable),
+            StartTime = (this.StartTime |> Option.toNullable),
+            StopTime = (this.StopTime |> Option.toNullable),
             Workdays =
                 (this.Workdays
                  |> Set.map (function

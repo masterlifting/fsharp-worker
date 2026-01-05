@@ -10,46 +10,43 @@ open Worker.DataAccess
 type private TaskNode'() =
     member val Id: string = String.Empty with get, set
     member val ParentId: string | null = null with get, set
-    member val Schedule_Name: string | null = null with get, set
 
     member val Enabled: bool = false with get, set
-    member val Recursively: Nullable<TimeSpan> = Nullable() with get, set
     member val Parallel: bool = true with get, set
     member val Duration: TimeSpan = TimeSpan.Zero with get, set
     member val WaitResult: bool = false with get, set
     member val Description: string | null = null with get, set
 
-    member val Schedule_StartDate: string | null = null with get, set
-    member val Schedule_StopDate: string | null = null with get, set
-    member val Schedule_StartTime: string | null = null with get, set
-    member val Schedule_StopTime: string | null = null with get, set
+    member val Schedule_Name: string | null = null with get, set
     member val Schedule_Workdays: string | null = null with get, set
+    member val Schedule_Recursively: Nullable<TimeSpan> = Nullable() with get, set
+    member val Schedule_StartDate: Nullable<DateOnly> = Nullable() with get, set
+    member val Schedule_StopDate: Nullable<DateOnly> = Nullable() with get, set
+    member val Schedule_StartTime: Nullable<TimeOnly> = Nullable() with get, set
+    member val Schedule_StopTime: Nullable<TimeOnly> = Nullable() with get, set
     member val Schedule_TimeZone: Nullable<uint8> = Nullable() with get, set
 
 let private toScheduleEntity (row: TaskNode') =
-    row.Schedule_Name
-    |> Option.ofObj
-    |> Option.map (fun name ->
+    match row.Schedule_Name with
+    | AP.IsString name ->
         Schedule.Entity(
             Name = name,
+            Workdays = row.Schedule_Workdays,
+            Recursively = row.Schedule_Recursively,
             StartDate = row.Schedule_StartDate,
             StopDate = row.Schedule_StopDate,
             StartTime = row.Schedule_StartTime,
             StopTime = row.Schedule_StopTime,
-            Workdays = row.Schedule_Workdays,
             TimeZone = row.Schedule_TimeZone
-        ))
+        )
+        |> Some
+    | _ -> None
     |> Option.toObj
 
 let private toNodeEntity (row: TaskNode') =
     TasksTree.NodeEntity(
         Id = row.Id,
         Enabled = row.Enabled,
-        Recursively =
-            (row.Recursively
-             |> Option.ofNullable
-             |> Option.map String.fromTimeSpan
-             |> Option.toObj),
         Parallel = row.Parallel,
         Duration = (row.Duration |> String.fromTimeSpan),
         WaitResult = row.WaitResult,
@@ -89,20 +86,20 @@ module Query =
                     SELECT 
                         tn.id as "Id",
                         tn.parent_id as "ParentId",
-                        s.name as "Schedule_Name",
                         
                         tn.enabled as "Enabled",
-                        tn.recursively as "Recursively",
                         tn.parallel as "Parallel",
                         tn.duration as "Duration",
                         tn.wait_result as "WaitResult",
                         tn.description as "Description",
                         
+                        s.name as "Schedule_Name",
+                        s.workdays as "Schedule_Workdays",
+                        s.recursively as "Schedule_Recursively",
                         s.start_date as "Schedule_StartDate",
                         s.stop_date as "Schedule_StopDate",
                         s.start_time as "Schedule_StartTime",
                         s.stop_time as "Schedule_StopTime",
-                        s.workdays as "Schedule_Workdays",
                         s.time_zone as "Schedule_TimeZone"
                     FROM task_nodes as tn
                     LEFT JOIN schedules as s ON s.name = tn.schedule_name
@@ -128,20 +125,20 @@ module Query =
                     SELECT 
                         tn.id as "Id",
                         tn.parent_id as "ParentId",
-                        s.name as "Schedule_Name",
                         
                         tn.enabled as "Enabled",
-                        tn.recursively as "Recursively",
                         tn.parallel as "Parallel",
                         tn.duration as "Duration",
                         tn.wait_result as "WaitResult",
                         tn.description as "Description",
                         
+                        s.name as "Schedule_Name",
+                        s.workdays as "Schedule_Workdays",
+                        s.recursively as "Schedule_Recursively",
                         s.start_date as "Schedule_StartDate",
                         s.stop_date as "Schedule_StopDate",
                         s.start_time as "Schedule_StartTime",
                         s.stop_time as "Schedule_StopTime",
-                        s.workdays as "Schedule_Workdays",
                         s.time_zone as "Schedule_TimeZone"
                     FROM task_nodes as tn
                     LEFT JOIN schedules as s ON s.name = tn.schedule_name
@@ -165,68 +162,70 @@ module Command =
 
     let rec insert (tree: Tree.Node<TaskNode>) (client: Client) =
         async {
-            let! _ =
-                tree.Value.Schedule
-                |> Option.map (fun s -> client |> Schedule.Command.insert s)
-                |> Option.defaultValue (Ok() |> async.Return)
+            let! scheduleResult =
+                match tree.Value.Schedule with
+                | Some s -> client |> Schedule.Command.insert s
+                | _ -> Ok() |> async.Return
 
-            let request = {
-                Sql =
-                    """
-                    INSERT INTO task_nodes (
-                        id,
-                        parent_id,
-                        schedule_name,
-                        enabled,
-                        recursively,
-                        parallel,
-                        duration,
-                        wait_result,
-                        description
-                    ) VALUES (
-                        @Id,
-                        @ParentId,
-                        @ScheduleName,
-                        @Enabled,
-                        @Recursively,
-                        @Parallel,
-                        @Duration,
-                        @WaitResult,
-                        @Description
-                    )
-                    ON CONFLICT (id) DO NOTHING;
-                """
-                Params =
-                    Some {|
-                        Id = tree.Id.Value
-                        ParentId = tree.Parent |> Option.map _.Id.Value |> Option.toObj
-                        ScheduleName = tree.Value.Schedule |> Option.map _.Name |> Option.toObj
-                        Enabled = tree.Value.Enabled
-                        Recursively = tree.Value.Recursively |> Option.toNullable
-                        Parallel = tree.Value.Parallel
-                        Duration = tree.Value.Duration
-                        WaitResult = tree.Value.WaitResult
-                        Description = tree.Value.Description |> Option.toObj
-                    |}
-            }
-
-            match! client |> Command.execute request with
+            match scheduleResult with
             | Error err -> return Error err
             | Ok _ ->
 
-                let rec insertChildren (nodes: Tree.Node<TaskNode> seq) =
-                    async {
-                        let nodes = nodes |> Seq.toList
-                        match nodes with
-                        | [] -> return Ok()
-                        | head :: tail ->
-                            let! result = insert head client
-                            match result with
-                            | Error err -> return Error err
-                            | Ok _ -> return! insertChildren tail
-                    }
+                let request = {
+                    Sql =
+                        """
+                        INSERT INTO task_nodes (
+                            id,
+                            parent_id,
+                            schedule_name,
+                            enabled,
+                            parallel,
+                            duration,
+                            wait_result,
+                            description
+                        ) VALUES (
+                            @Id,
+                            @ParentId,
+                            @ScheduleName,
+                            @Enabled,
+                            @Parallel,
+                            @Duration,
+                            @WaitResult,
+                            @Description
+                        )
+                        ON CONFLICT (id) DO NOTHING;
+                    """
+                    Params =
+                        Some {|
+                            Id = tree.Id.Value
+                            ParentId = tree.Parent |> Option.map _.Id.Value |> Option.toObj
+                            ScheduleName = tree.Value.Schedule |> Option.map _.Name |> Option.toObj
+                            Enabled = tree.Value.Enabled
+                            Parallel = tree.Value.Parallel
+                            Duration = tree.Value.Duration
+                            WaitResult = tree.Value.WaitResult
+                            Description = tree.Value.Description |> Option.toObj
+                        |}
+                }
 
-                return! insertChildren tree.Children
+                let! commandResult = client |> Command.execute request
+                match commandResult with
+                | Error err -> return Error err
+                | Ok _ ->
+
+                    let rec insertChildren (nodes: Tree.Node<TaskNode> seq) =
+                        async {
+                            let nodes = nodes |> Seq.toList
+                            match nodes with
+                            | [] -> return Ok()
+                            | head :: tail ->
+                                let! result = insert head client
+                                match result with
+                                | Error err -> return Error err
+                                | Ok _ -> return! insertChildren tail
+                        }
+
+                    return! insertChildren tree.Children
         }
 
 module Migrations =
@@ -240,10 +239,10 @@ module Migrations =
                     CREATE TABLE IF NOT EXISTS task_nodes (
                         id TEXT PRIMARY KEY,
                         parent_id TEXT REFERENCES task_nodes(id),
-                        schedule_name TEXT REFERENCES schedules(name),
+                        schedule_name TEXT NULL REFERENCES schedules(name),
 
                         enabled BOOLEAN NOT NULL,
-                        recursively INTERVAL,
+                        
                         parallel BOOLEAN NOT NULL,
                         duration INTERVAL NOT NULL,
                         wait_result BOOLEAN NOT NULL,

@@ -10,6 +10,6 @@ type Schedule = {
     StartTime: TimeOnly option
     StopTime: TimeOnly option
     Workdays: DayOfWeek Set
-    Recursively: bool
+    Recursively: TimeSpan option
     TimeZone: uint8
 }

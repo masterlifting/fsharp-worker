@@ -16,7 +16,6 @@ type ActiveTaskId =
 type ActiveTask = {
     Id: ActiveTaskId
     Attempt: uint<attempts>
-    Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     Schedule: Schedule

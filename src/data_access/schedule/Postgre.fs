@@ -14,18 +14,21 @@ module Command =
             let request = {
                 Sql =
                     """
-                    INSERT INTO schedules (name, start_date, stop_date, start_time, stop_time, workdays, time_zone)
-                    VALUES (@Name, @StartDate, @StopDate, @StartTime, @StopTime, @Workdays, @TimeZone)
+                    INSERT INTO schedules 
+                    (name, start_date, stop_date, start_time, stop_time, workdays, recursively, time_zone)
+                    VALUES 
+                    (@Name, @StartDate, @StopDate, @StartTime, @StopTime, @Workdays, @Recursively, @TimeZone)
                     ON CONFLICT (name) DO NOTHING;
                 """
                 Params =
                     Some {|
                         Name = entity.Name
+                        Workdays = entity.Workdays
+                        Recursively = entity.Recursively
                         StartDate = entity.StartDate
                         StopDate = entity.StopDate
                         StartTime = entity.StartTime
                         StopTime = entity.StopTime
-                        Workdays = entity.Workdays
                         TimeZone = entity.TimeZone
                     |}
             }
@@ -42,11 +45,12 @@ module Migrations =
                     """
                     CREATE TABLE IF NOT EXISTS schedules (
                         name TEXT PRIMARY KEY,
-                        start_date DATE,
-                        stop_date DATE,
-                        start_time TIME,
-                        stop_time TIME,
-                        workdays TEXT,
+                        workdays TEXT NULL,
+                        recursively INTERVAL NULL,
+                        start_date DATE NULL,
+                        stop_date DATE NULL,
+                        start_time TIME NULL,
+                        stop_time TIME NULL,
                         time_zone SMALLINT NOT NULL
                     );
                 """

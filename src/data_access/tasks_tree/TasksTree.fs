@@ -23,7 +23,6 @@ let private parseTimeSpan timeSpan =
 type NodeEntity() =
     member val Id: string = String.Empty with get, set
     member val Enabled: bool = false with get, set
-    member val Recursively: string | null = null with get, set
     member val Parallel: bool = true with get, set
     member val Duration: string | null = null with get, set
     member val WaitResult: bool = false with get, set
@@ -39,7 +38,6 @@ type NodeEntity() =
 
         let rec toNode (e: NodeEntity) =
             result {
-                let! recursively = e.Recursively |> toOption |> Option.toResult parseTimeSpan
                 let! duration = e.Duration |> toOption |> Option.toResult parseTimeSpan
                 let! schedule = e.Schedule |> Option.ofObj |> Option.toResult _.ToDomain()
 
@@ -48,7 +46,6 @@ type NodeEntity() =
                         e.Id,
                         {
                             Enabled = e.Enabled
-                            Recursively = recursively
                             Parallel = e.Parallel
                             Duration = duration |> Option.defaultValue (TimeSpan.FromMinutes 2.)
                             WaitResult = e.WaitResult

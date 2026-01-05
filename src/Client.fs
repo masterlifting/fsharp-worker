@@ -28,7 +28,7 @@ let rec private processTask taskId attempt =
                 if schedule.IsSome && not (task.Children |> Seq.isEmpty) then
                     do! (deps, schedule) |> processTasks (task.Children |> List.ofSeq) attempt
 
-                if task.Value.Recursively.IsSome then
+                if schedule |> Option.bind _.Recursively |> Option.isSome then
                     do! (deps, schedule) |> processTask task.Value.Id (attempt + 1u<attempts>)
         }
 
@@ -96,7 +96,7 @@ let private startTask attempt (task: WorkerTask<_>) =
                 | true -> do! handler
                 | false -> Async.Start handler
 
-            match task.Recursively with
+            match task.Schedule |> Option.bind _.Recursively with
             | Some delay ->
                 $"%s{taskName} Next iteration will be started in %s{delay |> TimeSpan.print}."
                 |> Log.trc
@@ -113,7 +113,7 @@ let private tryStartTask taskDeps =
             let inline tryStartTask schedule task =
                 (schedule, taskDeps) |> startTask attempt task
 
-            match Scheduler.set parentSchedule task.Schedule task.Recursively.IsSome with
+            match Scheduler.set parentSchedule task.Schedule with
             | Stopped reason ->
                 $"%s{taskName} Stopped. %s{reason.Message}" |> Log.crt
                 return None
@@ -152,7 +152,6 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
                         Id = WorkerTaskId.create node.Id.Value
                         Description = node.Value.Description
                         Parallel = node.Value.Parallel
-                        Recursively = node.Value.Recursively
                         Duration = node.Value.Duration
                         WaitResult = node.Value.WaitResult
                         Schedule = node.Value.Schedule

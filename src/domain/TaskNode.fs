@@ -5,7 +5,6 @@ open System
 
 type TaskNode = {
     Enabled: bool
-    Recursively: TimeSpan option
     Parallel: bool
     Duration: TimeSpan
     WaitResult: bool

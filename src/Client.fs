@@ -28,7 +28,7 @@ let rec private processTask taskId attempt =
                 if schedule.IsSome && not (task.Children |> Seq.isEmpty) then
                     do! (deps, schedule) |> processTasks (task.Children |> List.ofSeq) attempt
 
-                if schedule |> Option.bind _.Recursively |> Option.isSome then
+                if task.Value.Schedule |> Option.bind _.Recursively |> Option.isSome then
                     do! (deps, schedule) |> processTask task.Value.Id (attempt + 1u<attempts>)
         }
 

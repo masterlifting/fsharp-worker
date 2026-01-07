@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src\fsharp-worker.fsproj" />
+  <Project Path="tests\fsharp-worker.tests.fsproj" />
+</Solution>

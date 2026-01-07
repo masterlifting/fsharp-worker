@@ -3,8 +3,14 @@ module internal Worker.Scheduler
 open System
 open Infrastructure.Prelude
 open Worker.Domain
+open Infrastructure.Logging
+
+[<Literal>]
+let ModuleName = "[Worker.Scheduler]"
 
 let private compute (now: DateTime) (schedule: Schedule) =
+
+    Log.dbg $"{ModuleName} Computing schedule at {now} with schedule {schedule}"
 
     let today = DateOnly.FromDateTime now
 
@@ -76,7 +82,7 @@ let private compute (now: DateTime) (schedule: Schedule) =
             match schedule.StopDate.IsSome with
             | true -> stopDateTime |> handleStopDate
             | false ->
-                match schedule.Recursively |> Option.isSome with
+                match schedule.Recursively.IsSome with
                 | false -> stopDateTime |> handleStopDate
                 | true -> handleStopDateRecursively startDateTime stopDateTime
 
@@ -87,31 +93,24 @@ let private merge parent current =
     | None, Some current -> Some current
     | Some parent, Some current ->
         {
-            parent with
-                Workdays = parent.Workdays |> Set.intersect current.Workdays
-                StartDate = Option.max parent.StartDate current.StartDate
-                StopDate = Option.min parent.StopDate current.StopDate
-                StartTime = Option.max parent.StartTime current.StartTime
-                StopTime = Option.min parent.StopTime current.StopTime
-                Recursively =
-                    match parent.Recursively.IsSome with
-                    | true -> parent.Recursively
-                    | false -> current.Recursively
-                TimeZone = current.TimeZone
+            Name = current.Name
+            Workdays = parent.Workdays |> Set.intersect current.Workdays
+            StartDate = Option.max parent.StartDate current.StartDate
+            StopDate = Option.min parent.StopDate current.StopDate
+            StartTime = Option.max parent.StartTime current.StartTime
+            StopTime = Option.min parent.StopTime current.StopTime
+            TimeZone = current.TimeZone
+            Recursively =
+                match parent.Recursively.IsSome with
+                | true -> parent.Recursively
+                | false -> current.Recursively
         }
         |> Some
-    |> Option.map (fun schedule -> {
-        schedule with
-            Recursively =
-                match current |> Option.bind _.Recursively with
-                | Some cr -> cr |> Some
-                | None -> schedule.Recursively
-    })
 
-let set parentSchedule currentSchedule =
-
+let internal set' parentSchedule currentSchedule (now: DateTime) =
     match parentSchedule |> merge <| currentSchedule with
     | None -> NotScheduled
-    | Some schedule ->
-        let now = DateTime.UtcNow.AddHours(float schedule.TimeZone)
-        schedule |> compute now
+    | Some schedule -> schedule |> compute (now.AddHours(float schedule.TimeZone))
+
+let set parentSchedule currentSchedule =
+    set' parentSchedule currentSchedule DateTime.UtcNow

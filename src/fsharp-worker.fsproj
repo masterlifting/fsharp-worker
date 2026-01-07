@@ -24,4 +24,9 @@
     <ProjectReference Include="..\..\fsharp-infrastructure\src\fsharp-infrastructure.fsproj" />
     <ProjectReference Include="..\..\fsharp-persistence\src\fsharp-persistence.fsproj" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>fsharp-worker.tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

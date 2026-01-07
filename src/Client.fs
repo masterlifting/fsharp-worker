@@ -15,7 +15,7 @@ open Worker.Dependencies
 
 let private resultAsync = ResultAsyncBuilder()
 
-let rec private processTask taskId attempt =
+let rec internal processTask taskId attempt =
     fun (deps: WorkerTask.Dependencies<_>, schedule) ->
         async {
             match! deps.findTask taskId with
@@ -32,7 +32,7 @@ let rec private processTask taskId attempt =
                     do! (deps, schedule) |> processTask task.Value.Id (attempt + 1u<attempts>)
         }
 
-and private processTasks tasks attempt =
+and internal processTasks tasks attempt =
     fun (deps, schedule) ->
         async {
             if tasks.Length > 0 then
@@ -64,7 +64,7 @@ and private processTasks tasks attempt =
                 do! (deps, schedule) |> processTasks nextTasks attempt
         }
 
-let private startTask attempt (task: WorkerTask<_>) =
+let internal startTask attempt (task: WorkerTask<_>) =
     fun (schedule, taskDeps) ->
 
         let taskName = task.Print attempt
@@ -105,7 +105,7 @@ let private startTask attempt (task: WorkerTask<_>) =
             | None -> ()
         }
 
-let private tryStartTask taskDeps =
+let internal tryStartTask taskDeps =
     fun attempt parentSchedule (task: WorkerTask<_>) ->
         async {
             let taskName = task.Print attempt
@@ -140,7 +140,7 @@ let private tryStartTask taskDeps =
                 return None
         }
 
-let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
+let internal merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun (tasks: Tree.Node<TaskNode>) ->
 
         let rec toWorkerTaskNode (node: Tree.Node<TaskNode>) =
@@ -172,7 +172,7 @@ let private merge (handlers: Tree.Node<WorkerTaskHandler<_>>) =
 
         tasks |> toWorkerTaskNode
 
-let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler<_>>) =
+let internal findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandler<_>>) =
     fun storage ->
         match storage with
         | Storage.Database database ->
@@ -191,7 +191,7 @@ let private findTask (taskId: WorkerTaskId) (handlers: Tree.Node<WorkerTaskHandl
         | Storage.FileSystem _
         | Storage.InMemory _ -> $"The '{storage}' is not supported." |> NotSupported |> Error |> async.Return
 
-let private initialize tasks storage =
+let internal initialize tasks storage =
     match storage with
     | Storage.Database database ->
         match database with

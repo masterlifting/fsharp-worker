@@ -5,8 +5,7 @@ open Expecto
 open Worker.Domain
 open Worker.Scheduler
 
-// Helper functions
-let createSchedule workdays startDate stopDate startTime stopTime recursively timeZone = {
+let private createSchedule workdays startDate stopDate startTime stopTime recursively timeZone = {
     Name = "Test Schedule"
     StartDate = startDate
     StopDate = stopDate
@@ -41,7 +40,7 @@ let schedulerTests =
                     match result with
                     | Stopped EmptyWorkdays -> ()
                     | _ -> failtest $"Expected Stopped with EmptyWorkdays, got {result}"
-                with :? System.ArgumentOutOfRangeException ->
+                with :? ArgumentOutOfRangeException ->
                     // Currently throws when trying to find next workday with empty set
                     // This is acceptable behavior that prevents infinite loops
                     ()

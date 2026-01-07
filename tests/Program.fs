@@ -4,4 +4,6 @@ open Expecto
 
 [<EntryPoint>]
 let main args =
-    runTestsWithCLIArgs [] args SchedulerTests.schedulerTests
+    let allTests =
+        testList "All Tests" [ SchedulerTests.schedulerTests; ClientTests.clientTests ]
+    runTestsWithCLIArgs [] args allTests

@@ -77,7 +77,7 @@ let internal startTask attempt (task: WorkerTask<_>) =
 
                 match! deps.startActiveTask (deps.ActiveTask, deps.TaskDeps, cts.Token) with
                 | Error error -> $"%s{taskName} Failed. Error: %s{error.Message}" |> Log.crt
-                | Ok() -> $"%s{taskName} Completed." |> Log.inf
+                | Ok() -> $"%s{taskName} Completed." |> Log.dbg
             }
 
         async {

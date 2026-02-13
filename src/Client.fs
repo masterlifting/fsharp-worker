@@ -12,6 +12,7 @@ open Persistence.Storages.Domain
 open Worker.Domain
 open Worker.DataAccess
 open Worker.Dependencies
+open Infrastructure.Logging
 
 let private resultAsync = ResultAsyncBuilder()
 
@@ -218,7 +219,7 @@ let start (deps: Worker.Dependencies<'a>) =
         try
             let workerName = $"'%s{deps.Name}'."
 
-            Log.inf $"%s{workerName} Initializing storage..."
+            Log.dbg $"%s{workerName} Initializing storage..."
 
             match deps.Storage |> Storage.init with
             | Error error -> failwith $"%s{workerName} Storage initialization failed. Error: %s{error.Message}"
@@ -226,7 +227,7 @@ let start (deps: Worker.Dependencies<'a>) =
 
                 match! storage |> initialize deps.Tasks with
                 | Error error -> failwith $"%s{workerName} Storage initialization failed. Error: %s{error.Message}"
-                | Ok() -> Log.inf $"%s{workerName} Storage initialized."
+                | Ok() -> Log.dbg $"%s{workerName} Storage initialized."
 
                 let taskDeps: WorkerTask.Dependencies<'a> = {
                     findTask = fun taskId -> storage |> findTask taskId deps.Handlers
@@ -234,6 +235,8 @@ let start (deps: Worker.Dependencies<'a>) =
                 }
 
                 let rootTaskId = deps.RootTaskId |> WorkerTaskId.create
+
+                Log.scs $"%s{workerName} Ready. Starting root task with id '{rootTaskId}'..."
 
                 match! (taskDeps, None) |> processTask rootTaskId 1u<attempts> |> Async.Catch with
                 | Choice1Of2 _ -> $"%s{workerName} Stopped." |> Log.scs
